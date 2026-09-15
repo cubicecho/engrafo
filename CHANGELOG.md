@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/cubicecho/engrafo/compare/v1.0.0...v1.0.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* print APP_URL in the boot banner, not localhost ([8a62431](https://github.com/cubicecho/engrafo/commit/8a6243101102d11e4cbdf18adfd4c8542bc21147))
+
 # 1.0.0 (2026-09-15)
 
 
