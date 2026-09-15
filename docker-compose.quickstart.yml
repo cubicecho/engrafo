@@ -34,6 +34,9 @@
 #
 #   docker logs -f engrafo        (or the Logs tab in Portainer)
 #
+# On a home network that is tedious. SECURE_LOCAL_NET=true skips the link
+# entirely — an address alone signs you in. Read the warning beside it below.
+#
 # Registration is open to anyone who can reach the page, so keep this on a
 # network you trust, or put a reverse proxy with real auth in front of it.
 # Read the "Before you expose it" section of the README before giving it a
@@ -67,6 +70,11 @@ services:
       S3_TEXT_BUCKET: engrafo-text
       S3_ACCESS_KEY_ID: engrafo
       S3_SECRET_ACCESS_KEY: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      # On a LAN you control, set SECURE_LOCAL_NET=true and entering an address
+      # signs you in — no link to dig out of the log. It makes that address the
+      # entire credential, so it is wrong the moment this port is reachable from
+      # anywhere you do not control.
+      SECURE_LOCAL_NET: ${SECURE_LOCAL_NET:-false}
       # OCR is on. It is CPU-bound: raise OCR_CONCURRENCY only if this machine
       # has cores to spare. Extra languages need their Tesseract data in the
       # image, so `eng` is what this one can do.

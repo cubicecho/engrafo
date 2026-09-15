@@ -100,7 +100,8 @@ domain.
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR is CPU-bound. |
-| `AUTH_MAGIC_LINK` | `true` | Set to `false` to sign in with an address alone, no link. |
+| `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
+| `AUTH_MAGIC_LINK` | `true` | The narrower spelling of the same thing: `false` turns the link off and leaves everything else alone. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
 
 Accepted uploads are PDF, PNG, JPEG, TIFF and plain text — what the pipeline can
@@ -124,9 +125,10 @@ for an instance on the public internet. Before putting Engrafo on a domain:
   MinIO's port is published. Terminate TLS in front of it and set
   `S3_PUBLIC_ENDPOINT` to that address — objects are only ever reached through
   short-lived presigned URLs, but those URLs travel over whatever you give them.
-- **Never set `AUTH_MAGIC_LINK=false` on a reachable instance.** It makes an email
-  address the entire credential: anyone who can load the login page can sign in
-  as anyone.
+- **Never set `SECURE_LOCAL_NET=true` (or `AUTH_MAGIC_LINK=false`) on a reachable
+  instance.** Either one makes an email address the entire credential: anyone who
+  can load the login page can sign in as anyone. They are for a LAN you control,
+  which is the only place "secure local net" is a true statement.
 - **Never set `EXPOSE_MAGIC_LINK=true` on a reachable instance.** It hands the
   sign-in token to whoever asked for it, which is the same thing by another route.
 - **Set a real `JWT_SECRET`** and keep it. Changing it signs everyone out; leaking

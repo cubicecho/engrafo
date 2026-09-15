@@ -189,6 +189,14 @@ row exists, which is itself something the caller is not entitled to know.
 `loadOwned` in `resolvers/documents.ts` returns `NOT_FOUND` for an id that is not
 a UUID, too.
 
+**`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
+means sign-in needs no link: `requestMagicLink` returns a live session for
+whatever address it is handed, and the login page uses it (`if (result.token)`).
+`AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
+`magicLinkRequired()` in `config.ts` is where the two meet, and the boot warning
+names whichever one is responsible. Both make an email address the entire
+credential, so neither belongs on a reachable instance.
+
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
 sign anyone out.

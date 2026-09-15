@@ -17,14 +17,27 @@ function envNumber(value: string | undefined, fallback: number): number {
 }
 
 /**
+ * Whether this instance trusts the network it is on.
+ *
+ * `SECURE_LOCAL_NET` is the ecosystem-wide spelling of "there is nothing hostile
+ * between the browser and this port, so do not make people prove who they are".
+ * Here that means sign-in needs no link.
+ */
+export function secureLocalNet(): boolean {
+  return envFlag(process.env.SECURE_LOCAL_NET);
+}
+
+/**
  * Whether signing in requires following a magic link at all.
  *
- * With `AUTH_MAGIC_LINK=false`, `requestMagicLink` hands back a live session for
- * whatever address it is given. That is a deliberate convenience for a private
- * self-hosted instance, and must never be set on one exposed to the internet.
+ * Off — by `SECURE_LOCAL_NET=true` or the narrower `AUTH_MAGIC_LINK=false` —
+ * `requestMagicLink` hands back a live session for whatever address it is given.
+ * That is a deliberate convenience for a private self-hosted instance, and must
+ * never be set on one exposed to the internet: the email address becomes the
+ * entire credential.
  */
 export function magicLinkRequired(): boolean {
-  return !envDisabled(process.env.AUTH_MAGIC_LINK);
+  return !secureLocalNet() && !envDisabled(process.env.AUTH_MAGIC_LINK);
 }
 
 /** Whether the magic link is returned in the API response rather than only logged. */

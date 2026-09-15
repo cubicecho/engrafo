@@ -15,6 +15,7 @@ import {
   pipelineConcurrency,
   port,
   s3Config,
+  secureLocalNet,
 } from './config.ts';
 import { createGraphQLHandler } from './graphql.ts';
 import { createPipeline, createPipelineEvents, STEPS } from './pipeline/index.ts';
@@ -86,7 +87,10 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`   GraphQL at ${appUrl()}/graphql`);
   console.log(`   OCR ${ocrAvailable ? `on (${ocrLanguages()})` : 'off'}`);
   if (!magicLinkRequired()) {
-    console.warn('⚠️  AUTH_MAGIC_LINK is off: any email address signs in without a link. Private networks only.');
+    // Name the variable that did it: on an instance with both set, "turn it
+    // back on" is useless advice if it points at the wrong switch.
+    const why = secureLocalNet() ? 'SECURE_LOCAL_NET is on' : 'AUTH_MAGIC_LINK is off';
+    console.warn(`⚠️  ${why}: any email address signs in without a link. Private networks only.`);
   } else if (magicLinkExposed()) {
     console.warn('⚠️  EXPOSE_MAGIC_LINK is on: sign-in links are returned in API responses. Private networks only.');
   }
