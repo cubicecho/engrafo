@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/cubicecho/engrafo/compare/v1.0.1...v1.1.0) (2026-09-15)
+
+
+### Features
+
+* let the quickstart stack's published ports be overridden ([49ea9ac](https://github.com/cubicecho/engrafo/commit/49ea9ac19577ce42f49be610814bba2296591b92))
+
 ## [1.0.1](https://github.com/cubicecho/engrafo/compare/v1.0.0...v1.0.1) (2026-09-15)
 
 
