@@ -1,0 +1,64 @@
+# Postgres and MinIO, for running the app from source. `npm run db:up`.
+#
+# Its own project name, so it never collides with the containers
+# docker-compose.yml creates — both files define `postgres` and `minio`.
+name: engrafo-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: engrafo
+      POSTGRES_PASSWORD: engrafo
+      POSTGRES_DB: engrafo
+    ports:
+      # Loopback by default: an unencrypted Postgres with a throwaway password
+      # has no business on a network. Override DEV_BIND to 0.0.0.0 when the
+      # Docker daemon is not this machine (`docker context ls` shows a remote
+      # endpoint) — the loopback it binds is the daemon host's, not yours.
+      - "${DEV_BIND:-127.0.0.1}:${POSTGRES_PORT:-5436}:5432"
+    volumes:
+      - engrafo_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engrafo -d engrafo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: engrafo
+      MINIO_ROOT_PASSWORD: engrafo-dev-secret
+    ports:
+      # The browser PUTs uploads straight here, so unlike Postgres this port has
+      # to be reachable from wherever the app is opened. Same DEV_BIND rule.
+      - "${DEV_BIND:-127.0.0.1}:${MINIO_PORT:-9000}:9000"
+      - "${DEV_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - engrafo_dev_minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Creates both buckets, then exits — files in one, extracted text in the
+  # other. MinIO answers CORS for every origin by default, which is what a
+  # presigned browser PUT needs.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "mc alias set local http://minio:9000 engrafo engrafo-dev-secret &&
+             mc mb --ignore-existing local/engrafo local/engrafo-text"
+    restart: "no"
+
+volumes:
+  engrafo_dev_pgdata:
+  engrafo_dev_minio:

@@ -1,0 +1,63 @@
+{
+  "name": "engrafo",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Engrafo — a minimal self-hostable document archive. Upload, store in S3, OCR.",
+  "type": "module",
+  "workspaces": [
+    "app",
+    "server",
+    "db"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:app\"",
+    "dev:app": "npm run dev -w @cubicecho/engrafo-app",
+    "dev:server": "npm run dev -w @cubicecho/engrafo-server",
+    "build": "npm run codegen && npm run build -w @cubicecho/engrafo-app",
+    "build:app": "npm run build -w @cubicecho/engrafo-app",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "npm run codegen && npm run check:biome && npm run check:types",
+    "check:biome": "biome check .",
+    "check:fix": "biome check --write .",
+    "check:types": "tsc --noEmit -p db/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p app/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "codegen": "npm run codegen:server && npm run codegen:app",
+    "codegen:app": "npm run codegen -w @cubicecho/engrafo-app",
+    "codegen:server": "npm run codegen -w @cubicecho/engrafo-server",
+    "db:generate": "npm run generate -w @cubicecho/engrafo-db",
+    "db:migrate": "npm run migrate -w @cubicecho/engrafo-db",
+    "db:push": "npm run push -w @cubicecho/engrafo-db",
+    "db:studio": "npm run studio -w @cubicecho/engrafo-db",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down"
+  },
+  "overrides": {
+    "graphql": "16.13.2",
+    "drizzle-orm": "1.0.0-rc.4"
+  },
+  "devDependencies": {
+    "@0no-co/graphqlsp": "^1.15.2",
+    "@biomejs/biome": "2.4.6",
+    "@electric-sql/pglite": "^0.3.15",
+    "@graphql-codegen/cli": "^6.1.1",
+    "@graphql-codegen/client-preset": "^5.2.2",
+    "@graphql-codegen/typescript": "^5.0.7",
+    "@graphql-codegen/typescript-resolvers": "^5.1.5",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.13.0",
+    "concurrently": "^9.1.2",
+    "drizzle-kit": "1.0.0-rc.4",
+    "jsdom": "^30.0.1",
+    "typescript": "~6.0.3",
+    "vitest": "^3.0.5"
+  }
+}

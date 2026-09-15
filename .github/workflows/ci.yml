@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to a branch makes the first run's answer worthless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Codegen imports @cubicecho/engrafo-db, which refuses to load without one. Nothing
+      # here connects — postgres-js is lazy, and the tests build their own
+      # in-memory database.
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Dockerfile: the server runs its TypeScript sources
+          # directly under --experimental-strip-types, so the runtime major is
+          # part of the contract, not just a build detail.
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run codegen
+
+      # Formatting, lint and import order in one pass. `ci` differs from
+      # `npm run check:biome` only in never writing fixes.
+      - name: Lint
+        run: npx biome ci .
+
+      - name: Typecheck
+        run: npm run check:types
+
+      # Two projects: server and db tests run Postgres in-process (PGlite) and
+      # the component tests run in jsdom, so there is no service container here
+      # and there doesn't need to be one.
+      - name: Test
+        run: npm test
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Built but not pushed. The release workflow publishes this same
+      # Dockerfile on every version bump, and the README's Quickstart tells
+      # self-hosters to pull what it produces — so a Dockerfile that no longer
+      # builds should fail on the pull request that broke it, not on the push
+      # to main that was meant to ship it.
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The `test` stage adds ocrmypdf and ImageMagick to the build stage, so
+      # this is the one place the OCR integration test actually runs — on a
+      # runner without them it reports as skipped, and a broken ocrmypdf
+      # invocation or a missing Tesseract data package sails through.
+      - name: Run the suite with OCR installed
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          push: false
+          load: true
+          tags: engrafo-test:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - run: docker run --rm engrafo-test:ci

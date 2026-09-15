@@ -1,0 +1,137 @@
+# Engrafo, for self-hosting. Paste this whole file into Portainer (Stacks → Add
+# stack → Web editor), TrueNAS SCALE (Apps → Discover → Custom App → Install via
+# YAML), Dokge, or run it with `docker compose -f docker-compose.quickstart.yml up -d`.
+#
+# It pulls a published image — nothing to clone and nothing to build.
+#
+# ── Set these five variables ─────────────────────────────────────────────────
+# In Portainer they go in the stack's "Environment variables" box; with the
+# docker CLI, in a `.env` file beside this one. The stack refuses to start until
+# the three secrets are set, which is deliberate.
+#
+#   ENGRAFO_HOST      The address you will actually open Engrafo at — your NAS's
+#                     hostname or LAN IP, no scheme. e.g. truenas.local, 192.168.1.50
+#   JWT_SECRET        openssl rand -hex 32
+#   POSTGRES_PASSWORD openssl rand -hex 24
+#   MINIO_PASSWORD    openssl rand -hex 24  (at least 8 characters)
+#   TZ                optional, e.g. America/Chicago
+#
+# ENGRAFO_HOST is the one people get wrong. Your browser uploads files straight
+# to MinIO using a link Engrafo signs, and the signature covers the hostname —
+# so if this says "localhost" while you are browsing from another machine,
+# uploads fail with a signature error rather than a DNS one.
+#
+# ── After it starts ──────────────────────────────────────────────────────────
+# Open http://ENGRAFO_HOST:3004 and sign in with any email address. Engrafo
+# sends no mail: the sign-in link is written to the container log, and that is
+# how you get it.
+#
+#   docker logs -f engrafo        (or the Logs tab in Portainer)
+#
+# Registration is open to anyone who can reach the page, so keep this on a
+# network you trust, or put a reverse proxy with real auth in front of it.
+# Read the "Before you expose it" section of the README before giving it a
+# domain.
+
+name: engrafo
+
+services:
+  engrafo:
+    image: vantreeseba/engrafo:latest
+    container_name: engrafo
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET — openssl rand -hex 32}
+      DATABASE_URL: postgres://engrafo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/engrafo
+      # The address sign-in links are built from.
+      APP_URL: http://${ENGRAFO_HOST:?set ENGRAFO_HOST to this machine's hostname or LAN IP}:3004
+      # How the server reaches MinIO: over the stack's own network.
+      S3_ENDPOINT: http://minio:9000
+      # How your browser reaches MinIO. Signed into every upload and download
+      # link, so it must be an address your browser can actually resolve.
+      S3_PUBLIC_ENDPOINT: http://${ENGRAFO_HOST}:9000
+      S3_BUCKET: engrafo
+      S3_TEXT_BUCKET: engrafo-text
+      S3_ACCESS_KEY_ID: engrafo
+      S3_SECRET_ACCESS_KEY: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      # OCR is on. It is CPU-bound: raise OCR_CONCURRENCY only if this machine
+      # has cores to spare. Extra languages need their Tesseract data in the
+      # image, so `eng` is what this one can do.
+      OCR_ENABLED: "true"
+      OCR_LANGUAGES: eng
+      OCR_CONCURRENCY: "1"
+      TZ: ${TZ:-UTC}
+      NODE_ENV: production
+    ports:
+      - "3004:3004"
+    # No healthcheck block: the image ships its own, on /healthz.
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: engrafo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: engrafo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: engrafo
+      TZ: ${TZ:-UTC}
+    # No published port: only the container beside it needs the database.
+    volumes:
+      - engrafo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engrafo -d engrafo"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: engrafo-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: engrafo
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      TZ: ${TZ:-UTC}
+    ports:
+      # 9000 has to be reachable from your browser: uploads and downloads go
+      # straight here, not through Engrafo.
+      - "9000:9000"
+      # 9001 is MinIO's own admin console — handy for seeing your files, and
+      # it holds the root password, so drop this line if you do not want it.
+      - "9001:9001"
+    volumes:
+      - engrafo_minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Creates the two buckets and exits: one for the files you upload, one for the
+  # text Engrafo extracts from them. Runs again on every `up`, and does nothing
+  # when they already exist.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: engrafo-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+    entrypoint: >
+      sh -c "mc alias set local http://minio:9000 engrafo \"$$MINIO_PASSWORD\" &&
+             mc mb --ignore-existing local/engrafo local/engrafo-text"
+    restart: "no"
+
+# Your documents live in engrafo_minio and their metadata in engrafo_pgdata.
+# Both survive `docker compose down` and stack restarts — back up both together,
+# because one without the other is not a working archive.
+volumes:
+  engrafo_pgdata:
+  engrafo_minio:

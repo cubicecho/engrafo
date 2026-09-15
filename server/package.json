@@ -1,0 +1,31 @@
+{
+  "name": "@cubicecho/engrafo-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "node --experimental-strip-types --env-file-if-exists=../.env --watch src/index.ts",
+    "start": "node --experimental-strip-types src/index.ts",
+    "codegen": "node --experimental-strip-types --import=./src/preload-env.ts src/write_schema.ts && graphql-codegen-esm"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1133.0",
+    "@aws-sdk/s3-request-presigner": "^3.1133.0",
+    "@cubicecho/engrafo-db": "*",
+    "@vantreeseba/drizzle-graphql": "^13.0.0",
+    "cors": "^2.8.6",
+    "drizzle-orm": "1.0.0-rc.4",
+    "express": "^5.2.1",
+    "file-type": "^22.1.0",
+    "graphql": "^16.10.0",
+    "graphql-yoga": "^5.23.0",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10"
+  }
+}
