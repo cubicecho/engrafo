@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/cubicecho/engrafo/compare/v1.1.0...v1.2.0) (2026-09-15)
+
+
+### Features
+
+* add SECURE_LOCAL_NET, the ecosystem's name for a trusted network ([5996ad2](https://github.com/cubicecho/engrafo/commit/5996ad25000555bd824547d77ce97588fd6ebca4))
+
 # [1.1.0](https://github.com/cubicecho/engrafo/compare/v1.0.1...v1.1.0) (2026-09-15)
 
 
