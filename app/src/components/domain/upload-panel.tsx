@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { formatBytes } from '@/lib/format';
+import { clientId } from '@/lib/id';
 import { putFile } from '@/lib/upload';
 import { cn } from '@/lib/utils';
 
@@ -96,7 +97,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
     if (!files || files.length === 0) return;
     const added = Array.from(files).map((file) => ({
       file,
-      job: { key: crypto.randomUUID(), name: file.name, size: file.size, progress: 0, error: null, done: false },
+      job: { key: clientId(), name: file.name, size: file.size, progress: 0, error: null, done: false },
     }));
     setJobs((current) => [...added.map(({ job }) => job), ...current.filter((job) => !job.done)]);
     for (const { file, job } of added) void uploadOne(file, job);

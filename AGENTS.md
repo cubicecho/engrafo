@@ -211,6 +211,15 @@ when a document is `uploaded` or `processing` and stop otherwise. There is no
 subscription: the pipeline runs inside the server process and says nothing until
 it is asked.
 
+**The browser is not in a secure context.** A self-hosted instance is reached
+over plain HTTP at a LAN address, and `http://nas.local:3004` is not a secure
+context — only HTTPS and `localhost` are. So `crypto.randomUUID`,
+`crypto.subtle`, `navigator.clipboard` and the rest are simply *undefined*
+there, and calling one throws `… is not a function` in the handler that reached
+for it. `clientId()` in `app/src/lib/id.ts` is the replacement for
+`crypto.randomUUID()`; anything else in that family needs the same treatment or
+a feature check. Dev never catches this, because Vite serves on `localhost`.
+
 **`app/src/components/ui/` is vendored.** Those files come from the shadcn and
 cubeui registries and are kept as published, so `shadcn add` can update them.
 `biome.json` exempts them from two lint rules rather than letting anyone edit
