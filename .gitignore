@@ -7,3 +7,4 @@ coverage/
 __generated__
 **/tsconfig.tsbuildinfo
 .DS_Store
+.env.stack

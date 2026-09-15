@@ -16,6 +16,12 @@
 #   MINIO_PASSWORD    openssl rand -hex 24  (at least 8 characters)
 #   TZ                optional, e.g. America/Chicago
 #
+# Optional, if something on this machine already owns those ports — 9000 in
+# particular is popular. Change them here rather than editing the file, because
+# the addresses Engrafo signs its upload URLs with are built from them:
+#
+#   ENGRAFO_PORT=3004  MINIO_PORT=9000  MINIO_CONSOLE_PORT=9001
+#
 # ENGRAFO_HOST is the one people get wrong. Your browser uploads files straight
 # to MinIO using a link Engrafo signs, and the signature covers the hostname —
 # so if this says "localhost" while you are browsing from another machine,
@@ -49,12 +55,14 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET — openssl rand -hex 32}
       DATABASE_URL: postgres://engrafo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/engrafo
       # The address sign-in links are built from.
-      APP_URL: http://${ENGRAFO_HOST:?set ENGRAFO_HOST to this machine's hostname or LAN IP}:3004
-      # How the server reaches MinIO: over the stack's own network.
+      APP_URL: http://${ENGRAFO_HOST:?set ENGRAFO_HOST to this machine's hostname or LAN IP}:${ENGRAFO_PORT:-3004}
+      # How the server reaches MinIO: over the stack's own network, where the
+      # published port does not apply.
       S3_ENDPOINT: http://minio:9000
       # How your browser reaches MinIO. Signed into every upload and download
-      # link, so it must be an address your browser can actually resolve.
-      S3_PUBLIC_ENDPOINT: http://${ENGRAFO_HOST}:9000
+      # link, so it must be an address your browser can actually resolve —
+      # host and port both, because the signature covers them.
+      S3_PUBLIC_ENDPOINT: http://${ENGRAFO_HOST}:${MINIO_PORT:-9000}
       S3_BUCKET: engrafo
       S3_TEXT_BUCKET: engrafo-text
       S3_ACCESS_KEY_ID: engrafo
@@ -68,7 +76,7 @@ services:
       TZ: ${TZ:-UTC}
       NODE_ENV: production
     ports:
-      - "3004:3004"
+      - "${ENGRAFO_PORT:-3004}:3004"
     # No healthcheck block: the image ships its own, on /healthz.
 
   postgres:
@@ -99,12 +107,12 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
       TZ: ${TZ:-UTC}
     ports:
-      # 9000 has to be reachable from your browser: uploads and downloads go
-      # straight here, not through Engrafo.
-      - "9000:9000"
-      # 9001 is MinIO's own admin console — handy for seeing your files, and
-      # it holds the root password, so drop this line if you do not want it.
-      - "9001:9001"
+      # This one has to be reachable from your browser: uploads and downloads
+      # go straight here, not through Engrafo.
+      - "${MINIO_PORT:-9000}:9000"
+      # MinIO's own admin console — handy for seeing your files, and it takes
+      # the root password, so drop this line if you do not want it exposed.
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - engrafo_minio:/data
     healthcheck:

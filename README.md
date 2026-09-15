@@ -56,6 +56,11 @@ MinIO over a URL Engrafo signs, and **the signature covers the hostname** — so
 `localhost` here fails as a signature mismatch the moment you browse from any
 other machine, not as an error that names the real problem.
 
+If something on that machine already owns the ports — 9000 is popular — set
+`ENGRAFO_PORT`, `MINIO_PORT` or `MINIO_CONSOLE_PORT` rather than editing the
+file. The signature covers the port too, so the addresses Engrafo signs are
+built from these.
+
 Engrafo is then on `http://ENGRAFO_HOST:3004`. Migrations run at boot and both
 buckets — one for files, one for the text extracted from them — are created for
 you, so there is no setup step. Sign in with any email address; Engrafo ships no
