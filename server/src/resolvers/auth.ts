@@ -2,7 +2,7 @@ import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import jwt from 'jsonwebtoken';
-import { magicLinkExposed, magicLinkRequired } from '../config.ts';
+import { appUrl, magicLinkExposed, magicLinkRequired } from '../config.ts';
 import type { Context } from '../context.ts';
 import { createRateLimiter } from '../rate-limit.ts';
 
@@ -11,16 +11,6 @@ const DEV_SECRET = 'dev-secret-change-in-production';
 /** Read at call time so a test — or a reload — sees the current environment. */
 function jwtSecret(): string {
   return process.env.JWT_SECRET ?? DEV_SECRET;
-}
-
-/**
- * Where magic links point. In production the server serves the client itself,
- * so its own origin is the right default — but only for someone browsing from
- * this machine. Set APP_URL to the address users actually type; a link to
- * `localhost` is useless in an inbox.
- */
-function appUrl(): string {
-  return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 3004}`;
 }
 
 // Five sign-in attempts per address per quarter hour. requestMagicLink is

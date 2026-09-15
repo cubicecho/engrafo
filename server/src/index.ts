@@ -7,6 +7,7 @@ import cors from 'cors';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import express from 'express';
 import {
+  appUrl,
   magicLinkExposed,
   magicLinkRequired,
   ocrEnabled,
@@ -78,8 +79,11 @@ app.get('/healthz', (_req, res) => {
 app.use((req, res) => serveStatic(req, res));
 
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Engrafo ready at http://localhost:${PORT}`);
-  console.log(`   GraphQL at http://localhost:${PORT}/graphql`);
+  // APP_URL, not localhost: on a NAS the banner is the only place the operator
+  // sees what the instance thinks its own address is, and a wrong one there is
+  // the same wrong one that breaks their magic links.
+  console.log(`🚀 Engrafo ready at ${appUrl()}`);
+  console.log(`   GraphQL at ${appUrl()}/graphql`);
   console.log(`   OCR ${ocrAvailable ? `on (${ocrLanguages()})` : 'off'}`);
   if (!magicLinkRequired()) {
     console.warn('⚠️  AUTH_MAGIC_LINK is off: any email address signs in without a link. Private networks only.');

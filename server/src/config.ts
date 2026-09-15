@@ -36,6 +36,17 @@ export function port(): number {
   return envNumber(process.env.PORT, 3004);
 }
 
+/**
+ * Where this instance is reached. In production the server serves the client
+ * itself, so its own origin is the right default — but only for someone
+ * browsing from this machine. Set APP_URL to the address users actually type;
+ * magic links are built from it, and a link to `localhost` is useless in an
+ * inbox.
+ */
+export function appUrl(): string {
+  return process.env.APP_URL ?? `http://localhost:${port()}`;
+}
+
 /** Default 100 MiB. The browser uploads straight to S3, so this is enforced by the signature, not a body parser. */
 export function maxUploadBytes(): number {
   return envNumber(process.env.MAX_UPLOAD_BYTES, 100 * 1024 * 1024);
