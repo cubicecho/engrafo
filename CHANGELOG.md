@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/cubicecho/engrafo/compare/v1.3.0...v1.4.0) (2026-09-16)
+
+
+### Features
+
+* **app:** test the frontend through Storybook instead of a browser script ([84f9618](https://github.com/cubicecho/engrafo/commit/84f9618c1bd0a605b507ccf1e5cba3426af6b11d))
+
 # [1.3.0](https://github.com/cubicecho/engrafo/compare/v1.2.1...v1.3.0) (2026-09-16)
 
 
