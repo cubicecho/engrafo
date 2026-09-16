@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/cubicecho/engrafo/compare/v1.2.0...v1.2.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* upload panel crashed where crypto.randomUUID does not exist ([10ba9c9](https://github.com/cubicecho/engrafo/commit/10ba9c9ac6b43f6991699943f7dc2edfb578dbfa))
+
 # [1.2.0](https://github.com/cubicecho/engrafo/compare/v1.1.0...v1.2.0) (2026-09-15)
 
 
