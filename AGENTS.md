@@ -22,7 +22,7 @@ what Paperless is for.
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)                      |
 | Storage  | `@aws-sdk/client-s3` against MinIO or any S3-compatible bucket |
 | OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to          |
-| Testing  | Vitest, PGlite as an in-memory Postgres fixture               |
+| Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
 | Runtime  | Node.js 24+, ESM (`"type": "module"` throughout)              |
 
@@ -31,6 +31,8 @@ what Paperless is for.
 ```
 engrafo/
 ├── app/                     # Frontend (Vite SPA, built to app/dist)
+│   ├── .storybook/          # main/preview + the Apollo and bucket mocking the stories run on
+│   ├── vitest.config.ts     # The `storybook` test project (real Chromium)
 │   └── src/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
@@ -87,7 +89,9 @@ npm run db:generate      # new migration from a schema change
 npm run db:migrate       # apply migrations
 npm run codegen          # GraphQL types for both server and app
 npm run check            # codegen + biome + tsc --noEmit, all three workspaces
-npm test                 # Vitest
+npm test                 # Vitest — node, dom and storybook projects
+npm run storybook        # Storybook on 6006
+npm run build-storybook  # Static Storybook to app/storybook-static
 docker build --target test -t engrafo-test . && docker run --rm engrafo-test   # the suite, with OCR installed
 ```
 
@@ -251,6 +255,64 @@ cubeui registries and are kept as published, so `shadcn add` can update them.
 `biome.json` exempts them from two lint rules rather than letting anyone edit
 them into compliance. The cubeui shells one level up (`page-layout.tsx`,
 `query-state.tsx`, …) are the same deal.
+
+## Stories are the frontend tests
+
+There is no headless-Chrome script in this repo. A story is a component with its
+data already decided, so the thing that used to need a browser driver and a real
+login is now a file next to the component, and `@storybook/addon-vitest` runs
+every one of them as a test. Writing a story and writing a test are the same act:
+a story without a `play` function is a picture, and pictures do not fail CI.
+
+**Stories live next to the component.** `upload-panel.tsx` and
+`upload-panel.stories.tsx` in the same folder, so a component that changes shape
+and the story claiming it still works show up in the same diff.
+
+**Nothing under `components/ui/`.** That tree is vendored from cubeui and
+shadcn. Stories for it belong upstream where the component is maintained, not in
+a copy of it. cubeui has its own Storybook.
+
+**Two ways to give a story a server**, both under `parameters.apolloClient`
+(`app/.storybook/graphql.tsx`), because stories ask two different questions:
+
+- `mocks` — Apollo's own `MockedProvider`, an exact request paired with an exact
+  response. Reach for it when the *request* is the subject: this click sends
+  `completeDocumentUpload` with this id. It fails loudly on a request it was not
+  told about, which is the point.
+- `resolvers` — a `graphql-mocks` server executing against the app's own copy of
+  the printed SDL. Reach for it when the *page* is the subject and the queries
+  are an implementation detail. It is also the only one of the two that catches
+  schema drift: a resolver returning a field the server no longer has fails
+  here, not in production.
+
+Every story gets an `ApolloProvider` either way, even with no mocks at all —
+every screen renders under one, so a story without it fails on `useMutation` at
+the top of the component rather than on the assertion it was written for. A
+fresh client per story, so nothing inherits the previous story's cache.
+
+The SDL a `resolvers` story builds its server from is
+`app/src/__generated__/schema.graphql`, emitted by the `schema-ast` codegen
+plugin and imported with Vite's `?raw`. Stories run in a browser, where
+`../../server/…` is not a path Vite will serve.
+
+**There is a mock bucket.** `putFile` does a real `XMLHttpRequest` PUT, and
+mocking the GraphQL either side of it leaves exactly the interesting part
+untested. `app/.storybook/mock-bucket.ts` is a Vite middleware answering
+`/__mock-bucket/ok` with 204 and `/__mock-bucket/denied` with 403, so the upload
+panel's whole path — presign, PUT, progress, complete — is a story. It is
+registered twice: `viteFinal` in `main.ts` for the dev server, and again in
+`app/vitest.config.ts`, because the addon does not carry it across.
+
+**Accessibility failures are test failures.** `a11y: { test: 'error' }`.
+Collecting a report nobody reads is not a check.
+
+**Three vitest projects, and the order matters.** `node` (PGlite) and `dom`
+(jsdom) are `groupOrder: 0`; `storybook` (Chromium) is `groupOrder: 1`, so it
+runs last and alone. Run alongside the browser, PGlite loses — it builds a
+Postgres per test file, and the failure surfaces as a database `beforeEach`
+timing out, which is the wrong place to look. The storybook project also sets
+`fileParallelism: false`: parallel browser sessions drop their websocket partway
+through and the run dies with "browser connection was closed".
 
 ## Code style
 

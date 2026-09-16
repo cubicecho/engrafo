@@ -38,9 +38,15 @@ jobs:
       - name: Typecheck
         run: npm run check:types
 
-      # Two projects: server and db tests run Postgres in-process (PGlite) and
-      # the component tests run in jsdom, so there is no service container here
-      # and there doesn't need to be one.
+      # The `storybook` project renders every story in a real Chromium, which is
+      # the point of it — the claims those stories make are layout and computed
+      # style. Nothing else in the suite needs a browser.
+      - name: Install the browser the stories run in
+        run: npx playwright install --with-deps chromium
+
+      # Three projects: server and db tests run Postgres in-process (PGlite),
+      # the component tests run in jsdom, and the stories run in Chromium — so
+      # there is no service container here and there doesn't need to be one.
       - name: Test
         run: npm test
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Engrafo — a minimal self-hostable document archive. Upload, store in S3, OCR.",
+  "description": "Engrafo \u2014 a minimal self-hostable document archive. Upload, store in S3, OCR.",
   "type": "module",
   "workspaces": [
     "app",
@@ -19,6 +19,8 @@
     "dev:server": "npm run dev -w @cubicecho/engrafo-server",
     "build": "npm run codegen && npm run build -w @cubicecho/engrafo-app",
     "build:app": "npm run build -w @cubicecho/engrafo-app",
+    "storybook": "npm run storybook -w @cubicecho/engrafo-app",
+    "build-storybook": "npm run build-storybook -w @cubicecho/engrafo-app",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
@@ -49,15 +51,18 @@
     "@electric-sql/pglite": "^0.3.15",
     "@graphql-codegen/cli": "^6.1.1",
     "@graphql-codegen/client-preset": "^5.2.2",
+    "@graphql-codegen/schema-ast": "^5.0.2",
     "@graphql-codegen/typescript": "^5.0.7",
     "@graphql-codegen/typescript-resolvers": "^5.1.5",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.13.0",
+    "@vitest/browser-playwright": "^4.1.11",
     "concurrently": "^9.1.2",
     "drizzle-kit": "1.0.0-rc.4",
     "jsdom": "^30.0.1",
+    "playwright": "^1.63.0",
     "typescript": "~6.0.3",
-    "vitest": "^3.0.5"
+    "vitest": "^4.1.11"
   }
 }

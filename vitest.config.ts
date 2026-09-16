@@ -9,8 +9,9 @@ const alias = [
   { find: /^graphql$/, replacement: path.resolve(__dirname, './node_modules/graphql/index.js') },
 ];
 
-// Two projects: server and db tests run a real Postgres in-process (PGlite) and
-// must not pay for a DOM; component tests are a DOM and nothing else.
+// Three projects: server and db tests run a real Postgres in-process (PGlite) and
+// must not pay for a DOM; component tests are a DOM and nothing else; the stories
+// render in a real browser.
 export default defineConfig({
   resolve: { alias },
   test: {
@@ -26,6 +27,11 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['db/**/*.test.ts', 'server/**/*.test.ts', 'app/src/lib/**/*.test.ts'],
+          // Group 0 with `dom`, so both finish before the browser starts. Left to run
+          // alongside it, PGlite loses: it builds a Postgres per test file, and sharing the
+          // machine with a Chromium pushes those `beforeEach` hooks past their 10s timeout.
+          // The failure reads as a broken database test, which is the wrong place to look.
+          sequence: { groupOrder: 0 },
         },
       },
       {
@@ -35,8 +41,12 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: ['./vitest.setup.ts'],
           include: ['app/**/*.test.tsx'],
+          sequence: { groupOrder: 0 },
         },
       },
+      // The third project is the stories, and it owns its own config file because it needs the
+      // app's Vite plugins — React and Tailwind — which nothing else here does.
+      './app/vitest.config.ts',
     ],
   },
 });
