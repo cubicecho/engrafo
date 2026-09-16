@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/cubicecho/engrafo/compare/v1.2.1...v1.3.0) (2026-09-16)
+
+
+### Features
+
+* add a sidebar shell and a settings screen ([76fa0f1](https://github.com/cubicecho/engrafo/commit/76fa0f11e6f1b63c3886542f8e95ae0515573802))
+
 ## [1.2.1](https://github.com/cubicecho/engrafo/compare/v1.2.0...v1.2.1) (2026-09-16)
 
 
