@@ -1,6 +1,25 @@
 // Everything is read at call time so a test — or a reload — sees the current
 // environment.
 
+import { createRequire } from 'node:module';
+
+// The exception to "read at call time": this is stamped into the build, not
+// configured. The root package.json is the one semantic-release bumps, and the
+// Dockerfile copies it to /app alongside the workspaces — so `../../` finds the
+// released version in the image and the working tree's version in development.
+const VERSION: string = (() => {
+  try {
+    return createRequire(import.meta.url)('../../package.json').version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+})();
+
+/** The release this instance is running, for the settings screen and bug reports. */
+export function version(): string {
+  return VERSION;
+}
+
 /** Truthy env-var values: "1", "true", "yes" (case-insensitive). */
 export function envFlag(value: string | undefined): boolean {
   return ['1', 'true', 'yes'].includes((value ?? '').trim().toLowerCase());

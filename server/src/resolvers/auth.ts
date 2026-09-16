@@ -38,6 +38,11 @@ const AUTH_SDL = parse(`
     userId: ID!
   }
 
+  extend type Query {
+    "The signed-in user. UNAUTHENTICATED when the token is missing or expired."
+    me: User!
+  }
+
   extend type Mutation {
     requestMagicLink(email: String!): RequestMagicLinkResult!
     verifyMagicLink(token: String!): AuthPayload!
@@ -113,6 +118,19 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const extendedSchema = extendSchema(schema, AUTH_SDL);
   const mutationType = extendedSchema.getType('Mutation') as GraphQLObjectType;
   const fields = mutationType.getFields();
+  const queries = (extendedSchema.getType('Query') as GraphQLObjectType).getFields();
+
+  queries.me.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
+    const userId = requireAuth(context);
+    // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
+    const [user] = await (context.db as any).select().from(dbSchema.users).where(eq(dbSchema.users.id, userId));
+    // A valid token for a row that is gone — a restored database, a deleted
+    // account. Same answer as an expired one: this session is over.
+    if (!user) {
+      throw new GraphQLError('Unauthenticated', { extensions: { code: 'UNAUTHENTICATED' } });
+    }
+    return user;
+  };
 
   fields.requestMagicLink.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
     const email = normalizeEmail(args.email);

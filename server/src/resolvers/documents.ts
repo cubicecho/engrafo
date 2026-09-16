@@ -3,7 +3,7 @@ import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db
 import { and, eq } from 'drizzle-orm';
 import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
-import { maxUploadBytes, ocrDefault } from '../config.ts';
+import { maxUploadBytes, ocrDefault, version } from '../config.ts';
 import type { Context } from '../context.ts';
 import { STEPS } from '../pipeline/index.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
@@ -55,6 +55,8 @@ const DOCUMENTS_SDL = parse(`
   }
 
   type ServerConfig {
+    "The release this instance is running."
+    version: String!
     maxUploadBytes: Float!
     acceptedMimeTypes: [String!]!
     "Whether the ocr step can run here: enabled, and ocrmypdf installed."
@@ -140,6 +142,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   const mutations = (extended.getType('Mutation') as GraphQLObjectType).getFields();
 
   queries.serverConfig.resolve = (_parent: unknown, _args: unknown, context: Context) => ({
+    version: version(),
     maxUploadBytes: maxUploadBytes(),
     acceptedMimeTypes: ACCEPTED_MIME_TYPES,
     ocrAvailable: context.ocrAvailable,

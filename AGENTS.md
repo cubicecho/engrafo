@@ -36,9 +36,10 @@ engrafo/
 │       ├── components/
 │       │   ├── ui/          # shadcn/ui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, QueryState, ConfirmButton, …)
+│       │   ├── layouts/     # app-layout: the sidebar shell around every signed-in page
 │       │   └── domain/      # status-badge, upload-panel
-│       ├── routes/          # login, verify, documents (list), document (detail)
-│       ├── lib/             # apollo, auth, upload, query, format, cn()
+│       ├── routes/          # login, verify, documents (list), document (detail), settings
+│       ├── lib/             # apollo, auth, theme, upload, query, format, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -219,6 +220,31 @@ there, and calling one throws `… is not a function` in the handler that reache
 for it. `clientId()` in `app/src/lib/id.ts` is the replacement for
 `crypto.randomUUID()`; anything else in that family needs the same treatment or
 a feature check. Dev never catches this, because Vite serves on `localhost`.
+
+**The shell owns the sidebar; pages own their headers.** `AppLayout`
+(`app/src/components/layouts/app-layout.tsx`) wraps everything inside
+`RequireAuth`, so "signed in" and "has the sidebar" cannot drift apart — and
+`/login` and `/auth/verify`, which have nothing to navigate to, stay bare. Pages
+keep using `PageLayout` inside it; a settings-shaped page takes `width="prose"`.
+Adding a screen means a route in `main.tsx` and an entry in `NAV_ITEMS`.
+
+It is hand-rolled rather than shadcn's `sidebar`, matching the `mcp-*` apps.
+That component brings a provider, a cookie, a rail, a mobile sheet and
+collapsible icon mode; this is a flat list of two. Two things it gets wrong if
+copied carelessly:
+
+- **`h-screen`, and `min-h-0` all the way down.** `PageLayout` is a
+  `StickyHeaderContentFooter` — it scrolls its own body and pins its header,
+  which only works if an ancestor has a real height. A flex item's floor is its
+  content, so every flex ancestor between the shell and the page needs
+  `min-h-0` or the body grows instead of scrolling and the header quietly stops
+  sticking.
+- **The theme is applied in `index.html`, not in React.** The inline script in
+  the document head sets the `dark` class before first paint. React mounts
+  *after* the first paint, so choosing the theme in a component is a white flash
+  on every load for anyone in dark mode. `app/src/lib/theme.ts` owns changes
+  after that; its `THEME_STORAGE_KEY` must stay in step with the key spelled out
+  in that script.
 
 **`app/src/components/ui/` is vendored.** Those files come from the shadcn and
 cubeui registries and are kept as published, so `shadcn add` can update them.

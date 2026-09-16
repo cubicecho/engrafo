@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Engrafo</title>
+    <script>
+      // Before first paint, and deliberately not in the bundle: React mounts
+      // after the first paint, so choosing the theme in a component means a
+      // white flash on every load for anyone using dark mode. Keep the key in
+      // step with THEME_STORAGE_KEY in src/lib/theme.ts.
+      try {
+        var stored = localStorage.getItem('engrafo-theme');
+        var dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {
+        // Storage blocked: light it is.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

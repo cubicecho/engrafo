@@ -1,16 +1,14 @@
 import { useQuery } from '@apollo/client/react';
-import { FileText, LogOut } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { graphql } from '@/__generated__';
-import { ActionButton } from '@/components/action-button';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { clearToken } from '@/lib/auth';
 import { formatBytes, formatDateTime } from '@/lib/format';
 import { queryLike } from '@/lib/query';
 
@@ -41,7 +39,6 @@ const DocumentsPage = graphql(`
 const POLL_MS = 3000;
 
 export function DocumentsRoute() {
-  const navigate = useNavigate();
   const result = useQuery(DocumentsPage);
   const { data, startPolling, stopPolling } = result;
   const documents = data?.documents ?? [];
@@ -59,19 +56,6 @@ export function DocumentsRoute() {
       icon={<FileText />}
       title="Documents"
       description="Everything you have uploaded."
-      action={
-        <ActionButton
-          label="Sign out"
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            clearToken();
-            navigate('/login', { replace: true });
-          }}
-        >
-          <LogOut className="size-4" aria-hidden />
-        </ActionButton>
-      }
       content={
         <div className="flex flex-col gap-6 py-4">
           {data?.serverConfig && <UploadPanel config={data.serverConfig} onChanged={() => void result.refetch()} />}

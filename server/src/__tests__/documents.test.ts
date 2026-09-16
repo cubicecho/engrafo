@@ -148,9 +148,14 @@ describe('document uploads', () => {
 
   it('reports server config', async () => {
     const data = await createClient(db, userId, { ocrAvailable: true }).expectOk(
-      '{ serverConfig { maxUploadBytes acceptedMimeTypes ocrAvailable } }',
+      '{ serverConfig { version maxUploadBytes acceptedMimeTypes ocrAvailable } }',
     );
     expect(data.serverConfig.ocrAvailable).toBe(true);
     expect(data.serverConfig.acceptedMimeTypes).toContain('application/pdf');
+    // Not just "a string": the version is read off package.json by a relative
+    // path, and the Dockerfile lays the image out differently from the repo. A
+    // wrong path fails soft as "unknown", which is exactly what the settings
+    // screen and a bug report would then quote.
+    expect(data.serverConfig.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 });

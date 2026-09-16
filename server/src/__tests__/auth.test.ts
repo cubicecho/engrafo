@@ -9,6 +9,8 @@ const REQUEST = `
 
 const VERIFY = `mutation($token: String!) { verifyMagicLink(token: $token) { token userId } }`;
 
+const ME = `{ me { id email } }`;
+
 let db: TestDb;
 
 beforeAll(async () => {
@@ -65,6 +67,26 @@ describe('sign-in modes', () => {
 
     // Addresses are normalized, or the same person gets an archive per spelling.
     expect(second.requestMagicLink.userId).toBe(first.requestMagicLink.userId);
+  });
+});
+
+describe('me', () => {
+  it('is the signed-in user', async () => {
+    process.env.SECURE_LOCAL_NET = 'true';
+    const { requestMagicLink } = await createClient(db, null).expectOk(REQUEST, { email: 'whoami@example.com' });
+
+    const { me } = await createClient(db, requestMagicLink.userId).expectOk(ME);
+
+    expect(me.id).toBe(requestMagicLink.userId);
+    expect(me.email).toBe('whoami@example.com');
+  });
+
+  it('is UNAUTHENTICATED without a session', async () => {
+    const error = await createClient(db, null).expectError(ME);
+
+    // The settings screen is the first thing an expired token hits, and this is
+    // the code the client watches for to send someone back to /login.
+    expect(error.code).toBe('UNAUTHENTICATED');
   });
 });
 
