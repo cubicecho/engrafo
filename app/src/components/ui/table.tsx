@@ -1,16 +1,68 @@
-import type * as React from 'react';
+'use client';
+
+import * as React from 'react';
+
 import { cn } from '@/lib/utils';
 
+/**
+ * Whether a `TableHead` sits in the header row group, so it can default its `scope` to the
+ * direction it actually labels. Upstream sets no `scope` and leaves the browser to infer one,
+ * which the header row gets right and a row header in the body — the first cell of each row,
+ * as a `th` — is left to each screen reader's heuristics. Saying it costs one attribute.
+ */
+const InTableHeader = React.createContext(false);
+
+/**
+ * Upstream's container is `overflow-x-auto` and nothing else, which makes a table wider than its
+ * column a region only a mouse wheel can move: axe reports it as `scrollable-region-focusable`,
+ * and a keyboard user cannot read the columns past the edge. The container takes a tab stop —
+ * the fix that rule asks for, and the one `HeaderContentFooter`'s scrolling body makes — but only
+ * while it actually overflows, so a table that fits is not a stray stop in every page's tab order.
+ */
+function useOverflowsX() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = React.useState(false);
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setOverflows(node.scrollWidth > node.clientWidth);
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    // The container keeps its width when a column grows, so the table is watched as well.
+    if (node.firstElementChild) observer.observe(node.firstElementChild);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+  return [ref, overflows] as const;
+}
+
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
+  const [ref, overflows] = useOverflowsX();
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      ref={ref}
+      data-slot="table-container"
+      tabIndex={overflows ? 0 : undefined}
+      className="relative w-full overflow-x-auto"
+    >
       <table data-slot="table" className={cn('w-full caption-bottom text-sm', className)} {...props} />
     </div>
   );
 }
 
+// Every border below names `border-foreground/10` beside its width. Upstream leans on the app's base
+// layer to colour a bare `border-b`, and the cubeui stylesheet sets no such rule, so without it
+// the rules between rows are `currentColor` — black lines in a light theme.
 function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
-  return <thead data-slot="table-header" className={cn('[&_tr]:border-b', className)} {...props} />;
+  return (
+    <InTableHeader.Provider value={true}>
+      <thead
+        data-slot="table-header"
+        className={cn('[&_tr]:border-foreground/10 [&_tr]:border-b', className)}
+        {...props}
+      />
+    </InTableHeader.Provider>
+  );
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
@@ -21,7 +73,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   return (
     <tfoot
       data-slot="table-footer"
-      className={cn('border-t bg-muted/50 font-medium [&>tr]:last:border-b-0', className)}
+      className={cn('border-foreground/10 border-t bg-foreground/10 font-medium [&>tr]:last:border-b-0', className)}
       {...props}
     />
   );
@@ -32,7 +84,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     <tr
       data-slot="table-row"
       className={cn(
-        'border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted',
+        'border-foreground/10 border-b transition-colors hover:bg-hover has-aria-expanded:bg-foreground/10 data-[state=selected]:bg-active/40',
         className,
       )}
       {...props}
@@ -40,12 +92,14 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   );
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
+function TableHead({ className, scope, ...props }: React.ComponentProps<'th'>) {
+  const inHeader = React.useContext(InTableHeader);
   return (
     <th
       data-slot="table-head"
+      scope={scope ?? (inHeader ? 'col' : 'row')}
       className={cn(
-        'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        'h-10 whitespace-nowrap px-2 text-left align-middle font-medium text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
         className,
       )}
       {...props}
@@ -58,7 +112,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot="table-cell"
       className={cn(
-        'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        'whitespace-nowrap p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
         className,
       )}
       {...props}
@@ -67,9 +121,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
 }
 
 function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
-  return (
-    <caption data-slot="table-caption" className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />
-  );
+  return <caption data-slot="table-caption" className={cn('mt-4 text-foreground/60 text-sm', className)} {...props} />;
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow };

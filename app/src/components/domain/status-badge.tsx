@@ -1,19 +1,19 @@
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 
-type Tone = 'default' | 'secondary' | 'destructive' | 'outline';
+type Status = { label: string; tone: BadgeVariant };
 
-const DOCUMENT: Record<string, { label: string; tone: Tone }> = {
+const DOCUMENT: Record<string, Status> = {
   pending_upload: { label: 'Uploading', tone: 'outline' },
   uploaded: { label: 'Queued', tone: 'secondary' },
-  processing: { label: 'Processing', tone: 'secondary' },
-  ready: { label: 'Ready', tone: 'default' },
+  processing: { label: 'Processing', tone: 'info' },
+  ready: { label: 'Ready', tone: 'positive' },
   failed: { label: 'Failed', tone: 'destructive' },
 };
 
-const STEP: Record<string, { label: string; tone: Tone }> = {
+const STEP: Record<string, Status> = {
   queued: { label: 'Queued', tone: 'outline' },
-  running: { label: 'Running', tone: 'secondary' },
-  succeeded: { label: 'Done', tone: 'default' },
+  running: { label: 'Running', tone: 'info' },
+  succeeded: { label: 'Done', tone: 'positive' },
   skipped: { label: 'Skipped', tone: 'outline' },
   failed: { label: 'Failed', tone: 'destructive' },
 };

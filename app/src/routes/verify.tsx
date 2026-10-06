@@ -2,6 +2,9 @@ import { useMutation } from '@apollo/client/react';
 import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
+import { CenteredLayout } from '@/components/centered-layout';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { setToken } from '@/lib/auth';
 
 const VerifyMagicLink = graphql(`
@@ -33,21 +36,16 @@ export function VerifyPage() {
       .catch(() => {});
   }, [token, verify, navigate]);
 
-  const failed = !token || error;
-  return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-2 p-4 text-sm">
-      {failed ? (
-        <>
-          <p className="font-medium">This sign-in link is invalid or has expired.</p>
-          <Link className="underline" to="/login">
-            Request a new one
-          </Link>
-        </>
-      ) : (
-        <p className="text-muted-foreground" role="status">
-          Signing you in…
-        </p>
-      )}
-    </main>
-  );
+  if (!token || error) {
+    return (
+      <CenteredLayout
+        level={1}
+        title="This sign-in link is invalid or has expired"
+        description="Links work once, and only for a short while."
+        footerActionsSlot={<Button content="Request a new one" linkSlot={<Link to="/login" />} />}
+      />
+    );
+  }
+
+  return <CenteredLayout level={1} title="Signing you in…" contentSlot={<Spinner label="Signing you in" />} />;
 }

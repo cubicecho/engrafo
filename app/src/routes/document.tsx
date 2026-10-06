@@ -1,18 +1,27 @@
 import { useApolloClient, useMutation, useQuery } from '@apollo/client/react';
-import { ArrowLeft, Check, Download, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { DocumentFileVariant } from '@/__generated__/graphql';
 import { ActionButton } from '@/components/action-button';
+import { InputField, useAppForm } from '@/components/app-form';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
+import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { DialogLayout } from '@/components/dialog-layout';
 import { DocumentStatusBadge, isInProgress, StepStatusBadge } from '@/components/domain/status-badge';
+import { ListItem } from '@/components/list-item';
+import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
 import { QueryError, RowSkeleton } from '@/components/query-state';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { CodeBlock } from '@/components/ui/code';
+import { CopyButton } from '@/components/ui/copy-button';
+import { FormElement } from '@/components/ui/form-element';
+import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
+import { formatAgo, formatBytes, formatDate, joinStats } from '@/lib/format';
+import type { SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
   query DocumentDetail($id: UUID!) {
@@ -81,6 +90,84 @@ const POLL_MS = 3000;
 // helps nobody — the download link stands in for it.
 const TEXT_PREVIEW_BYTES = 512 * 1024;
 
+/** The one-step trail above every state of this page, so it does not jump as the title lands. */
+function BackToDocuments() {
+  return (
+    <Link className="flex items-center gap-1 text-info text-sm hover:underline" to="/">
+      <ArrowLeft className="size-3.5" aria-hidden />
+      Documents
+    </Link>
+  );
+}
+
+/** The page before there is a document to name it: loading, failed, or not there. */
+function Placeholder({ loading = false, contentSlot }: { loading?: boolean; contentSlot: SlotNode }) {
+  return (
+    <PageLayout
+      width="prose"
+      breadcrumbsSlot={<BackToDocuments />}
+      title="Document"
+      loading={loading}
+      contentSlot={<div className="py-4">{contentSlot}</div>}
+    />
+  );
+}
+
+type RenameDialogProps = {
+  title: string;
+  onRename: (title: string) => Promise<unknown>;
+  onClose: () => void;
+};
+
+/**
+ * Renaming is a form in a dialog, with a Save and a Cancel, rather than the
+ * title turning into an input in place.
+ *
+ * Mounted only while it is open, so each opening starts from the title as it
+ * is now and not from whatever was typed and abandoned last time.
+ */
+function RenameDialog({ title, onRename, onClose }: RenameDialogProps) {
+  const form = useAppForm({
+    defaultValues: { title },
+    onSubmit: async ({ value }) => {
+      await onRename(value.title.trim());
+      onClose();
+    },
+  });
+
+  return (
+    <form.AppForm>
+      <DialogLayout
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+        title="Rename document"
+        description="The file it was uploaded as keeps its own name."
+        hasUnsavedChanges={() => !form.state.isDefaultValue}
+        contentSlot={
+          <FormElement onSubmit={() => form.handleSubmit()}>
+            <InputField
+              form={form}
+              name="title"
+              label="Title"
+              required
+              autoFocus
+              validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'Give the document a title') }}
+            />
+          </FormElement>
+        }
+        footerActionsSlot={(close) => (
+          <>
+            <Button variant="outline" content="Cancel" onClick={close} />
+            <form.SubmitButton onClick={() => form.handleSubmit()} />
+          </>
+        )}
+      />
+    </form.AppForm>
+  );
+}
+
 export function DocumentRoute() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -91,7 +178,7 @@ export function DocumentRoute() {
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const [retry] = useMutation(RetryProcessing);
   const [rename] = useMutation(RenameDocument);
   const [remove] = useMutation(DeleteDocument);
@@ -160,101 +247,108 @@ export function DocumentRoute() {
 
   if (result.error && !doc) {
     return (
-      <div className="p-4">
-        <QueryError error={result.error} onRetry={() => void result.refetch()} what="this document" />
-      </div>
+      <Placeholder
+        contentSlot={<QueryError error={result.error} onRetry={() => void result.refetch()} what="this document" />}
+      />
     );
   }
-  if (!doc) return <RowSkeleton className="p-4" />;
+  if (!doc && result.loading) return <Placeholder loading contentSlot={<RowSkeleton />} />;
+  if (!doc) {
+    return (
+      <Placeholder
+        contentSlot={
+          <EmptyState
+            icon={FileText}
+            title="No such document"
+            description="It may have been deleted, or the link is for someone else's archive."
+            actionSlot={<Button variant="outline" content="Back to documents" linkSlot={<Link to="/" />} />}
+          />
+        }
+      />
+    );
+  }
 
   return (
     <PageLayout
       width="prose"
-      breadcrumbs={
-        <Link className="flex items-center gap-1 hover:underline" to="/">
-          <ArrowLeft className="size-3.5" aria-hidden />
-          Documents
-        </Link>
-      }
-      title={
-        renaming === null ? (
-          doc.title
-        ) : (
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void rename({ variables: { id: doc.id, title: renaming } });
-              setRenaming(null);
-            }}
-          >
-            <Input value={renaming} onChange={(event) => setRenaming(event.target.value)} autoFocus />
-            <ActionButton type="submit" label="Save title" size="icon" variant="ghost">
-              <Check className="size-4" aria-hidden />
-            </ActionButton>
-          </form>
-        )
-      }
-      description={`${doc.originalFilename} · ${doc.mimeType} · ${formatBytes(doc.sizeBytes)}`}
-      action={
-        <div className="flex items-center gap-1">
+      breadcrumbsSlot={<BackToDocuments />}
+      title={doc.title}
+      description={joinStats(doc.originalFilename, doc.mimeType, formatBytes(doc.sizeBytes))}
+      actionSlot={
+        <>
           <DocumentStatusBadge status={doc.status} />
           <ActionButton
             label="Rename"
-            variant="ghost"
+            variant="outline"
             size="icon"
-            onClick={() => setRenaming(renaming === null ? doc.title : null)}
-          >
-            <Pencil className="size-4" aria-hidden />
-          </ActionButton>
-          <ActionButton label="Download original" variant="ghost" size="icon" onClick={() => void download()}>
-            <Download className="size-4" aria-hidden />
-          </ActionButton>
+            iconSlot={<Pencil />}
+            onClick={() => setRenaming(true)}
+          />
+          <ActionButton
+            label="Download original"
+            variant="outline"
+            size="icon"
+            iconSlot={<Download />}
+            onClick={() => void download()}
+          />
           <ConfirmButton
             label="Delete"
-            variant="ghost"
+            variant="outline"
             size="icon"
+            iconSlot={<Trash2 />}
             title="Delete this document?"
-            description="The file and everything extracted from it are removed from storage. This cannot be undone."
+            description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
             onConfirm={() => {
               void remove({ variables: { id: doc.id } }).then(() => navigate('/', { replace: true }));
             }}
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </ConfirmButton>
-        </div>
+          />
+        </>
       }
-      content={
+      contentSlot={
         <div className="flex flex-col gap-6 py-4">
+          {renaming ? (
+            <RenameDialog
+              title={doc.title}
+              onRename={(title) => rename({ variables: { id: doc.id, title } })}
+              onClose={() => setRenaming(false)}
+            />
+          ) : null}
+
           {doc.error && (
-            <CardLayout
-              className="border-destructive/50"
+            <Alert
+              variant="destructive"
               title="Processing failed"
               description={doc.error}
-              footerActions={
-                <Button variant="outline" onClick={() => void retry({ variables: { id: doc.id } })}>
-                  <RefreshCw className="size-3.5" aria-hidden />
-                  Retry
-                </Button>
+              actionSlot={
+                <Button
+                  variant="outline"
+                  iconSlot={<RefreshCw />}
+                  content="Retry"
+                  onClick={() => void retry({ variables: { id: doc.id } })}
+                />
               }
             />
           )}
 
           <CardLayout
+            level={2}
             title="Pipeline"
             description={doc.ocrRequested ? 'OCR was requested for this document.' : 'Uploaded without OCR.'}
-            content={
-              <ul className="flex flex-col gap-2 text-sm">
+            contentSlot={
+              <ul className="flex flex-col">
                 {doc.processingSteps.map((step) => (
-                  <li key={step.id} className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{step.step}</span>
-                    <span className="flex items-center gap-2 text-muted-foreground text-xs">
-                      {step.error && <span className="text-destructive">{step.error}</span>}
-                      {step.attempts > 1 && <span>{step.attempts} attempts</span>}
-                      {step.finishedAt && <span>{formatDateTime(step.finishedAt)}</span>}
-                      <StepStatusBadge status={step.status} />
-                    </span>
+                  <li key={step.id}>
+                    <ListItem
+                      className="px-0"
+                      title={step.step}
+                      description={joinStats(
+                        step.error,
+                        step.attempts > 1 && `${step.attempts} attempts`,
+                        step.finishedAt && formatAgo(step.finishedAt),
+                      )}
+                      meta={<StepStatusBadge status={step.status} />}
+                    />
                   </li>
                 ))}
               </ul>
@@ -263,46 +357,67 @@ export function DocumentRoute() {
 
           {previewUrl && (
             <CardLayout
+              level={2}
               title="Preview"
               description={variant === 'ARCHIVE' ? 'The searchable PDF produced by OCR.' : 'The uploaded file.'}
-              contentClassName="p-0"
-              content={
-                <iframe title="Document preview" src={previewUrl} className="h-[36rem] w-full rounded-md border" />
+              contentSlot={
+                <iframe
+                  title="Document preview"
+                  src={previewUrl}
+                  className="h-[36rem] w-full rounded-md border border-foreground/10"
+                />
               }
             />
           )}
 
           {doc.contentKey && (
             <CardLayout
+              level={2}
               title="Text"
-              description={`What the pipeline extracted · ${formatBytes(contentBytes)}`}
-              footerActions={
-                <Button variant="outline" onClick={() => void download(DocumentFileVariant.Text)}>
-                  <Download className="size-3.5" aria-hidden />
-                  Download text
-                </Button>
+              description={joinStats('What the pipeline extracted', formatBytes(contentBytes))}
+              loading={!contentOversize && content === null}
+              footerActionsSlot={
+                <Button
+                  variant="outline"
+                  iconSlot={<Download />}
+                  content="Download text"
+                  onClick={() => void download(DocumentFileVariant.Text)}
+                />
               }
-              content={
-                contentOversize ? (
-                  <p className="text-muted-foreground text-sm">Too large to show here.</p>
+              contentSlot={
+                contentOversize || content === null ? (
+                  <p className="text-foreground/60 text-sm">Too large to show here.</p>
                 ) : (
-                  <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap font-mono text-xs">
-                    {content ?? 'Loading…'}
-                  </pre>
+                  <CodeBlock
+                    content={content}
+                    wrap
+                    maxHeight="lg"
+                    actionSlot={<CopyButton value={content} label="Copy text" />}
+                  />
                 )
               }
             />
           )}
 
           <CardLayout
+            level={2}
             title="Details"
-            content={
-              <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Added</dt>
-                <dd>{formatDateTime(doc.createdAt)}</dd>
-                <dt className="text-muted-foreground">Checksum</dt>
-                <dd className="truncate font-mono text-xs">{doc.checksumSha256 ?? '—'}</dd>
-              </dl>
+            contentSlot={
+              <DescriptionList
+                contentSlot={
+                  <>
+                    <PropertyRow label="Added" value={formatDate(doc.createdAt)} hint={formatAgo(doc.createdAt)} />
+                    <PropertyRow
+                      label="Checksum"
+                      value={doc.checksumSha256 ?? '—'}
+                      valueClassName="font-mono text-xs break-all"
+                      actionSlot={
+                        doc.checksumSha256 ? <CopyButton value={doc.checksumSha256} label="Copy checksum" /> : null
+                      }
+                    />
+                  </>
+                }
+              />
             }
           />
         </div>

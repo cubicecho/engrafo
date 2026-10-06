@@ -26,7 +26,7 @@ const STEP_STATUSES = ['queued', 'running', 'succeeded', 'skipped', 'failed'] as
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-xs uppercase tracking-wide">{label}</span>
+      <span className="text-foreground/60 text-xs uppercase tracking-wide">{label}</span>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );

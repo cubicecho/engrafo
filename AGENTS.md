@@ -17,11 +17,11 @@ what Paperless is for.
 | Layer    | Technology                                                    |
 | -------- | ------------------------------------------------------------- |
 | Frontend | React 19, Vite 7, react-router, Apollo Client 4               |
-| UI       | Tailwind CSS v4, shadcn/ui + cubeui, Radix UI                 |
+| UI       | Tailwind CSS v4, cubeui (shadcn registry), TanStack Form      |
 | API      | graphql-yoga 5 on Express 5, GraphQL                          |
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)                      |
 | Storage  | `@aws-sdk/client-s3` against MinIO or any S3-compatible bucket |
-| OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to          |
+| OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to; optionally a vision model over `@cubicecho/agent-core` |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
 | Runtime  | Node.js 24+, ESM (`"type": "module"` throughout)              |
@@ -36,12 +36,12 @@ engrafo/
 │   └── src/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
-│       │   ├── ui/          # shadcn/ui primitives — vendored, not linted
-│       │   ├── *.tsx        # cubeui shells (PageLayout, QueryState, ConfirmButton, …)
+│       │   ├── ui/          # cubeui primitives — vendored, not linted
+│       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell around every signed-in page
 │       │   └── domain/      # status-badge, upload-panel
 │       ├── routes/          # login, verify, documents (list), document (detail), settings
-│       ├── lib/             # apollo, auth, theme, upload, query, format, cn()
+│       ├── lib/             # apollo, auth, upload, query, format, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -225,33 +225,61 @@ for it. `clientId()` in `app/src/lib/id.ts` is the replacement for
 `crypto.randomUUID()`; anything else in that family needs the same treatment or
 a feature check. Dev never catches this, because Vite serves on `localhost`.
 
+**The chrome is cubeui's chrome.** `SidebarLayout` with a `Sidebar` in it, the
+palette from `app/cubeui-tokens.css`, and the registry's components for
+everything a page is made of. `index.css` adds nothing of its own beyond the
+`dark` variant and the base border and body colours. The sibling apps are on the
+same registry, so they read as one set of tools without anything being copied
+between them — a change to how the shell *looks* is a change upstream, not here.
+
+**Write cubeui the way cubeui is written.** No `children` on its components:
+nodes go in props ending in `Slot`, words go in `title`, `description`, `label`
+and `content`. An icon-only button is an `ActionButton` with a `label`; a
+destructive one is a `ConfirmButton` whose description says what is lost. Forms
+are TanStack Form through `useAppForm` (`login.tsx`, and the rename dialog in
+`document.tsx`). Colours in app code are cubeui's token names — `foreground`,
+`secondary`, `positive`, `warning`, `negative`, `info`, `hover`, `active` — and
+"muted" is an opacity (`text-foreground/60`), not a token; the shadcn alias
+names (`muted-foreground`, `destructive`, `accent`) appear only in vendored
+files. Load the `cubeui` skill before adding or updating a registry item.
+
 **The shell owns the sidebar; pages own their headers.** `AppLayout`
 (`app/src/components/layouts/app-layout.tsx`) wraps everything inside
 `RequireAuth`, so "signed in" and "has the sidebar" cannot drift apart — and
-`/login` and `/auth/verify`, which have nothing to navigate to, stay bare. Pages
-keep using `PageLayout` inside it; a settings-shaped page takes `width="prose"`.
-Adding a screen means a route in `main.tsx` and an entry in `NAV_ITEMS`.
+`/login` and `/auth/verify`, which have nothing to navigate to, are a
+`CenteredLayout` each. Pages keep using `PageLayout` inside it; a
+settings-shaped page takes `width="prose"`. Adding a screen means a route in
+`main.tsx` and an entry in `NAV_ITEMS`.
 
-It is hand-rolled rather than shadcn's `sidebar`, matching the `mcp-*` apps.
-That component brings a provider, a cookie, a rail, a mobile sheet and
-collapsible icon mode; this is a flat list of two. Two things it gets wrong if
-copied carelessly:
+Three things about that shell that are easy to break:
 
-- **`h-screen`, and `min-h-0` all the way down.** `PageLayout` is a
-  `StickyHeaderContentFooter` — it scrolls its own body and pins its header,
-  which only works if an ancestor has a real height. A flex item's floor is its
-  content, so every flex ancestor between the shell and the page needs
-  `min-h-0` or the body grows instead of scrolling and the header quietly stops
-  sticking.
+- **`h-svh`, and `min-h-0` all the way down.** `PageLayout` scrolls its own body
+  and pins its header, which only works if an ancestor has a real height. A flex
+  item's floor is its content, so every flex ancestor between the shell and the
+  page needs `min-h-0` or the body grows instead of scrolling and the header
+  quietly stops sticking.
+- **Below `md` the sidebar is replaced by a bar, and the bar is 320px wide on a
+  small phone.** It holds the two nav icons and sign-out and nothing else. The
+  compact `ThemePicker` is in the sidebar's foot but not in the bar, because it
+  does not fit; the `Narrow` story asserts the bar does not overflow.
 - **The theme is applied in `index.html`, not in React.** The inline script in
   the document head sets the `dark` class before first paint. React mounts
   *after* the first paint, so choosing the theme in a component is a white flash
-  on every load for anyone in dark mode. `app/src/lib/theme.ts` owns changes
-  after that; its `THEME_STORAGE_KEY` must stay in step with the key spelled out
-  in that script.
+  on every load for anyone in dark mode. That script is cubeui's
+  `THEME_PRE_PAINT_SCRIPT` pasted in, and has to be re-pasted if
+  `ui/theme-picker` changes its storage keys.
 
-**`app/src/components/ui/` is vendored.** Those files come from the shadcn and
-cubeui registries and are kept as published, so `shadcn add` can update them.
+**The theme has three states, not two.** `system`, `light`, `dark` — a device
+preference, stored by cubeui under `cubeui-theme`, never on the account, which
+is why `ThemePicker` works signed out and sits on the login card too. `system`
+is the default and it is *live*: `ThemeSync` in `main.tsx` calls
+`useThemePreference()` for as long as the app is mounted, so flipping the OS
+between light and dark repaints without a reload. The picker is a radiogroup of
+three rather than a sun/moon toggle because an icon cannot say which of three
+states it is in.
+
+**`app/src/components/ui/` is vendored.** Those files come from the cubeui
+registry and are kept as published, so `shadcn add` can update them.
 `biome.json` exempts them from two lint rules rather than letting anyone edit
 them into compliance. The cubeui shells one level up (`page-layout.tsx`,
 `query-state.tsx`, …) are the same deal.

@@ -59,6 +59,10 @@ export const Ready: Story = {
     await expect(canvas.getByText('1.4.2')).toBeInTheDocument();
     await expect(canvas.getByText('100.0 MB')).toBeInTheDocument();
     await expect(canvas.getByText('Available, on by default')).toBeInTheDocument();
+    // The one control on this page that is not read-only. It is a device preference, so it has
+    // no mutation behind it and no server state to wait for — it is here because settings is
+    // where someone looks for it, not because the query supplies it.
+    await expect(canvas.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
   },
 };
 
@@ -87,7 +91,7 @@ export const WithoutOcr: Story = {
 export const Loading: Story = {
   parameters: { apolloClient: { resolvers: RESOLVERS, delay: 100_000 } },
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole('status')).toHaveTextContent('Loading');
+    await expect(canvas.getByRole('status')).toHaveAccessibleName('Loading');
     await expect(canvas.queryByText('archivist@example.com')).not.toBeInTheDocument();
   },
 };

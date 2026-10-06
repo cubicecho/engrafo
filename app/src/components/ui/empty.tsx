@@ -1,84 +1,119 @@
-import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
+import { IconClassContext } from '@/components/ui/icons-base';
 import { cn } from '@/lib/utils';
 
-function Empty({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="empty"
-      className={cn(
-        'flex min-w-0 flex-1 flex-col items-center justify-center gap-6 rounded-lg border-dashed p-6 text-center text-balance md:p-12',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
+// `className` is re-declared rather than inherited: nativewind types it as `className?: string`,
+// which under `exactOptionalPropertyTypes` rejects the `cond ? "x" : undefined` call sites pass.
+type ViewProps = Omit<React.ComponentPropsWithoutRef<'div'>, 'className'> & {
+  className?: string | undefined;
+};
+type TextProps = Omit<React.ComponentPropsWithoutRef<'span'>, 'className'> & {
+  className?: string | undefined;
+};
 
-function EmptyHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="empty-header"
-      className={cn('flex max-w-sm flex-col items-center gap-2 text-center', className)}
-      {...props}
-    />
-  );
-}
+const Empty = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    data-slot="empty"
+    className={cn(
+      'cube-rn-view',
+      'w-full min-w-0 items-center justify-center gap-3 rounded-lg border-dashed border-foreground/10 py-10',
+      className,
+    )}
+    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+  />
+));
+Empty.displayName = 'Empty';
 
-const emptyMediaVariants = cva(
-  'mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0',
-  {
-    variants: {
-      variant: {
-        default: 'bg-transparent',
-        icon: "flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground [&_svg:not([class*='size-'])]:size-6",
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
+const EmptyHeader = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    data-slot="empty-header"
+    className={cn('cube-rn-view', 'items-center', className)}
+    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+  />
+));
+EmptyHeader.displayName = 'EmptyHeader';
+
+export type EmptyMediaVariant = 'default' | 'icon';
+
+/** `icon` is the muted bubble `EmptyState` draws; `default` is a bare box for an avatar or image. */
+const EMPTY_MEDIA = {
+  default: '',
+  icon: "rounded-full bg-foreground/10 p-3 text-foreground/60 [&_svg:not([class*='size-'])]:size-6",
+} satisfies Record<EmptyMediaVariant, string>;
+
+type EmptyMediaProps = ViewProps & {
+  /** `icon` draws the child glyph in a muted bubble, sized and inked; `default` leaves it alone. */
+  variant?: EmptyMediaVariant | null | undefined;
+};
+
+const EmptyMedia = React.forwardRef<HTMLDivElement, EmptyMediaProps>(
+  ({ className, variant, children, ...props }, ref) => {
+    const box = cn(
+      'mb-3 shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0',
+      EMPTY_MEDIA[variant ?? 'default'],
+      className,
+    );
+    if (variant === 'icon') {
+      return (
+        <div
+          ref={ref as React.Ref<HTMLDivElement>}
+          data-slot="empty-icon"
+          className={cn('cube-rn-view', box)}
+          {...(props as React.ComponentPropsWithoutRef<'div'>)}
+        >
+          <IconClassContext.Provider value="h-6 w-6 text-foreground/60">{children}</IconClassContext.Provider>
+        </div>
+      );
+    }
+    return (
+      <div
+        ref={ref as React.Ref<HTMLDivElement>}
+        data-slot="empty-icon"
+        className={cn('cube-rn-view', box)}
+        {...(props as React.ComponentPropsWithoutRef<'div'>)}
+      >
+        {children}
+      </div>
+    );
   },
 );
+EmptyMedia.displayName = 'EmptyMedia';
 
-function EmptyMedia({
-  className,
-  variant = 'default',
-  ...props
-}: React.ComponentProps<'div'> & VariantProps<typeof emptyMediaVariants>) {
-  return (
-    <div
-      data-slot="empty-icon"
-      data-variant={variant}
-      className={cn(emptyMediaVariants({ variant, className }))}
-      {...props}
-    />
-  );
-}
+const EmptyTitle = React.forwardRef<HTMLSpanElement, TextProps>(({ className, ...props }, ref) => (
+  <span
+    ref={ref as React.Ref<HTMLSpanElement>}
+    data-slot="empty-title"
+    className={cn('cube-rn-text', 'font-medium text-sm text-foreground', className)}
+    {...(props as React.ComponentPropsWithoutRef<'span'>)}
+  />
+));
+EmptyTitle.displayName = 'EmptyTitle';
 
-function EmptyTitle({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="empty-title" className={cn('text-lg font-medium tracking-tight', className)} {...props} />;
-}
+const EmptyDescription = React.forwardRef<HTMLSpanElement, TextProps>(({ className, ...props }, ref) => (
+  <span
+    ref={ref as React.Ref<HTMLSpanElement>}
+    data-slot="empty-description"
+    className={cn(
+      'cube-rn-text',
+      'text-center text-sm text-foreground/60 [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-info',
+      className,
+    )}
+    {...(props as React.ComponentPropsWithoutRef<'span'>)}
+  />
+));
+EmptyDescription.displayName = 'EmptyDescription';
 
-function EmptyDescription({ className, ...props }: React.ComponentProps<'p'>) {
-  return (
-    <div
-      data-slot="empty-description"
-      className={cn(
-        'text-sm/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function EmptyContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="empty-content"
-      className={cn('flex w-full max-w-sm min-w-0 flex-col items-center gap-4 text-sm text-balance', className)}
-      {...props}
-    />
-  );
-}
+/** What to do about it: a button or two, under the words. */
+const EmptyContent = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    data-slot="empty-content"
+    className={cn('cube-rn-view', 'w-full min-w-0 max-w-sm items-center gap-3', className)}
+    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+  />
+));
+EmptyContent.displayName = 'EmptyContent';
 
 export { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle };

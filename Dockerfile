@@ -30,7 +30,9 @@ FROM builder AS test
 RUN apk add --no-cache ocrmypdf tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-osd ghostscript \
       imagemagick font-dejavu fontconfig
 
-CMD ["npm", "test"]
+# Not `npm test`: that also runs the `storybook` project, which launches a Chromium, and
+# Playwright ships no browser for Alpine's musl. The stories run in CI's `check` job, on glibc.
+CMD ["npx", "vitest", "run", "--project", "node", "--project", "dom"]
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
 FROM node:24-alpine
