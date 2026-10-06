@@ -91,6 +91,7 @@ describe('document uploads', () => {
       ['inspect', 'queued'],
       ['text', 'queued'],
       ['ocr', 'queued'],
+      ['vlm', 'queued'],
     ]);
   });
 

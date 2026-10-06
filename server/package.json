@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1133.0",
     "@aws-sdk/s3-request-presigner": "^3.1133.0",
+    "@cubicecho/agent-core": "^2.11.0",
     "@cubicecho/engrafo-db": "*",
     "@vantreeseba/drizzle-graphql": "^13.0.0",
     "cors": "^2.8.6",
@@ -21,6 +22,7 @@
     "graphql": "^16.10.0",
     "graphql-yoga": "^5.23.0",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^7.17.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

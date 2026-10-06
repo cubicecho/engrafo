@@ -81,6 +81,13 @@ services:
       OCR_ENABLED: "true"
       OCR_LANGUAGES: eng
       OCR_CONCURRENCY: "1"
+      # Optional: an OpenAI-compatible vision model re-reads the pages and
+      # replaces the extracted text. ocrmypdf still runs and still writes the
+      # PDF/A archive, so nothing here is at risk if the endpoint is down or
+      # wrong — the Tesseract text simply stays. Point it at anything that
+      # serves /v1/chat/completions and can see an image.
+      # OCR_VLM_BASE_URL: http://host.docker.internal:7777/v1
+      # OCR_VLM_MODEL: PaddleOCR-VL
       TZ: ${TZ:-UTC}
       NODE_ENV: production
     ports:

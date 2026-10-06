@@ -1,4 +1,5 @@
 import type { DB, Document } from '@cubicecho/engrafo-db';
+import type { VlmConfig } from '../config.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
 export interface PipelineConfig {
@@ -6,6 +7,8 @@ export interface PipelineConfig {
   ocrAvailable: boolean;
   ocrLanguages: string;
   concurrency: number;
+  /** The vision endpoint that re-reads pages after ocrmypdf, or null where none is configured. */
+  vlm: VlmConfig | null;
 }
 
 export interface StepContext {

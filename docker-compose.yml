@@ -27,6 +27,9 @@ services:
       OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_DEFAULT: ${OCR_DEFAULT:-true}
       OCR_LANGUAGES: ${OCR_LANGUAGES:-eng}
+      OCR_VLM_BASE_URL: ${OCR_VLM_BASE_URL:-}
+      OCR_VLM_MODEL: ${OCR_VLM_MODEL:-}
+      OCR_VLM_API_KEY: ${OCR_VLM_API_KEY:-}
       AUTH_MAGIC_LINK: ${AUTH_MAGIC_LINK:-true}
       EXPOSE_MAGIC_LINK: ${EXPOSE_MAGIC_LINK:-false}
       NODE_ENV: production

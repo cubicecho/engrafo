@@ -8,7 +8,7 @@ import { textStep } from '../pipeline/steps/text.ts';
 import type { PipelineConfig, PipelineStep } from '../pipeline/types.ts';
 import { createFakeStorage, createTestDb, createUser, type FakeStorage, type TestDb } from './helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: false, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = { ocrAvailable: false, ocrLanguages: 'eng', concurrency: 1, vlm: null };
 
 describe('pipeline runner', () => {
   let db: TestDb;

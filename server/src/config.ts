@@ -104,6 +104,39 @@ export function pipelineConcurrency(): number {
   return envNumber(process.env.OCR_CONCURRENCY, 1);
 }
 
+/** An OpenAI-compatible endpoint and the model on it that reads pages. */
+export interface VlmConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  /** How long one page may take. Zero or less means no limit. */
+  requestTimeoutSeconds: number;
+}
+
+/**
+ * The vision endpoint that transcribes pages, or null where none is configured.
+ *
+ * Both the URL and the model are required and neither has a default worth
+ * guessing: the same three variables point at a GPU box running vLLM, a CPU
+ * build of PaddleOCR-VL, Ollama, or a hosted provider, and each of those names
+ * its models differently. The key stays optional because a local server ignores
+ * it.
+ */
+export function ocrVlm(): VlmConfig | null {
+  const baseUrl = process.env.OCR_VLM_BASE_URL?.trim();
+  const model = process.env.OCR_VLM_MODEL?.trim();
+  if (!baseUrl || !model) return null;
+  return {
+    baseUrl,
+    model,
+    apiKey: process.env.OCR_VLM_API_KEY?.trim() ?? '',
+    // One page is a prefill of several thousand image tokens. On a GPU that is
+    // seconds; on the CPU build it is minutes, and a timeout sized for chat
+    // abandons the prefill just before it pays off.
+    requestTimeoutSeconds: envNumber(process.env.OCR_VLM_TIMEOUT_SECONDS, 600),
+  };
+}
+
 export interface S3Config {
   endpoint: string;
   publicEndpoint: string;
