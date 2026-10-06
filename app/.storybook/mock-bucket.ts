@@ -24,7 +24,9 @@ export function mockBucket(): Plugin {
     name: 'engrafo:mock-bucket',
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        if (request.method !== 'PUT' || !request.url?.startsWith('/__mock-bucket/')) {
+        const isBucketPath = request.url?.startsWith('/__mock-bucket/') ?? false;
+        const isOtherRequest = request.method !== 'PUT' || isBucketPath === false;
+        if (isOtherRequest) {
           return next();
         }
 

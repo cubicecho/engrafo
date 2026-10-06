@@ -79,7 +79,8 @@ export function verifyMagicToken(token: string): { email: string } | null {
 /** Read the authenticated userId from a request's Bearer token, if any. */
 export function extractUserId(req: { headers: { authorization?: string } }): string | null {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
+  const isAnonymous = auth === undefined || auth.startsWith('Bearer ') === false;
+  if (isAnonymous) {
     return null;
   }
   return verifyToken(auth.slice(7))?.userId ?? null;

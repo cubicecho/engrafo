@@ -27,7 +27,8 @@ describe('tenancy configuration', () => {
 
   it('names every table by its Drizzle key, not its SQL name', () => {
     for (const [key, value] of Object.entries(dbSchema)) {
-      if (!is(value, Table)) {
+      const isOtherExport = is(value, Table) === false;
+      if (isOtherExport) {
         continue;
       }
       expect(Object.keys(scope)).toContain(key);

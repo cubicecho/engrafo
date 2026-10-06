@@ -65,7 +65,9 @@ const font = await exec('magick', ['-list', 'font']).then(
   () => null,
 );
 
-describe.skipIf(!hasOcr || !font)('ocrmypdf integration', () => {
+const isOcrMissing = hasOcr === false || !font;
+
+describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
   it('turns an image of text into a searchable PDF and its text', { timeout: 120_000 }, async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-ocr-test-'));
     try {

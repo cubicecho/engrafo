@@ -40,7 +40,8 @@ export function createStaticHandler(root: string) {
     let filePath = resolve(join(rootDir, normalize(pathname)));
     // normalize() alone does not stop "..%2f" walking out of the root once the
     // path has been decoded — compare the resolved path instead.
-    if (filePath !== rootDir && !filePath.startsWith(rootDir + sep)) {
+    const isOutsideRoot = filePath !== rootDir && filePath.startsWith(rootDir + sep) === false;
+    if (isOutsideRoot) {
       res.writeHead(403).end();
       return;
     }

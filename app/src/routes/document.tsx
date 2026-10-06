@@ -146,7 +146,7 @@ function RenameDialog({ title, onRename, onClose }: RenameDialogProps) {
         }}
         title="Rename document"
         description="The file it was uploaded as keeps its own name."
-        hasUnsavedChanges={() => !form.state.isDefaultValue}
+        hasUnsavedChanges={() => form.state.isDefaultValue === false}
         contentSlot={
           <FormElement onSubmit={() => form.handleSubmit()}>
             <InputField

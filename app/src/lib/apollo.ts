@@ -21,10 +21,10 @@ const httpLink = new HttpLink({
 // the same way. Drop it and start over at sign-in rather than rendering a page
 // of errors.
 const errorLink = new ErrorLink(({ error }) => {
-  if (!CombinedGraphQLErrors.is(error)) {
-    return;
-  }
-  if (!error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED')) {
+  const isSessionOver =
+    CombinedGraphQLErrors.is(error) && error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED');
+  const isOtherFailure = isSessionOver === false;
+  if (isOtherFailure) {
     return;
   }
   clearToken();

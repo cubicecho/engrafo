@@ -28,7 +28,8 @@ export function requiresSsl(url: string): boolean {
     return false;
   }
   // A name with no dots is a container or LAN hostname, not a public address.
-  if (!hostname.includes('.') && !hostname.includes(':')) {
+  const isBareName = hostname.includes('.') === false && hostname.includes(':') === false;
+  if (isBareName) {
     return false;
   }
 
