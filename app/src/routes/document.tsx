@@ -246,7 +246,7 @@ export function DocumentRoute() {
     };
   }, [client, doc, contentKey, contentOversize]);
 
-  async function download(variant = DocumentFileVariant.Original) {
+  async function download(variant: DocumentFileVariant = DocumentFileVariant.Original) {
     if (!doc) {
       return;
     }
