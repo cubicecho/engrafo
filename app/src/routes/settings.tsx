@@ -1,18 +1,18 @@
 import { useQuery } from '@apollo/client/react';
-import { LogOut, Settings } from 'lucide-react';
-import { type ReactNode, useId, useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
+import { CardLayout } from '@/components/card-layout';
+import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
+import { SettingRow } from '@/components/setting-row';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Settings } from '@/components/ui/icons';
+import { ThemePicker } from '@/components/ui/theme-picker';
 import { clearToken } from '@/lib/auth';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { formatBytes, formatDate } from '@/lib/format';
 import { queryLike } from '@/lib/query';
-import { isDark, setDark } from '@/lib/theme';
 
 const SettingsPage = graphql(`
   query SettingsPage {
@@ -31,43 +31,6 @@ const SettingsPage = graphql(`
   }
 `);
 
-/** A label and its value, the way every row on this page is drawn. */
-function Row({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b py-2 last:border-b-0">
-      <span className="text-muted-foreground text-sm">{label}</span>
-      <span className="text-right text-sm">{value}</span>
-    </div>
-  );
-}
-
-function AppearanceCard() {
-  const themeId = useId();
-  const [dark, setDarkState] = useState(isDark);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Appearance</CardTitle>
-        <CardDescription>Remembered in this browser. Without a choice here, your system setting wins.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor={themeId}>Dark theme</Label>
-          <Switch
-            id={themeId}
-            checked={dark}
-            onCheckedChange={(checked) => {
-              setDark(checked);
-              setDarkState(checked);
-            }}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function SettingsRoute() {
   const navigate = useNavigate();
   const result = useQuery(SettingsPage);
@@ -75,82 +38,97 @@ export function SettingsRoute() {
 
   return (
     <PageLayout
-      icon={<Settings />}
+      iconSlot={<Settings />}
       title="Settings"
       description="Your account and what this instance is configured to do."
       width="prose"
-      content={
+      contentSlot={
         <div className="flex flex-col gap-6 py-4">
           <QueryState query={queryLike(result)} what="your settings" count={data ? 1 : 0} />
 
           {data && (
             <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Account</CardTitle>
-                  <CardDescription>
-                    Signing out forgets this browser's session. Signing back in needs only your address.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <div className="flex flex-col">
-                    <Row label="Email" value={data.me.email} />
-                    <Row label="Account created" value={formatDateTime(data.me.createdAt)} />
-                  </div>
+              <CardLayout
+                level={2}
+                title="Account"
+                description="Signing out forgets this browser's session. Signing back in needs only your address."
+                contentSlot={
+                  <DescriptionList
+                    contentSlot={
+                      <>
+                        <PropertyRow label="Email" value={data.me.email} />
+                        <PropertyRow label="Account created" value={formatDate(data.me.createdAt)} />
+                      </>
+                    }
+                  />
+                }
+                footerActionsSlot={
                   <Button
                     variant="outline"
-                    className="self-start"
+                    iconSlot={<LogOut />}
+                    content="Sign out"
                     onClick={() => {
                       clearToken();
                       navigate('/login', { replace: true });
                     }}
-                  >
-                    <LogOut className="size-4" aria-hidden /> Sign out
-                  </Button>
-                </CardContent>
-              </Card>
+                  />
+                }
+              />
 
-              <AppearanceCard />
+              <CardLayout
+                level={2}
+                title="Appearance"
+                contentSlot={
+                  <SettingRow
+                    title="Theme"
+                    description="Remembered in this browser, not on your account — the same archive on a laptop at night and a desk monitor by day is allowed to look different."
+                    actionSlot={({ titleId, descriptionId }) => (
+                      <ThemePicker aria-labelledby={titleId} aria-describedby={descriptionId} />
+                    )}
+                  />
+                }
+              />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Uploads</CardTitle>
-                  <CardDescription>
-                    Set on the server, so this card is read-only. Change them in the environment and restart.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col">
-                    <Row label="Maximum file size" value={formatBytes(data.serverConfig.maxUploadBytes)} />
-                    <Row
-                      label="OCR"
-                      value={
-                        data.serverConfig.ocrAvailable
-                          ? `Available, ${data.serverConfig.ocrDefault ? 'on' : 'off'} by default`
-                          : 'Unavailable — ocrmypdf is not installed'
-                      }
-                    />
-                    <Row
-                      label="Accepted types"
-                      value={
-                        <span className="font-mono text-xs">{data.serverConfig.acceptedMimeTypes.join(', ')}</span>
-                      }
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <CardLayout
+                level={2}
+                title="Uploads"
+                description="Set on the server, so this card is read-only. Change them in the environment and restart."
+                contentSlot={
+                  <DescriptionList
+                    contentSlot={
+                      <>
+                        <PropertyRow label="Maximum file size" value={formatBytes(data.serverConfig.maxUploadBytes)} />
+                        <PropertyRow
+                          label="OCR"
+                          value={
+                            data.serverConfig.ocrAvailable
+                              ? `Available, ${data.serverConfig.ocrDefault ? 'on' : 'off'} by default`
+                              : 'Unavailable — ocrmypdf is not installed'
+                          }
+                        />
+                        <PropertyRow
+                          label="Accepted types"
+                          value={data.serverConfig.acceptedMimeTypes.join(', ')}
+                          valueClassName="font-mono text-xs"
+                        />
+                      </>
+                    }
+                  />
+                }
+              />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">About</CardTitle>
-                  <CardDescription>Worth quoting in a bug report.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col">
-                    <Row label="Version" value={<span className="font-mono">{data.serverConfig.version}</span>} />
-                  </div>
-                </CardContent>
-              </Card>
+              <CardLayout
+                level={2}
+                title="About"
+                description="Worth quoting in a bug report."
+                contentSlot={
+                  <DescriptionList
+                    contentSlot={
+                      <PropertyRow label="Version" value={data.serverConfig.version} valueClassName="font-mono" />
+                    }
+                  />
+                }
+              />
             </>
           )}
         </div>

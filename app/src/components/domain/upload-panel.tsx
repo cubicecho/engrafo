@@ -1,10 +1,11 @@
 import { useMutation } from '@apollo/client/react';
-import { Upload, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { graphql } from '@/__generated__';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { ActionButton } from '@/components/action-button';
+import { CardLayout } from '@/components/card-layout';
+import { FormField } from '@/components/form-field';
+import { ListItem } from '@/components/list-item';
+import { Upload, X } from '@/components/ui/icons';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { formatBytes } from '@/lib/format';
@@ -53,7 +54,6 @@ interface UploadPanelProps {
 
 export function UploadPanel({ config, onChanged }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const ocrId = useId();
   const [ocr, setOcr] = useState(config.ocrAvailable && config.ocrDefault);
   const [dragging, setDragging] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -103,8 +103,11 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
     for (const { file, job } of added) void uploadOne(file, job);
   }
 
-  return (
-    <Card className="gap-4 p-4">
+  const dropZone = (
+    // Hand-built rather than cubeui's `FilePicker`, which reads each file into
+    // memory and hands back its bytes. These go straight to the bucket as the
+    // browser's own `File`, so a 100 MB scan is streamed and never held.
+    <>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -119,8 +122,8 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
           start(event.dataTransfer.files);
         }}
         className={cn(
-          'flex w-full flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-muted-foreground text-sm transition-colors hover:bg-accent/50',
-          dragging && 'border-primary bg-accent',
+          'flex w-full flex-col items-center gap-2 rounded-md border border-foreground/15 border-dashed px-4 py-8 text-foreground/60 text-sm transition-colors hover:bg-hover',
+          dragging && 'border-active bg-hover',
         )}
       >
         <Upload className="size-6" aria-hidden />
@@ -140,42 +143,52 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
           event.target.value = '';
         }}
       />
+    </>
+  );
 
-      <div className="flex items-center gap-2">
-        <Switch id={ocrId} checked={ocr} onCheckedChange={setOcr} disabled={!config.ocrAvailable} />
-        <Label htmlFor={ocrId}>Run OCR on new uploads</Label>
-        {!config.ocrAvailable && (
-          <span className="text-muted-foreground text-xs">(ocrmypdf is not installed on the server)</span>
-        )}
-      </div>
+  return (
+    <CardLayout
+      // A card with no header has no top padding of its own (CardContent is `p-6 pt-0`).
+      contentClassName="gap-4 pt-6"
+      contentSlot={
+        <>
+          {dropZone}
 
-      {jobs.length > 0 && (
-        <ul className="flex flex-col gap-3">
-          {jobs.map((job) => (
-            <li key={job.key} className="flex flex-col gap-1 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate">{job.name}</span>
-                <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
-                  {job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * 100)}%`}
-                  {(job.done || job.error) && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6"
-                      aria-label={`Dismiss ${job.name}`}
-                      onClick={() => setJobs((current) => current.filter((j) => j.key !== job.key))}
-                    >
-                      <X className="size-3.5" aria-hidden />
-                    </Button>
-                  )}
-                </span>
-              </div>
-              <Progress value={job.progress * 100} aria-label={`${job.name} upload progress`} />
-              {job.error && <p className="text-destructive text-xs">{job.error}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+          <FormField
+            orientation="horizontal"
+            label="Run OCR on new uploads"
+            description={config.ocrAvailable ? undefined : 'ocrmypdf is not installed on the server.'}
+            controlSlot={<Switch checked={ocr} onCheckedChange={setOcr} disabled={!config.ocrAvailable} />}
+          />
+
+          {jobs.length > 0 && (
+            <ul className="flex flex-col gap-3">
+              {jobs.map((job) => (
+                <li key={job.key} className="flex flex-col gap-1">
+                  <ListItem
+                    className="p-0"
+                    title={job.name}
+                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * 100)}%`}
+                    actionSlot={
+                      job.done || job.error ? (
+                        <ActionButton
+                          label={`Dismiss ${job.name}`}
+                          variant="outline"
+                          size="icon-xs"
+                          iconSlot={<X />}
+                          onClick={() => setJobs((current) => current.filter((j) => j.key !== job.key))}
+                        />
+                      ) : null
+                    }
+                  />
+                  <Progress value={job.progress * 100} label={`${job.name} upload progress`} />
+                  {job.error && <p className="text-negative text-xs">{job.error}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      }
+    />
   );
 }
