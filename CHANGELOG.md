@@ -1,3 +1,15 @@
+# [1.5.0](https://github.com/cubicecho/engrafo/compare/v1.4.0...v1.5.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **ci:** keep the browser stories out of the Alpine test image ([39bfa47](https://github.com/cubicecho/engrafo/commit/39bfa47a0506c1812149f3b0783d68dbd5f1b8bf))
+
+
+### Features
+
+* **app:** move the frontend onto the cubeui registry ([0ed2565](https://github.com/cubicecho/engrafo/commit/0ed256568a949bf201a1428b47556a8f40d22bcf)), closes [cubicecho/cubeui#265](https://github.com/cubicecho/cubeui/issues/265)
+
 # [1.4.0](https://github.com/cubicecho/engrafo/compare/v1.3.0...v1.4.0) (2026-09-16)
 
 
