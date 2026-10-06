@@ -18,7 +18,9 @@ type AnyDb = any;
  * is invalid on its own, but the extensions fill it before anything validates.
  */
 function withMutationRoot(schema: GraphQLSchema): GraphQLSchema {
-  if (schema.getMutationType()) return schema;
+  if (schema.getMutationType()) {
+    return schema;
+  }
   return new GraphQLSchema({ ...schema.toConfig(), mutation: new GraphQLObjectType({ name: 'Mutation', fields: {} }) });
 }
 

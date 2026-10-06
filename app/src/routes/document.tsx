@@ -140,7 +140,9 @@ function RenameDialog({ title, onRename, onClose }: RenameDialogProps) {
       <DialogLayout
         open
         onOpenChange={(open) => {
-          if (!open) onClose();
+          if (!open) {
+            onClose();
+          }
         }}
         title="Rename document"
         description="The file it was uploaded as keeps its own name."
@@ -185,8 +187,11 @@ export function DocumentRoute() {
 
   const busy = doc ? isInProgress(doc.status) : false;
   useEffect(() => {
-    if (busy) startPolling(POLL_MS);
-    else stopPolling();
+    if (busy) {
+      startPolling(POLL_MS);
+    } else {
+      stopPolling();
+    }
     return () => stopPolling();
   }, [busy, startPolling, stopPolling]);
 
@@ -196,12 +201,16 @@ export function DocumentRoute() {
   const variant = doc?.archiveKey ? DocumentFileVariant.Archive : DocumentFileVariant.Original;
   const previewable = doc ? doc.mimeType !== 'text/plain' : false;
   useEffect(() => {
-    if (!doc || !previewable) return;
+    if (!doc || !previewable) {
+      return;
+    }
     let current = true;
     client
       .query({ query: FileUrl, variables: { id: doc.id, variant, download: false }, fetchPolicy: 'network-only' })
       .then(({ data }) => {
-        if (current && data) setPreviewUrl(data.documentFileUrl);
+        if (current && data) {
+          setPreviewUrl(data.documentFileUrl);
+        }
       })
       .catch(() => {});
     return () => {
@@ -227,7 +236,9 @@ export function DocumentRoute() {
       .then(({ data }) => (data ? fetch(data.documentFileUrl) : null))
       .then((response) => response?.text())
       .then((text) => {
-        if (current && text !== undefined) setContent(text);
+        if (current && text !== undefined) {
+          setContent(text);
+        }
       })
       .catch(() => {});
     return () => {
@@ -236,13 +247,17 @@ export function DocumentRoute() {
   }, [client, doc, contentKey, contentOversize]);
 
   async function download(variant = DocumentFileVariant.Original) {
-    if (!doc) return;
+    if (!doc) {
+      return;
+    }
     const { data } = await client.query({
       query: FileUrl,
       variables: { id: doc.id, variant, download: true },
       fetchPolicy: 'network-only',
     });
-    if (data) window.location.assign(data.documentFileUrl);
+    if (data) {
+      window.location.assign(data.documentFileUrl);
+    }
   }
 
   if (result.error && !doc) {
@@ -252,7 +267,9 @@ export function DocumentRoute() {
       />
     );
   }
-  if (!doc && result.loading) return <Placeholder loading contentSlot={<RowSkeleton />} />;
+  if (!doc && result.loading) {
+    return <Placeholder loading contentSlot={<RowSkeleton />} />;
+  }
   if (!doc) {
     return (
       <Placeholder

@@ -80,7 +80,9 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
           },
         },
       });
-      if (!data) throw new Error('The server did not answer');
+      if (!data) {
+        throw new Error('The server did not answer');
+      }
       const { document, uploadUrl, uploadHeaders } = data.createDocumentUpload;
       onChanged();
 
@@ -94,13 +96,17 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
   }
 
   function start(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
     const added = Array.from(files).map((file) => ({
       file,
       job: { key: clientId(), name: file.name, size: file.size, progress: 0, error: null, done: false },
     }));
     setJobs((current) => [...added.map(({ job }) => job), ...current.filter((job) => !job.done)]);
-    for (const { file, job } of added) void uploadOne(file, job);
+    for (const { file, job } of added) {
+      void uploadOne(file, job);
+    }
   }
 
   const dropZone = (

@@ -46,8 +46,11 @@ export function DocumentsRoute() {
 
   // Only while something is actually moving: a quiet archive should sit still.
   useEffect(() => {
-    if (busy) startPolling(POLL_MS);
-    else stopPolling();
+    if (busy) {
+      startPolling(POLL_MS);
+    } else {
+      stopPolling();
+    }
     return () => stopPolling();
   }, [busy, startPolling, stopPolling]);
 

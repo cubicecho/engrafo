@@ -25,11 +25,15 @@ export function VerifyPage() {
   const started = useRef(false);
 
   useEffect(() => {
-    if (!token || started.current) return;
+    if (!token || started.current) {
+      return;
+    }
     started.current = true;
     verify({ variables: { token } })
       .then(({ data }) => {
-        if (!data) return;
+        if (!data) {
+          return;
+        }
         setToken(data.verifyMagicLink.token);
         navigate('/', { replace: true });
       })

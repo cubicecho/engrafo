@@ -41,7 +41,9 @@ function createLimiter(concurrency: number) {
   let active = 0;
   const waiting: Array<() => void> = [];
   return async <T>(task: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) await new Promise<void>((resolve) => waiting.push(resolve));
+    if (active >= concurrency) {
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
     active += 1;
     try {
       return await task();
@@ -73,7 +75,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
   async function execute(documentId: string): Promise<void> {
     const [found] = await database.select().from(documents).where(eq(documents.id, documentId));
     // Deleted while queued, or still waiting on its upload: nothing to do.
-    if (!found || found.status === 'pending_upload' || found.status === 'ready') return;
+    if (!found || found.status === 'pending_upload' || found.status === 'ready') {
+      return;
+    }
     let doc: Document = found;
 
     // Rows are normally written by completeDocumentUpload. Inserting any that
@@ -99,7 +103,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-'));
     try {
       for (const step of steps) {
-        if (done.has(step.name)) continue;
+        if (done.has(step.name)) {
+          continue;
+        }
 
         if (!step.enabled(doc, config)) {
           await setStep(documentId, step.name, { status: 'skipped', error: null, finishedAt: new Date() });
@@ -123,7 +129,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
               .set(patch)
               .where(eq(documents.id, documentId))
               .returning();
-            if (!updated) return; // deleted mid-run
+            if (!updated) {
+              return; // deleted mid-run
+            }
             doc = updated;
           }
           await setStep(documentId, step.name, { status: 'succeeded', finishedAt: new Date() });
@@ -143,7 +151,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
 
   function run(documentId: string): Promise<void> {
     const existing = inFlight.get(documentId);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
 
     const task = limit(() => execute(documentId))
       .catch(async (error) => {
@@ -170,12 +180,16 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         .select({ id: documents.id })
         .from(documents)
         .where(inArray(documents.status, ['uploaded', 'processing']));
-      for (const { id } of unfinished) events.emit('document.uploaded', { documentId: id });
+      for (const { id } of unfinished) {
+        events.emit('document.uploaded', { documentId: id });
+      }
       return unfinished.length;
     },
 
     async idle() {
-      while (inFlight.size > 0) await Promise.all(inFlight.values());
+      while (inFlight.size > 0) {
+        await Promise.all(inFlight.values());
+      }
     },
   };
 }

@@ -92,7 +92,9 @@ function notFound(): GraphQLError {
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
-  if (!result.success) throw badInput(result.error.issues[0]?.message ?? 'Invalid input');
+  if (!result.success) {
+    throw badInput(result.error.issues[0]?.message ?? 'Invalid input');
+  }
   return result.data;
 }
 
@@ -127,12 +129,16 @@ function titleFromFilename(filename: string): string {
  */
 async function loadOwned(context: Context, id: string): Promise<Document> {
   const userId = requireAuth(context);
-  if (!z.uuid().safeParse(id).success) throw notFound();
+  if (!z.uuid().safeParse(id).success) {
+    throw notFound();
+  }
   const [doc] = await (context.db as AnyDb)
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), eq(documents.userId, userId)));
-  if (!doc) throw notFound();
+  if (!doc) {
+    throw notFound();
+  }
   return doc;
 }
 
@@ -155,9 +161,13 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     context: Context,
   ) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status === 'pending_upload') throw notFound();
+    if (doc.status === 'pending_upload') {
+      throw notFound();
+    }
     if (args.variant === 'ARCHIVE') {
-      if (!doc.archiveKey) throw notFound();
+      if (!doc.archiveKey) {
+        throw notFound();
+      }
       return context.storage.files.presignGet(doc.archiveKey, {
         filename: `${titleFromFilename(doc.originalFilename)}.pdf`,
         contentType: 'application/pdf',
@@ -167,7 +177,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     if (args.variant === 'TEXT') {
       // The text lives in its own bucket, so this URL is signed by the other
       // Storage — same credentials, different bucket in the path.
-      if (!doc.contentKey) throw notFound();
+      if (!doc.contentKey) {
+        throw notFound();
+      }
       return context.storage.text.presignGet(doc.contentKey, {
         filename: `${titleFromFilename(doc.originalFilename)}.txt`,
         contentType: 'text/plain; charset=utf-8',
@@ -211,10 +223,14 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   mutations.completeDocumentUpload.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status !== 'pending_upload') return doc;
+    if (doc.status !== 'pending_upload') {
+      return doc;
+    }
 
     const stored = await context.storage.files.head(doc.originalKey);
-    if (!stored) throw badInput('The upload has not arrived yet.');
+    if (!stored) {
+      throw badInput('The upload has not arrived yet.');
+    }
     if (stored.size !== doc.sizeBytes) {
       throw badInput(`The stored file is ${stored.size} bytes, but the upload declared ${doc.sizeBytes}.`);
     }
@@ -227,7 +243,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       .set({ status: 'uploaded' })
       .where(and(eq(documents.id, doc.id), eq(documents.status, 'pending_upload')))
       .returning();
-    if (!updated) return loadOwned(context, args.id);
+    if (!updated) {
+      return loadOwned(context, args.id);
+    }
 
     await db
       .insert(processingSteps)
@@ -240,7 +258,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   mutations.retryDocumentProcessing.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status !== 'failed') throw badInput('Only a failed document can be retried.');
+    if (doc.status !== 'failed') {
+      throw badInput('Only a failed document can be retried.');
+    }
 
     const db = context.db as AnyDb;
     await db
@@ -252,7 +272,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       .set({ status: 'uploaded', error: null })
       .where(and(eq(documents.id, doc.id), eq(documents.status, 'failed')))
       .returning();
-    if (!updated) return loadOwned(context, args.id);
+    if (!updated) {
+      return loadOwned(context, args.id);
+    }
 
     context.events.emit('document.uploaded', { documentId: doc.id });
     return updated;
@@ -270,7 +292,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       .set({ title })
       .where(eq(documents.id, doc.id))
       .returning();
-    if (!updated) throw notFound();
+    if (!updated) {
+      throw notFound();
+    }
     return updated;
   };
 
@@ -279,7 +303,9 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     // Objects first: a row without its file is visible and fixable by deleting
     // again, while a file without its row is invisible storage nobody pays attention to.
     await context.storage.files.delete([doc.originalKey, doc.archiveKey].filter((key): key is string => Boolean(key)));
-    if (doc.contentKey) await context.storage.text.delete([doc.contentKey]);
+    if (doc.contentKey) {
+      await context.storage.text.delete([doc.contentKey]);
+    }
     await (context.db as AnyDb).delete(documents).where(eq(documents.id, doc.id));
     return true;
   };

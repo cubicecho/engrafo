@@ -97,5 +97,7 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // After listening, so a large backlog does not hold up the health check.
   const resumed = await pipeline.resume();
-  if (resumed > 0) console.log(`   Resuming ${resumed} unfinished document(s)`);
+  if (resumed > 0) {
+    console.log(`   Resuming ${resumed} unfinished document(s)`);
+  }
 });

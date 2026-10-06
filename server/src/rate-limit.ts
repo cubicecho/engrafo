@@ -20,7 +20,9 @@ export function createRateLimiter(limit: number, windowMs: number): RateLimiter 
       // Sweep on write: the map holds only keys seen within one window, so a
       // long-running server does not accumulate every address ever probed.
       for (const [seen, window] of windows) {
-        if (window.resetAt <= now) windows.delete(seen);
+        if (window.resetAt <= now) {
+          windows.delete(seen);
+        }
       }
       const window = windows.get(key);
       if (!window) {

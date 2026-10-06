@@ -108,7 +108,9 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
         const result = await client.send(new HeadObjectCommand({ Bucket, Key: key }));
         return { size: result.ContentLength ?? 0, contentType: result.ContentType ?? null };
       } catch (error) {
-        if (error instanceof NotFound || (error as { name?: string }).name === 'NotFound') return null;
+        if (error instanceof NotFound || (error as { name?: string }).name === 'NotFound') {
+          return null;
+        }
         throw error;
       }
     },
@@ -135,7 +137,9 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
     },
 
     async delete(keys) {
-      if (keys.length === 0) return;
+      if (keys.length === 0) {
+        return;
+      }
       await client.send(
         new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }),
       );

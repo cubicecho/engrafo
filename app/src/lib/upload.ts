@@ -19,10 +19,14 @@ export function putFile(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
-    for (const { name, value } of headers) xhr.setRequestHeader(name, value);
+    for (const { name, value } of headers) {
+      xhr.setRequestHeader(name, value);
+    }
 
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress(event.loaded / event.total);
+      if (event.lengthComputable) {
+        onProgress(event.loaded / event.total);
+      }
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {

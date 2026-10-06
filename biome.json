@@ -18,6 +18,7 @@
       },
       "style": {
         "useImportType": "error",
+        "useBlockStatements": "error",
         "noNonNullAssertion": "off"
       },
       "suspicious": { "noExplicitAny": "warn" }

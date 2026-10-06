@@ -77,7 +77,9 @@ describe('pipeline runner', () => {
       name: 'flaky',
       enabled: () => true,
       run: async () => {
-        if (shouldFail) throw new Error('boom');
+        if (shouldFail) {
+          throw new Error('boom');
+        }
         return { contentKey: 'text/ok.txt' };
       },
     };

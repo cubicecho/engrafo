@@ -27,7 +27,9 @@ describe('tenancy configuration', () => {
 
   it('names every table by its Drizzle key, not its SQL name', () => {
     for (const [key, value] of Object.entries(dbSchema)) {
-      if (!is(value, Table)) continue;
+      if (!is(value, Table)) {
+        continue;
+      }
       expect(Object.keys(scope)).toContain(key);
       expect(getTableName(value)).toBeTypeOf('string');
     }

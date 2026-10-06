@@ -24,7 +24,9 @@ export function mockBucket(): Plugin {
     name: 'engrafo:mock-bucket',
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        if (request.method !== 'PUT' || !request.url?.startsWith('/__mock-bucket/')) return next();
+        if (request.method !== 'PUT' || !request.url?.startsWith('/__mock-bucket/')) {
+          return next();
+        }
 
         // Drained rather than ignored: leaving the body unread stalls the request, and the
         // panel sits at a progress bar that never finishes.

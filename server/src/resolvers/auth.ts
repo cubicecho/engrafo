@@ -79,7 +79,9 @@ export function verifyMagicToken(token: string): { email: string } | null {
 /** Read the authenticated userId from a request's Bearer token, if any. */
 export function extractUserId(req: { headers: { authorization?: string } }): string | null {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return null;
+  if (!auth?.startsWith('Bearer ')) {
+    return null;
+  }
   return verifyToken(auth.slice(7))?.userId ?? null;
 }
 
@@ -107,10 +109,14 @@ export async function findOrCreateUser(db: any, email: string): Promise<string> 
     .select({ id: dbSchema.users.id })
     .from(dbSchema.users)
     .where(eq(dbSchema.users.email, email));
-  if (existing.length > 0) return existing[0].id;
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
 
   const [created] = await db.insert(dbSchema.users).values({ email }).returning({ id: dbSchema.users.id });
-  if (!created) throw new GraphQLError('Failed to create user');
+  if (!created) {
+    throw new GraphQLError('Failed to create user');
+  }
   return created.id;
 }
 

@@ -30,7 +30,9 @@ export function LoginPage() {
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       const { data } = await requestLink({ variables: { email: value.email } }).catch(() => ({ data: undefined }));
-      if (!data) return;
+      if (!data) {
+        return;
+      }
       const result = data.requestMagicLink;
       // AUTH_MAGIC_LINK=false: the server signed us straight in.
       if (result.token) {
@@ -42,7 +44,9 @@ export function LoginPage() {
     },
   });
 
-  if (getToken()) return <Navigate to="/" replace />;
+  if (getToken()) {
+    return <Navigate to="/" replace />;
+  }
 
   // The link is built from APP_URL, which in development points at the server
   // rather than at Vite. Follow it in this tab, on this origin, instead.

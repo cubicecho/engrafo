@@ -53,7 +53,9 @@ export function createFakeBucket(): FakeBucket {
   const objects = new Map<string, { body: Buffer; contentType: string }>();
   const get = (key: string) => {
     const object = objects.get(key);
-    if (!object) throw new Error(`NoSuchKey: ${key}`);
+    if (!object) {
+      throw new Error(`NoSuchKey: ${key}`);
+    }
     return object;
   };
   return {
@@ -75,7 +77,9 @@ export function createFakeBucket(): FakeBucket {
       objects.set(key, { body: await readFile(path), contentType });
     },
     delete: async (keys) => {
-      for (const key of keys) objects.delete(key);
+      for (const key of keys) {
+        objects.delete(key);
+      }
     },
   };
 }
@@ -121,7 +125,9 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
     expectError: async (query, variables) => {
       const result = await run(query, variables);
       const error = result.errors?.[0];
-      if (!error) throw new Error('expected an error, got a successful result');
+      if (!error) {
+        throw new Error('expected an error, got a successful result');
+      }
       return { message: error.message, code: error.extensions?.code };
     },
   };

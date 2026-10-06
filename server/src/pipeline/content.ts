@@ -9,7 +9,9 @@ import type { DocumentPatch } from './types.ts';
  */
 export async function storeContent(storage: StorageSet, doc: Document, content: string): Promise<DocumentPatch> {
   const trimmed = content.trim();
-  if (!trimmed) return { contentKey: null, contentBytes: null };
+  if (!trimmed) {
+    return { contentKey: null, contentBytes: null };
+  }
 
   const key = textKey(doc.userId, doc.id);
   await storage.text.put(key, trimmed, 'text/plain; charset=utf-8');

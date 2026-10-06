@@ -28,7 +28,9 @@ function stringify(value: unknown): string | undefined {
 function panelState(mocks: readonly MockLink.MockedResponse[], activeIndex: number): ApolloClientAddonState {
   const mock = mocks[activeIndex];
   const options = mocks.map(mockName);
-  if (!mock) return { options, activeIndex: -1 };
+  if (!mock) {
+    return { options, activeIndex: -1 };
+  }
   return {
     options,
     activeIndex,
