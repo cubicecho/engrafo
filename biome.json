@@ -15,14 +15,22 @@
       "recommended": true,
       "correctness": {
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
       },
       "style": {
         "useImportType": "error",
         "useBlockStatements": "error",
-        "noNonNullAssertion": "off"
+        "useConst": "error",
+        "noMagicNumbers": "warn",
+        "noCommonJs": "error",
+        "noEnum": "error",
+        "noNamespace": "error",
+        "noParameterProperties": "error",
+        "noNonNullAssertion": "error",
+        "useFilenamingConvention": { "level": "error", "options": { "filenameCases": ["kebab-case"] } }
       },
-      "suspicious": { "noExplicitAny": "warn" }
+      "suspicious": { "noExplicitAny": "error" }
     }
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
@@ -39,6 +47,10 @@
       ],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx", "**/tests/**", "**/__tests__/**", "**/bench/**"],
+      "linter": { "rules": { "style": { "noMagicNumbers": "off" } } }
     }
   ]
 }

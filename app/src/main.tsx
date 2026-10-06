@@ -36,7 +36,12 @@ function ThemeSync() {
   return null;
 }
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root');
+if (!root) {
+  throw new Error('index.html has no #root element to mount the app in');
+}
+
+createRoot(root).render(
   <StrictMode>
     <ApolloProvider client={apolloClient}>
       <TooltipProvider>

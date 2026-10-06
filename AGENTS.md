@@ -344,7 +344,7 @@ through and the run dies with "browser connection was closed".
 
 ## Code style
 
-- Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check:fix`.
+- Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check` applies the safe fixes; CI runs `npx biome ci .`, which writes nothing.
 - `biome.json` is parsed as strict JSON here — **no comments in it**, or Biome
   reports a confusing "nested root configuration" error.
 - `server/` and `db/` run under `--experimental-strip-types` with no build step,
