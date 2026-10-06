@@ -29,5 +29,5 @@ const connection: any = {
 export type DB = any;
 export const db: DB = drizzle({ connection, relations });
 
-export { relations, schema };
 export * from './schema.ts';
+export { relations, schema };
