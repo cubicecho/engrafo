@@ -95,8 +95,7 @@ export const Narrow: Story = {
 
     // Both navs are in the DOM; only one is laid out. `getAllByRole` would find four links and
     // pass whatever the CSS did, so the assertion has to be about the box, not the markup.
-    const sidebar = canvasElement.querySelector('aside') as HTMLElement;
-    await expect(sidebar).not.toBeVisible();
+    await expect(canvas.getByRole('complementary', { hidden: true })).not.toBeVisible();
 
     await expect(canvas.getByRole('banner')).toBeVisible();
     // One of each, not two: the sidebar's copies are in the DOM and must not be reachable.

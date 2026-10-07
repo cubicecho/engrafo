@@ -72,11 +72,11 @@ export const WithDocuments: Story = {
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('link', { name: 'Electricity bill — August' })).toBeInTheDocument();
-    await expect(canvas.getByText('Processing')).toBeInTheDocument();
-    await expect(canvas.getByText('Failed')).toBeInTheDocument();
+    await expect(canvas.getByRole('cell', { name: 'Processing' })).toBeInTheDocument();
+    await expect(canvas.getByRole('cell', { name: 'Failed' })).toBeInTheDocument();
     // The upload panel is part of this page, not a separate screen: there is nowhere else to
     // add a document from.
-    await expect(canvas.getByLabelText('Run OCR on new uploads')).toBeInTheDocument();
+    await expect(canvas.getByRole('switch', { name: 'Run OCR on new uploads' })).toBeInTheDocument();
   },
 };
 
@@ -111,7 +111,8 @@ export const Unreachable: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Could not load your documents')).toBeInTheDocument();
-    await expect(canvas.getByText('Connection terminated unexpectedly')).toBeInTheDocument();
+    const alert = await canvas.findByRole('alert');
+    await expect(alert).toHaveTextContent('Could not load your documents');
+    await expect(alert).toHaveTextContent('Connection terminated unexpectedly');
   },
 };

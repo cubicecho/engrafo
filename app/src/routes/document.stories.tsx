@@ -71,7 +71,7 @@ export const Ready: Story = {
   parameters: { apolloClient: { resolvers: { Query: { document: () => document({}) } } } },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
-    await expect(canvas.getByText('extract-text')).toBeInTheDocument();
+    await expect(canvas.getAllByRole('listitem')[1]).toHaveTextContent('extract-text');
     await expect(canvas.getByRole('button', { name: 'Copy checksum' })).toBeInTheDocument();
     await expect(canvas.queryByRole('alert')).not.toBeInTheDocument();
   },
@@ -100,7 +100,7 @@ export const Failed: Story = {
     const alert = await canvas.findByRole('alert');
     await expect(alert).toHaveTextContent('Processing failed');
     await expect(within(alert).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    await expect(canvas.getByText(/3 attempts/)).toBeInTheDocument();
+    await expect(canvas.getAllByRole('listitem')[1]).toHaveTextContent('3 attempts');
   },
 };
 
@@ -113,7 +113,7 @@ export const Renaming: Story = {
   play: async ({ canvas, canvasElement }) => {
     await userEvent.click(await canvas.findByRole('button', { name: 'Rename' }));
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Rename document' });
-    await expect(within(dialog).getByLabelText(/Title/)).toHaveValue('Lease agreement');
+    await expect(within(dialog).getByRole('textbox', { name: /Title/ })).toHaveValue('Lease agreement');
     await expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
     await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   },

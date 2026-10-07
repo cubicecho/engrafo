@@ -54,7 +54,7 @@ export const RejectsABlankTitle: Story = {
     await userEvent.type(title, '   ');
     await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
 
-    await expect(await dialog.findByText('Give the document a title')).toBeInTheDocument();
+    await expect(await dialog.findByRole('alert')).toHaveTextContent('Give the document a title');
     await expect(args.onRename).not.toHaveBeenCalled();
     await expect(args.onClose).not.toHaveBeenCalled();
   },

@@ -115,7 +115,7 @@ export const Unreachable: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Could not load your settings')).toBeInTheDocument();
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load your settings');
     await expect(canvas.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   },
 };
