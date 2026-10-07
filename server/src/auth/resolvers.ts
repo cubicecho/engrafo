@@ -1,9 +1,10 @@
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
-import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
+import { extendSchema, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
+import { badInput, requireAuth, unauthenticated } from '../core/errors.ts';
 import { requestMagicLink } from './better-auth.ts';
 
 const AUTH_SDL = parse(`
@@ -57,17 +58,6 @@ export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 /** Where a user made without a link came from, as better-auth's `validateUserInfo` gate sees it. */
 const LOCAL_NET_SOURCE = { method: 'secure-local-net' };
 
-function unauthenticated(): GraphQLError {
-  return new GraphQLError('Unauthenticated', { extensions: { code: 'UNAUTHENTICATED' } });
-}
-
-export function requireAuth(ctx: Context): string {
-  if (!ctx.userId) {
-    throw unauthenticated();
-  }
-  return ctx.userId;
-}
-
 /**
  * Counts one attempt at an auth flow, by client address and by account.
  *
@@ -88,7 +78,7 @@ function throttle(ctx: Context, flow: AuthFlow, email?: string): void {
 function normalizeEmail(email: string): string {
   const parsed = z.email().safeParse(email.trim().toLowerCase());
   if (parsed.success === false) {
-    throw new GraphQLError('Enter a valid email address', { extensions: { code: 'BAD_USER_INPUT' } });
+    throw badInput('Enter a valid email address');
   }
   return parsed.data;
 }
@@ -159,7 +149,7 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
       .magicLinkVerify({ query: { token: args.token }, headers: new Headers() })
       .catch(() => null);
     if (result === null) {
-      throw new GraphQLError('Invalid or expired magic link', { extensions: { code: 'BAD_USER_INPUT' } });
+      throw badInput('Invalid or expired magic link');
     }
     return { token: result.token, user: await loadUser(context, result.user.id) };
   };

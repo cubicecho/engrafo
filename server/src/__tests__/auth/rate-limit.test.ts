@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
 import { RATE_LIMIT_DEFAULTS } from '../../core/defaults.ts';
+import { ErrorCode } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 
 describe('createRateLimiter', () => {
@@ -8,7 +9,7 @@ describe('createRateLimiter', () => {
     let clock = 0;
     const limiter = createRateLimiter({ maxAttempts: 1, windowMinutes: 1 }, () => clock);
     limiter.hit('k');
-    const refused = { code: 'TOO_MANY_REQUESTS', retryAfter: SECONDS_PER_MINUTE };
+    const refused = { code: ErrorCode.TooManyRequests, retryAfter: SECONDS_PER_MINUTE };
     expect(() => limiter.hit('k')).toThrow(expect.objectContaining({ extensions: refused }));
 
     clock = SECONDS_PER_MINUTE * MS_PER_SECOND + 1;

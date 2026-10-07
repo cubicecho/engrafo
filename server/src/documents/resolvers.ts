@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { and, eq } from 'drizzle-orm';
-import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
+import { extendSchema, type GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
-import { requireAuth } from '../auth/resolvers.ts';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
+import { badInput, notFound, requireAuth } from '../core/errors.ts';
+import { parseOrThrow } from '../core/validation.ts';
 import { STEPS } from '../pipeline/index.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
 import { originalKey } from '../storage/s3.ts';
@@ -79,20 +80,9 @@ const DOCUMENTS_SDL = parse(`
   }
 `);
 
-function badInput(message: string): GraphQLError {
-  return new GraphQLError(message, { extensions: { code: 'BAD_USER_INPUT' } });
-}
-
-function notFound(): GraphQLError {
-  return new GraphQLError('Document not found', { extensions: { code: 'NOT_FOUND' } });
-}
-
-function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
-  const result = schema.safeParse(value);
-  if (!result.success) {
-    throw badInput(result.error.issues[0]?.message ?? 'Invalid input');
-  }
-  return result.data;
+/** Hides a missing document and someone else's behind one answer. */
+function documentNotFound(): GraphQLError {
+  return notFound('Document not found');
 }
 
 const titleSchema = z.string().trim().min(1, 'Title cannot be empty.').max(500, 'Title is too long.');
@@ -127,14 +117,14 @@ function titleFromFilename(filename: string): string {
 async function loadOwned(context: Context, id: string): Promise<Document> {
   const userId = requireAuth(context);
   if (!z.uuid().safeParse(id).success) {
-    throw notFound();
+    throw documentNotFound();
   }
   const [doc] = await context.db
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), eq(documents.userId, userId)));
   if (!doc) {
-    throw notFound();
+    throw documentNotFound();
   }
   return doc;
 }
@@ -159,11 +149,11 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   ) => {
     const doc = await loadOwned(context, args.id);
     if (doc.status === 'pending_upload') {
-      throw notFound();
+      throw documentNotFound();
     }
     if (args.variant === 'ARCHIVE') {
       if (!doc.archiveKey) {
-        throw notFound();
+        throw documentNotFound();
       }
       return context.storage.files.presignGet(doc.archiveKey, {
         filename: `${titleFromFilename(doc.originalFilename)}.pdf`,
@@ -175,7 +165,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       // The text lives in its own bucket, so this URL is signed by the other
       // Storage — same credentials, different bucket in the path.
       if (!doc.contentKey) {
-        throw notFound();
+        throw documentNotFound();
       }
       return context.storage.text.presignGet(doc.contentKey, {
         filename: `${titleFromFilename(doc.originalFilename)}.txt`,
@@ -286,7 +276,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     const title = parseOrThrow(titleSchema, args.title);
     const [updated] = await context.db.update(documents).set({ title }).where(eq(documents.id, doc.id)).returning();
     if (!updated) {
-      throw notFound();
+      throw documentNotFound();
     }
     return updated;
   };

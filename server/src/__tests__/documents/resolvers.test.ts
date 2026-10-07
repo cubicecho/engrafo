@@ -1,6 +1,7 @@
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
 import {
   createClient,
@@ -65,21 +66,21 @@ describe('document uploads', () => {
     const type = await client().expectError(CREATE, {
       input: { filename: 'x.exe', mimeType: 'application/x-msdownload', sizeBytes: 5 },
     });
-    expect(type.code).toBe('BAD_USER_INPUT');
+    expect(type.code).toBe(ErrorCode.BadUserInput);
     const size = await client().expectError(CREATE, {
       input: { filename: 'x.pdf', mimeType: 'application/pdf', sizeBytes: 1024 ** 4 },
     });
-    expect(size.code).toBe('BAD_USER_INPUT');
+    expect(size.code).toBe(ErrorCode.BadUserInput);
   });
 
   it('will not complete before the object exists, or when its size differs', async () => {
     const { document } = await createUpload();
     const missing = await client().expectError(COMPLETE, { id: document.id });
-    expect(missing.code).toBe('BAD_USER_INPUT');
+    expect(missing.code).toBe(ErrorCode.BadUserInput);
 
     storage.files.objects.set(document.originalKey, { body: Buffer.from('123'), contentType: 'application/pdf' });
     const wrongSize = await client().expectError(COMPLETE, { id: document.id });
-    expect(wrongSize.code).toBe('BAD_USER_INPUT');
+    expect(wrongSize.code).toBe(ErrorCode.BadUserInput);
     expect(emitted).toEqual([]);
   });
 
@@ -104,7 +105,7 @@ describe('document uploads', () => {
   it('retries only a failed document, resetting its failed step', async () => {
     const { document } = await createUpload();
     const retry = 'mutation ($id: UUID!) { retryDocumentProcessing(id: $id) { status error } }';
-    expect((await client().expectError(retry, { id: document.id })).code).toBe('BAD_USER_INPUT');
+    expect((await client().expectError(retry, { id: document.id })).code).toBe(ErrorCode.BadUserInput);
 
     await db.update(documents).set({ status: 'failed', error: 'ocr: boom' }).where(eq(documents.id, document.id));
     await db
@@ -123,18 +124,18 @@ describe('document uploads', () => {
     const rename = 'mutation ($id: UUID!, $title: String!) { renameDocument(id: $id, title: $title) { title } }';
     const data = await client().expectOk(rename, { id: document.id, title: '  Tax return 2025 ' });
     expect(data.renameDocument.title).toBe('Tax return 2025');
-    expect((await client().expectError(rename, { id: document.id, title: '   ' })).code).toBe('BAD_USER_INPUT');
+    expect((await client().expectError(rename, { id: document.id, title: '   ' })).code).toBe(ErrorCode.BadUserInput);
   });
 
   it('signs file URLs only for files that exist', async () => {
     const { document } = await createUpload();
     const query = 'query ($id: UUID!, $variant: DocumentFileVariant!) { documentFileUrl(id: $id, variant: $variant) }';
-    expect((await client().expectError(query, { id: document.id, variant: 'ORIGINAL' })).code).toBe('NOT_FOUND');
+    expect((await client().expectError(query, { id: document.id, variant: 'ORIGINAL' })).code).toBe(ErrorCode.NotFound);
 
     await db.update(documents).set({ status: 'ready' }).where(eq(documents.id, document.id));
     const original = await client().expectOk(query, { id: document.id, variant: 'ORIGINAL' });
     expect(original.documentFileUrl).toBe(`https://s3.test/get/${document.originalKey}`);
-    expect((await client().expectError(query, { id: document.id, variant: 'ARCHIVE' })).code).toBe('NOT_FOUND');
+    expect((await client().expectError(query, { id: document.id, variant: 'ARCHIVE' })).code).toBe(ErrorCode.NotFound);
   });
 
   it('deletes the row and its objects', async () => {

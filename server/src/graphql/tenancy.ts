@@ -1,7 +1,7 @@
 import type { BuildSchemaConfig, RowScope } from '@vantreeseba/drizzle-graphql';
 import { eq } from 'drizzle-orm';
-import { requireAuth } from '../auth/resolvers.ts';
 import type { Context } from '../core/context.ts';
+import { requireAuth } from '../core/errors.ts';
 
 // Multi-tenancy, expressed as drizzle-graphql configuration rather than as
 // resolver wrappers. `scope` is ANDed into the SQL of every read the library

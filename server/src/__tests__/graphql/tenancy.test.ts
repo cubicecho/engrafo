@@ -1,6 +1,7 @@
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { getTableName, is, Table } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors.ts';
 import { contextValues, scope } from '../../graphql/tenancy.ts';
 import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
 
@@ -92,18 +93,18 @@ describe('tenancy at runtime', () => {
   it('hides another user’s document from hand-written resolvers as NOT_FOUND', async () => {
     const bobClient = createClient(db, bob);
     const url = await bobClient.expectError('query ($id: UUID!) { documentFileUrl(id: $id) }', { id: aliceDoc });
-    expect(url.code).toBe('NOT_FOUND');
+    expect(url.code).toBe(ErrorCode.NotFound);
     const rename = await bobClient.expectError('mutation ($id: UUID!) { renameDocument(id: $id, title: "x") { id } }', {
       id: aliceDoc,
     });
-    expect(rename.code).toBe('NOT_FOUND');
+    expect(rename.code).toBe(ErrorCode.NotFound);
     const del = await bobClient.expectError('mutation ($id: UUID!) { deleteDocument(id: $id) }', { id: aliceDoc });
-    expect(del.code).toBe('NOT_FOUND');
+    expect(del.code).toBe(ErrorCode.NotFound);
   });
 
   it('refuses the unauthenticated', async () => {
     const error = await createClient(db, null).expectError('{ documents { id } }');
-    expect(error.code).toBe('UNAUTHENTICATED');
+    expect(error.code).toBe(ErrorCode.Unauthenticated);
   });
 
   it.each(['sessions', 'accounts', 'verifications'])('keeps %s out of the schema', async (table) => {

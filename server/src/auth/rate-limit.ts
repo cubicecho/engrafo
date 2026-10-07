@@ -1,5 +1,5 @@
-import { GraphQLError } from 'graphql';
 import { RATE_LIMIT_DEFAULTS, type RateLimitSettings } from '../core/defaults.ts';
+import { rateLimited } from '../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../core/wire.ts';
 
 /** Counts attempts per key and refuses once a key is over its budget. */
@@ -41,9 +41,7 @@ export function createRateLimiter(
       if (full !== undefined) {
         const [oldest = at] = full;
         const retryAfter = Math.ceil((oldest + windowMs - at) / MS_PER_SECOND);
-        throw new GraphQLError(`Too many attempts. Try again in ${retryAfter} seconds.`, {
-          extensions: { code: 'TOO_MANY_REQUESTS', retryAfter },
-        });
+        throw rateLimited(`Too many attempts. Try again in ${retryAfter} seconds.`, retryAfter);
       }
       for (const [index, key] of keys.entries()) {
         attempts.set(key, [...(recent[index] ?? []), at]);

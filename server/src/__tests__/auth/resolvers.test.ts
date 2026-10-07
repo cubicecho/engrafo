@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
+import { ErrorCode } from '../../core/errors.ts';
 import {
   createClient,
   createTestAuth,
@@ -113,7 +114,7 @@ describe('requestSignIn', () => {
   it('refuses something that is not an address as bad input', async () => {
     const error = await anonymous.expectError(REQUEST, { email: 'not-an-address' });
 
-    expect(error.code).toBe('BAD_USER_INPUT');
+    expect(error.code).toBe(ErrorCode.BadUserInput);
   });
 });
 
@@ -141,7 +142,7 @@ describe('verifyMagicLink', () => {
 
     const error = await anonymous.expectError(VERIFY, { token });
 
-    expect(error.code).toBe('BAD_USER_INPUT');
+    expect(error.code).toBe(ErrorCode.BadUserInput);
   });
 
   it('rejects a garbage token as bad input, not as an expired session', async () => {
@@ -149,7 +150,7 @@ describe('verifyMagicLink', () => {
 
     // UNAUTHENTICATED would make the client drop its token and bounce to /login,
     // so a mistyped link must never report as one.
-    expect(error.code).toBe('BAD_USER_INPUT');
+    expect(error.code).toBe(ErrorCode.BadUserInput);
   });
 });
 
@@ -167,7 +168,7 @@ describe('me', () => {
 
     // The settings screen is the first thing an ended session hits, and this is
     // the code the client watches for to send someone back to /login.
-    expect(error.code).toBe('UNAUTHENTICATED');
+    expect(error.code).toBe(ErrorCode.Unauthenticated);
   });
 });
 
@@ -217,7 +218,7 @@ describe('sign-in rate limit', () => {
 
     const error = await client.expectError(REQUEST, { email: 'c@example.com' });
 
-    expect(error.code).toBe('TOO_MANY_REQUESTS');
+    expect(error.code).toBe(ErrorCode.TooManyRequests);
   });
 
   it('counts by account across addresses and spellings', async () => {
@@ -227,7 +228,7 @@ describe('sign-in rate limit', () => {
 
     const error = await from('198.51.100.3', limiter).expectError(REQUEST, { email: 'ALICE@example.com' });
 
-    expect(error.code).toBe('TOO_MANY_REQUESTS');
+    expect(error.code).toBe(ErrorCode.TooManyRequests);
   });
 
   it('refuses token guesses past the budget', async () => {
@@ -237,6 +238,6 @@ describe('sign-in rate limit', () => {
 
     const error = await client.expectError(VERIFY, { token: 'guess-3' });
 
-    expect(error.code).toBe('TOO_MANY_REQUESTS');
+    expect(error.code).toBe(ErrorCode.TooManyRequests);
   });
 });

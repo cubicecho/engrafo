@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { errorMessage } from '../../core/errors.ts';
 import { archiveKey } from '../../storage/s3.ts';
 import { storeContent } from '../content.ts';
 import { isImage, isOcrable } from '../mime.ts';
@@ -79,7 +80,7 @@ export const ocrStep: PipelineStep = {
       // ocrmypdf explains itself on stderr; the exec error's own message is just
       // the command line.
       const stderr = (error as { stderr?: string }).stderr?.trim();
-      throw new Error(stderr ? stderr.split('\n').slice(-5).join('\n') : (error as Error).message);
+      throw new Error(stderr ? stderr.split('\n').slice(-5).join('\n') : errorMessage(error));
     }
 
     const key = archiveKey(doc.userId, doc.id);

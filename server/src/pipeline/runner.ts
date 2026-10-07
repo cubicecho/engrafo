@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
+import { errorMessage } from '../core/errors.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep } from './types.ts';
@@ -24,10 +25,6 @@ export interface Pipeline {
   resume(): Promise<number>;
   /** Resolves once nothing is queued or running. For tests and graceful shutdown. */
   idle(): Promise<void>;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**
