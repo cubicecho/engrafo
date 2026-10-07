@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { createClient, createTestDb, type TestDb } from './helpers.ts';
+import { createClient, createTestDb, type TestDb } from '../helpers.ts';
 
 const REQUEST = `
   mutation($email: String!) {

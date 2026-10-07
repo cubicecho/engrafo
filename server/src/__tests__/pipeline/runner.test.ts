@@ -1,12 +1,12 @@
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
-import { createPipeline } from '../pipeline/runner.ts';
-import { inspectStep } from '../pipeline/steps/inspect.ts';
-import { textStep } from '../pipeline/steps/text.ts';
-import type { PipelineConfig, PipelineStep } from '../pipeline/types.ts';
-import { createFakeStorage, createTestDb, createUser, type FakeStorage, type TestDb } from './helpers.ts';
+import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
+import { createPipeline } from '../../pipeline/runner.ts';
+import { inspectStep } from '../../pipeline/steps/inspect.ts';
+import { textStep } from '../../pipeline/steps/text.ts';
+import type { PipelineConfig, PipelineStep } from '../../pipeline/types.ts';
+import { createFakeStorage, createTestDb, createUser, type FakeStorage, type TestDb } from '../helpers.ts';
 
 const CONFIG: PipelineConfig = { ocrAvailable: false, ocrLanguages: 'eng', concurrency: 1 };
 

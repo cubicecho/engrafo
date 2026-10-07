@@ -1,8 +1,15 @@
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
-import { createClient, createFakeStorage, createTestDb, createUser, type FakeStorage, type TestDb } from './helpers.ts';
+import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
+import {
+  createClient,
+  createFakeStorage,
+  createTestDb,
+  createUser,
+  type FakeStorage,
+  type TestDb,
+} from '../helpers.ts';
 
 const CREATE = `
   mutation ($input: CreateDocumentUploadInput!) {

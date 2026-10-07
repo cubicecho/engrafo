@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
-import { detectOcr, ocrArgs, ocrStep } from '../pipeline/steps/ocr.ts';
-import type { PipelineConfig } from '../pipeline/types.ts';
-import { createFakeStorage } from './helpers.ts';
+import { detectOcr, ocrArgs, ocrStep } from '../../pipeline/steps/ocr.ts';
+import type { PipelineConfig } from '../../pipeline/types.ts';
+import { createFakeStorage } from '../helpers.ts';
 
 const exec = promisify(execFile);
 
