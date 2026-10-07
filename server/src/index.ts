@@ -23,7 +23,9 @@ import {
 import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
-import { createPipeline, createPipelineEvents, STEPS } from './pipeline/index.ts';
+import { createPipelineEvents } from './pipeline/events.ts';
+import { createPipeline } from './pipeline/runner.ts';
+import { STEPS } from './pipeline/step-list.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
 import { createS3Storage } from './storage/s3.ts';
 

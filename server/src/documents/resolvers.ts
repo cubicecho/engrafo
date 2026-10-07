@@ -9,8 +9,8 @@ import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
 import { badInput, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
-import { STEPS } from '../pipeline/index.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
+import { STEPS } from '../pipeline/step-list.ts';
 import { originalKey } from '../storage/s3.ts';
 
 // Every write to a document. Reads — `documents`, `document`, and the
