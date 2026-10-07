@@ -3,6 +3,8 @@
 A minimal self-hostable document archive — the short path through Paperless-ngx,
 and nothing else.
 
+**[cubicecho.github.io/engrafo](https://cubicecho.github.io/engrafo/)**
+
 Upload a file. It goes straight into an S3-compatible bucket, a small pipeline
 runs over it, the text it found lands in a second bucket, and what came out is on
 the document's page. Postgres holds the metadata and nothing bulky. That is the

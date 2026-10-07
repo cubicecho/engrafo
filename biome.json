@@ -65,7 +65,8 @@
       "!**/__generated__",
       "!**/drizzle",
       "!**/*.gen.ts",
-      "!**/.expo"
+      "!**/.expo",
+      "!site"
     ]
   },
   "overrides": [
