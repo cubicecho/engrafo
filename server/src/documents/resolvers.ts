@@ -147,6 +147,16 @@ async function loadOwned(context: Context, id: string): Promise<Document> {
   return doc;
 }
 
+/**
+ * Adds every document write to the schema, with `serverConfig` and `documentFileUrl`.
+ *
+ * @param schema - The generated schema, which must already have a Mutation type.
+ * @returns The extended schema.
+ *
+ * @remarks
+ * Hand-written resolvers do not inherit `scope`, so each one states ownership itself, through
+ * `loadOwned` or `requireAuth`.
+ */
 export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   const extended = extendSchema(schema, DOCUMENTS_SDL);
   const queries = assertObjectType(extended.getType('Query')).getFields();

@@ -58,11 +58,15 @@ async function logMagicLink(link: MagicLink): Promise<void> {
 }
 
 /**
- * Builds the better-auth instance. Server code calls `auth.api.*`, and no REST routes are mounted.
+ * Builds the better-auth instance.
  *
  * @param db - Database client.
  * @param [opts] - Test overrides.
  * @returns The auth instance.
+ *
+ * @remarks
+ * Server code calls `auth.api.*`, and no REST routes are mounted. The return type is left
+ * inferred: `Auth` is derived from it, because the plugins decide what `auth.api` has.
  */
 export function createAuth(db: DB, { secret = authSecret(), sendMagicLink = logMagicLink }: AuthOptions = {}) {
   const usesMemorySessions = sessionStore() === SESSION_STORE_MEMORY;
@@ -99,15 +103,19 @@ export function createAuth(db: DB, { secret = authSecret(), sendMagicLink = logM
     ],
   });
 }
+
+/** The better-auth instance as `createAuth` configures it, plugins included. */
 export type Auth = ReturnType<typeof createAuth>;
 
 /**
- * Sends a magic link and returns it. Registration is open: the first verified link for an
- * address creates its account.
+ * Sends a magic link and returns it.
  *
  * @param auth - The auth instance.
  * @param email - Normalized address.
- * @returns The link that was delivered. The caller decides whether it may be shown.
+ * @returns The link that was delivered, or null when none was. The caller decides whether it may be shown.
+ *
+ * @remarks
+ * Registration is open: the first verified link for an address creates its account.
  */
 export async function requestMagicLink(auth: Auth, email: string): Promise<MagicLink | null> {
   const capture: LinkCapture = { link: null };

@@ -19,17 +19,17 @@ const PRIVATE_IPV4_RANGES = [
 ];
 
 /**
- * Whether to insist on TLS for a connection string.
+ * Decides whether to insist on TLS for a connection string.
  *
- * Read from the parsed hostname, never the raw string: a URL carrying
- * credentials (`postgres://user:pass@postgres:5432/db`) puts the userinfo where
- * a naive prefix match looks for the host.
+ * @param url - Postgres connection string.
+ * @returns true only when the host could route off a private network and the URL sets no `sslmode`.
  *
- * "Local" is wider than loopback here, because self-hosting is. A bare
- * `postgres` is a service on a compose network; `10.0.0.5` is a box on the
- * LAN — neither speaks TLS by default, and demanding it just breaks the
- * connection. Only an address that could route off a private network gets TLS
- * forced on it.
+ * @remarks
+ * Read from the parsed hostname, never the raw string: a URL carrying credentials
+ * (`postgres://user:pass@postgres:5432/db`) puts the userinfo where a prefix match looks for
+ * the host. "Local" is wider than loopback, because self-hosting is: a bare `postgres` on a
+ * compose network and `10.0.0.5` on the LAN speak no TLS by default, and demanding it just
+ * breaks the connection.
  */
 export function requiresSsl(url: string): boolean {
   // An explicit sslmode is the operator's decision; postgres-js reads it itself.

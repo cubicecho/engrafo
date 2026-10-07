@@ -15,9 +15,14 @@ const exec = promisify(execFile);
 const OCR_TIMEOUT_MS = OCR_DEFAULTS.timeoutMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 /**
- * Whether ocrmypdf is on the PATH. Asked once at boot: the Docker image ships
- * it, but a dev server on a bare host usually does not, and a missing binary
- * should read as "OCR unavailable" rather than as every document failing.
+ * Asks whether ocrmypdf is on the PATH.
+ *
+ * @returns Its version string, or null when it cannot be run.
+ *
+ * @remarks
+ * Asked once at boot: the Docker image ships it, but a dev server on a bare host usually does
+ * not, and a missing binary should read as "OCR unavailable" rather than as every document
+ * failing.
  */
 export async function detectOcr(): Promise<string | null> {
   try {
@@ -29,9 +34,19 @@ export async function detectOcr(): Promise<string | null> {
 }
 
 /**
- * The arguments Paperless-ngx passes by default: skip pages that already carry a
- * text layer (born-digital PDFs keep their text untouched), straighten and
- * rotate scans, and write a PDF/A archive plus a plain-text sidecar.
+ * Builds the ocrmypdf command line from the arguments Paperless-ngx passes by default.
+ *
+ * @param options - The run's paths and settings.
+ * @param options.input - Path of the file to recognise.
+ * @param options.output - Path the PDF/A archive is written to.
+ * @param options.sidecar - Path the plain text is written to.
+ * @param options.languages - Tesseract language codes joined with `+`.
+ * @param options.image - Whether the input is an image, which needs a resolution stated.
+ * @returns The arguments, in the order ocrmypdf takes them.
+ *
+ * @remarks
+ * Pages that already carry a text layer are skipped, so a born-digital PDF keeps its text
+ * untouched; scans are straightened and rotated.
  */
 export function ocrArgs(options: {
   input: string;
@@ -39,7 +54,7 @@ export function ocrArgs(options: {
   sidecar: string;
   languages: string;
   image: boolean;
-}) {
+}): string[] {
   return [
     '--skip-text',
     '--rotate-pages',
@@ -59,6 +74,10 @@ export function ocrArgs(options: {
 // ocrmypdf writes this into the sidecar for every page --skip-text left alone.
 const SKIPPED_PAGE_MARKER = /\[OCR skipped on page\(s\) [\d-]+\]/g;
 
+/**
+ * Runs ocrmypdf over a PDF or an image, and stores the PDF/A archive and the text it recognised.
+ * Skipped when OCR was not requested, is unavailable here, or the type is not one ocrmypdf takes.
+ */
 export const ocrStep: PipelineStep = {
   name: 'ocr',
   enabled: (doc, config) => doc.ocrRequested && config.ocrAvailable && isOcrable(doc.mimeType),

@@ -69,6 +69,16 @@ function contentDisposition(filename: string, download: boolean): string {
   return `${download ? 'attachment' : 'inline'}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+/**
+ * Builds the two buckets' storage over one pair of S3 clients.
+ *
+ * @param config - Endpoints, credentials and bucket names.
+ * @returns The `files` and `text` storage.
+ *
+ * @remarks
+ * Presigned URLs are signed by a second client against `publicEndpoint`, because a signature
+ * covers the host and a URL cannot be rewritten after signing.
+ */
 export function createS3Storage(config: S3Config): StorageSet {
   const client = createClient(config.endpoint, config);
   // Signing makes no request, so this client never has to reach its endpoint —
@@ -81,7 +91,6 @@ export function createS3Storage(config: S3Config): StorageSet {
   };
 }
 
-/** One bucket's worth of `Storage`. The clients are shared; only the bucket differs. */
 /**
  * Narrows a GetObject body to the stream it is under Node.
  *
@@ -96,6 +105,7 @@ function bodyStream(body: unknown): Readable {
   throw new Error('The bucket returned an object with no readable body.');
 }
 
+/** One bucket's worth of `Storage`. The clients are shared; only the bucket differs. */
 function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Storage {
   return {
     presignPut(key, { contentType, contentLength }) {
@@ -164,15 +174,35 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
   };
 }
 
+/**
+ * Names the object an upload is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the files bucket.
+ */
 export function originalKey(userId: string, documentId: string): string {
   return `originals/${userId}/${documentId}`;
 }
 
+/**
+ * Names the object a document's OCR'd PDF/A is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the files bucket.
+ */
 export function archiveKey(userId: string, documentId: string): string {
   return `archive/${userId}/${documentId}.pdf`;
 }
 
-/** In the text bucket, not beside the file it came from. */
+/**
+ * Names the object a document's extracted text is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the text bucket, not beside the file it came from.
+ */
 export function textKey(userId: string, documentId: string): string {
   return `text/${userId}/${documentId}.txt`;
 }

@@ -14,6 +14,7 @@ export interface DatabaseSettings {
   closeTimeoutSeconds: number;
 }
 
+/** The shipped values of `DatabaseSettings`. */
 export const DATABASE_DEFAULTS: Readonly<DatabaseSettings> = Object.freeze({
   connectTimeoutMs: 60_000,
   firstRetryDelayMs: 500,

@@ -1,6 +1,6 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import { AUTH_TABLES } from '@cubicecho/engrafo-db/schema';
-import { buildSchema } from '@vantreeseba/drizzle-graphql';
+import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
@@ -23,7 +23,13 @@ function withMutationRoot(schema: GraphQLSchema): GraphQLSchema {
   return new GraphQLSchema({ ...schema.toConfig(), mutation: new GraphQLObjectType({ name: 'Mutation', fields: {} }) });
 }
 
-export function createSchema(db: DB) {
+/**
+ * Builds the served schema: generated reads, then the hand-written auth and document fields.
+ *
+ * @param db - Database client the generated resolvers query.
+ * @returns The schema, and drizzle-graphql's entities for anything that wants its resolvers.
+ */
+export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   const { schema: drizzleSchema, entities } = buildSchema(db, {
     prefixes: {
       insert: 'create',

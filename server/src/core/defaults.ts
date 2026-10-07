@@ -14,6 +14,7 @@ export interface HttpSettings {
   trustProxy: boolean | number | string;
 }
 
+/** The shipped values of `HttpSettings`. */
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
   port: 3004,
   drainSeconds: 5,
@@ -32,6 +33,7 @@ export interface RateLimitSettings {
   sweepAtKeys: number;
 }
 
+/** The shipped values of `RateLimitSettings`. */
 export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
   maxAttempts: 10,
   windowMinutes: 15,
@@ -54,6 +56,7 @@ export interface AuthSettings {
   exposeMagicLink: boolean;
 }
 
+/** The shipped values of `AuthSettings`. */
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   magicLinkTtlMinutes: 15,
   minSecretLength: 32,
@@ -73,6 +76,7 @@ export interface DocumentSettings {
   filenameMaxLength: number;
 }
 
+/** The shipped values of `DocumentSettings`. */
 export const DOCUMENT_DEFAULTS: Readonly<DocumentSettings> = Object.freeze({
   // 100 MiB.
   maxUploadBytes: 104_857_600,
@@ -100,6 +104,7 @@ export interface OcrSettings {
   errorTailLines: number;
 }
 
+/** The shipped values of `OcrSettings`. */
 export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   enabled: true,
   requestedByDefault: true,
@@ -124,6 +129,7 @@ export interface StorageSettings {
   downloadUrlTtlMinutes: number;
 }
 
+/** The shipped values of `StorageSettings`. */
 export const STORAGE_DEFAULTS: Readonly<StorageSettings> = Object.freeze({
   region: 'us-east-1',
   textBucketSuffix: '-text',

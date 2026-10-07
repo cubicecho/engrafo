@@ -53,6 +53,7 @@ export const AuthFlow = {
   RequestSignIn: 'requestSignIn',
   VerifyMagicLink: 'verifyMagicLink',
 } as const;
+/** One of the flows in `AuthFlow`. */
 export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 
 /** Where a user made without a link came from, as better-auth's `validateUserInfo` gate sees it. */
@@ -110,6 +111,17 @@ async function signInDirectly(ctx: Context, email: string): Promise<{ token: str
   return { token: session.token, userId: user.id };
 }
 
+/**
+ * Adds the sign-in fields to the schema: `me`, `authConfig`, `requestSignIn`, `verifyMagicLink` and `signOut`.
+ *
+ * @param schema - The generated schema, which must already have a Mutation type.
+ * @returns The extended schema.
+ *
+ * @remarks
+ * These fields are the only way to reach better-auth, since none of its REST routes is mounted.
+ * The two sign-in mutations are throttled first, because better-auth's own limiter never runs
+ * for `auth.api` calls.
+ */
 export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const extendedSchema = extendSchema(schema, AUTH_SDL);
   const fields = assertObjectType(extendedSchema.getType('Mutation')).getFields();

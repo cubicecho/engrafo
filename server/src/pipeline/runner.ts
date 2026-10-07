@@ -16,19 +16,28 @@ import type { StorageSet } from '../storage/s3.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep } from './types.ts';
 
+/** What a pipeline is built from. */
 export interface PipelineOptions {
   db: DB;
   storage: StorageSet;
+  /** Where `document.uploaded` arrives, and where `resume` re-emits it. */
   events: PipelineEvents;
+  /** The steps, in the order they run. */
   steps: PipelineStep[];
   config: PipelineConfig;
+  /** Reports a run whose bookkeeping broke, as opposed to a step that failed. */
   log?: (message: string, error?: unknown) => void;
 }
 
+/** The runner: takes documents through the steps, with at most one run in flight per document. */
 export interface Pipeline {
   /** Runs one document to completion or failure. Resolves either way; failure is recorded, not thrown. */
   run(documentId: string): Promise<void>;
-  /** Re-emits every document a previous process left unfinished. */
+  /**
+   * Re-emits every document a previous process left unfinished.
+   *
+   * @returns How many documents were re-emitted.
+   */
   resume(): Promise<number>;
   /** Resolves once nothing is queued or running. For tests. */
   idle(): Promise<void>;
@@ -64,6 +73,17 @@ function createLimiter(concurrency: number) {
   };
 }
 
+/**
+ * Builds the runner and subscribes it to `document.uploaded`.
+ *
+ * @param options - The database, buckets, emitter, steps and settings a run needs.
+ * @returns The pipeline. Nothing runs until an event arrives or `run` is called.
+ *
+ * @remarks
+ * There is no queue: `processing_steps` is the only state, so a restart resumes from the rows
+ * and steps already done are not run again. A step failure is recorded on the step and the
+ * document, never thrown.
+ */
 export function createPipeline({ db, storage, events, steps, config, log = console.error }: PipelineOptions): Pipeline {
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a

@@ -8,6 +8,7 @@ export const ErrorCode = {
   BadUserInput: 'BAD_USER_INPUT',
   TooManyRequests: 'TOO_MANY_REQUESTS',
 } as const;
+/** One of the codes in `ErrorCode`. */
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**

@@ -14,6 +14,7 @@ import { requireAuth } from '../core/errors.ts';
 // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 table/column type compat
 type AnyTable = any;
 
+/** The tables whose rows carry a `userId` and are scoped by it. */
 export const USER_OWNED_TABLES = ['documents', 'processingSteps'] as const;
 
 /** Every table drizzle-graphql will generate fields for. */
@@ -21,6 +22,10 @@ export const ALL_TABLES = ['users', ...USER_OWNED_TABLES] as const;
 
 const scopeByUserId: RowScope<Context> = (context, table) => eq((table as AnyTable).userId, requireAuth(context));
 
+/**
+ * The row filter for each table, ANDed into every generated read after the client's own `where`.
+ * A table missing here is visible across tenants.
+ */
 export const scope: NonNullable<BuildSchemaConfig['scope']> = {
   // A user row is only ever visible to its owner. There is no directory here.
   users: (context, table) => eq((table as AnyTable).id, requireAuth(context)),
@@ -38,8 +43,8 @@ export const contextValues: NonNullable<BuildSchemaConfig['contextValues']> = Ob
 /**
  * No generated writes at all. Every column a client could set on a document is
  * either the server's (`status`, `originalKey`, `archiveKey`, `checksumSha256`)
- * or the pipeline's (`content`, the step rows), and an upload is a two-phase
- * handshake with S3 that CRUD cannot express. resolvers/documents.ts owns every
+ * or the pipeline's (`contentKey`, the step rows), and an upload is a two-phase
+ * handshake with S3 that CRUD cannot express. documents/resolvers.ts owns every
  * write; `users` belongs to the auth flow.
  */
 export const features: NonNullable<BuildSchemaConfig['features']> = {

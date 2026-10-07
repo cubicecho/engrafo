@@ -1,6 +1,6 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import type { Request } from 'express';
-import { createYoga } from 'graphql-yoga';
+import { createYoga, type YogaServerInstance } from 'graphql-yoga';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import { isProduction } from '../core/config.ts';
@@ -15,6 +15,7 @@ interface ServerContext {
   req?: Request;
 }
 
+/** What the GraphQL handler is built from, and hands every resolver on the context. */
 export interface GraphQLOptions {
   db: DB;
   /** Resolves the session, and is passed on to resolvers. */
@@ -25,7 +26,20 @@ export interface GraphQLOptions {
   ocrAvailable: boolean;
 }
 
-export function createGraphQLHandler({ db, auth, limiter, storage, events, ocrAvailable }: GraphQLOptions) {
+/**
+ * Builds the Yoga handler for `/graphql`, which resolves the session into each request's context.
+ *
+ * @param options - The database, auth and the rest of what resolvers are handed.
+ * @returns The Yoga instance, which Express calls as a request handler.
+ */
+export function createGraphQLHandler({
+  db,
+  auth,
+  limiter,
+  storage,
+  events,
+  ocrAvailable,
+}: GraphQLOptions): YogaServerInstance<ServerContext, Context> {
   const { schema } = createSchema(db);
   return createYoga<ServerContext, Context>({
     schema,

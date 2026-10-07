@@ -3,6 +3,7 @@ import { index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } f
 import { documents } from './documents.ts';
 import { users } from './users.ts';
 
+/** Where one step of one document's run stands. `skipped` is a step that did not apply, and counts as done. */
 export const stepStatus = pgEnum('step_status', ['queued', 'running', 'succeeded', 'skipped', 'failed']);
 
 /**
@@ -42,8 +43,11 @@ export const processingSteps = pgTable(
   ],
 );
 
+/** A step row as read. */
 export type ProcessingStep = typeof processingSteps.$inferSelect;
+/** A step row as inserted. */
 export type NewProcessingStep = typeof processingSteps.$inferInsert;
+/** One value of the `stepStatus` enum. */
 export type StepStatus = (typeof stepStatus.enumValues)[number];
 /** The statuses by name, for code that sets or compares one. */
 export const StepStatus = {

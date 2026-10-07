@@ -24,13 +24,20 @@ const ASSETS_PREFIX = '/assets/';
 const IMMUTABLE = `public, max-age=${HTTP_DEFAULTS.assetCacheDays * SECONDS_PER_DAY}, immutable`;
 const REVALIDATE = 'no-cache';
 
+/** A plain Node request handler, which Express can call without knowing what is behind it. */
+export type StaticHandler = (req: IncomingMessage, res: ServerResponse) => void;
+
 /**
- * Serves the built web client next to /graphql, so one container is the whole
- * deployment and a magic link needs no second origin. Unknown paths fall back to
- * index.html — the SPA owns routing, including /auth/verify?token=… . Vite's
- * hashed bundles under /assets get immutable caching; everything else revalidates.
+ * Builds the handler that serves the built web client next to /graphql.
+ *
+ * @param root - Directory holding the Vite build.
+ * @returns The handler. Unknown paths answer with index.html, because the SPA owns routing.
+ *
+ * @remarks
+ * One container is then the whole deployment, and a magic link to /auth/verify needs no second
+ * origin. Vite's hashed bundles under /assets get immutable caching; everything else revalidates.
  */
-export function createStaticHandler(root: string) {
+export function createStaticHandler(root: string): StaticHandler {
   const rootDir = resolve(root);
   return (req: IncomingMessage, res: ServerResponse): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {

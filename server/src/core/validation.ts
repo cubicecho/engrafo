@@ -4,6 +4,7 @@ import { badInput } from './errors.ts';
 /**
  * Checks input against a schema.
  *
+ * @typeParam T - What the schema parses to.
  * @param schema - What the input has to look like.
  * @param value - What the caller sent.
  * @returns The parsed value.

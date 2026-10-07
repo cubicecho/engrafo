@@ -32,6 +32,7 @@ const connection = {
  */
 export type DB = PgAsyncDatabase<PgQueryResultHKT, typeof relations>;
 
+/** The process's one Drizzle client, on postgres-js, bound to `DATABASE_URL`. */
 export const db = drizzle({ connection, relations });
 
 /**
