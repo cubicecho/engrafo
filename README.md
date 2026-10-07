@@ -102,7 +102,7 @@ domain.
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR is CPU-bound. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
-| `AUTH_MAGIC_LINK` | `true` | The narrower spelling of the same thing: `false` turns the link off and leaves everything else alone. |
+| `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
 | `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
 | `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
@@ -112,7 +112,7 @@ do something with.
 
 Engrafo ships no mail provider. With magic links on, the link is written to the
 server log, and that is the delivery channel — pipe the log somewhere you can
-read, or run with `AUTH_MAGIC_LINK=false`.
+read, or run with `SECURE_LOCAL_NET=true`.
 
 ## Before you expose it
 

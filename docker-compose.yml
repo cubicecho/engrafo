@@ -27,7 +27,7 @@ services:
       OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_DEFAULT: ${OCR_DEFAULT:-true}
       OCR_LANGUAGES: ${OCR_LANGUAGES:-eng}
-      AUTH_MAGIC_LINK: ${AUTH_MAGIC_LINK:-true}
+      SECURE_LOCAL_NET: ${SECURE_LOCAL_NET:-false}
       EXPOSE_MAGIC_LINK: ${EXPOSE_MAGIC_LINK:-false}
       SESSION_STORE: ${SESSION_STORE:-memory}
       TRUST_PROXY: ${TRUST_PROXY:-false}
