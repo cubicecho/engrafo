@@ -11,7 +11,7 @@ import { createFakeStorage, createTestDb } from '../helpers.ts';
 
 const exec = promisify(execFile);
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = { ocrAvailable: true, ocrLanguages: 'eng', concurrency: 1, vlm: null };
 
 function doc(values: Partial<Document> = {}): Document {
   return {

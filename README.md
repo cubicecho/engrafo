@@ -103,6 +103,10 @@ domain.
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR is CPU-bound. |
+| `OCR_VLM_BASE_URL` | — | OpenAI-compatible vision endpoint that re-reads the pages and replaces the extracted text. ocrmypdf still writes the PDF/A archive. |
+| `OCR_VLM_MODEL` | — | The model on that endpoint. Both it and the base URL are required to turn this on. |
+| `OCR_VLM_API_KEY` | — | Only for a hosted endpoint; a local server ignores it. |
+| `OCR_VLM_TIMEOUT_SECONDS` | `600` | Seconds one page may take. Minutes, not seconds, on a CPU-only server. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |

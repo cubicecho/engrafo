@@ -15,6 +15,7 @@ import {
   magicLinkRequired,
   ocrEnabled,
   ocrLanguages,
+  ocrVlm,
   pipelineConcurrency,
   port,
   s3Config,
@@ -66,6 +67,8 @@ if (ocrEnabled()) {
   }
 }
 
+const vlm = ocrVlm();
+
 const storage = createS3Storage(s3Config());
 const events = createPipelineEvents();
 const pipeline = createPipeline({
@@ -73,7 +76,7 @@ const pipeline = createPipeline({
   storage,
   events,
   steps: STEPS,
-  config: { ocrAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
+  config: { ocrAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency(), vlm },
 });
 
 const app = createApp({
@@ -93,6 +96,12 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
   console.log(`[server] ready at ${appUrl()}`);
   console.log(`[server] GraphQL at ${appUrl()}/graphql`);
   console.log(`[ocr] ${ocrAvailable ? `on (${ocrLanguages()})` : 'off'}`);
+  // Named, not just "on": the endpoint is the thing an operator gets wrong, and
+  // a step that silently keeps the Tesseract text looks identical to one that
+  // never ran.
+  if (vlm !== null) {
+    console.log(`[ocr] re-read by ${vlm.model} at ${vlm.baseUrl}`);
+  }
   if (!magicLinkRequired()) {
     // Name the variable that did it: on an instance with both set, "turn it
     // back on" is useless advice if it points at the wrong switch.

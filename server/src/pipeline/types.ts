@@ -1,4 +1,5 @@
 import type { DB, Document } from '@cubicecho/engrafo-db';
+import type { VlmConfig } from '../core/config.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
 /** The settings every run is handed, decided once at boot. */
@@ -9,6 +10,8 @@ export interface PipelineConfig {
   ocrLanguages: string;
   /** How many documents run at once. */
   concurrency: number;
+  /** The vision endpoint that re-reads pages after ocrmypdf, or null where none is configured. */
+  vlm: VlmConfig | null;
 }
 
 /** What a step's `run` is given. */

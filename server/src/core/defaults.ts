@@ -117,6 +117,46 @@ export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   errorTailLines: 5,
 });
 
+/** The vlm step: a vision model re-reading the pages ocrmypdf read. */
+export interface VlmSettings {
+  /**
+   * How long one page may take. `OCR_VLM_TIMEOUT_SECONDS` overrides it. A page is a prefill of
+   * several thousand image tokens: seconds on a GPU, minutes on a CPU build, and a timeout sized
+   * for chat abandons the prefill just before it pays off.
+   */
+  requestTimeoutSeconds: number;
+  /**
+   * Resolution pages are rasterised at. Not the 300 ocrmypdf hands Tesseract: a vision model is
+   * billed and prefilled by pixel count, and 300 DPI on US Letter is 8.4 megapixels, which most
+   * servers downscale back below this before the encoder sees it.
+   */
+  pageDpi: number;
+  /**
+   * The most a page's answer may run to. A dense A4 page of prose is around 1,500 tokens, and a
+   * page truncated at the ceiling is silently half a page, so this is set where a page cannot
+   * plausibly reach it.
+   */
+  pageMaxTokens: number;
+  /**
+   * Past this many pages the step keeps ocrmypdf's text rather than spending hours on one
+   * document. The pipeline has no queue, so a 600-page scan at half a minute a page is the whole
+   * archive stalled for an afternoon. It declines the job rather than truncating it: half a
+   * document's text written over text that was complete is worse than not running at all.
+   */
+  maxPages: number;
+  /** When Ghostscript rasterising one document is given up on as wedged. */
+  rasterTimeoutMinutes: number;
+}
+
+/** The shipped values of `VlmSettings`. */
+export const VLM_DEFAULTS: Readonly<VlmSettings> = Object.freeze({
+  requestTimeoutSeconds: 600,
+  pageDpi: 200,
+  pageMaxTokens: 8192,
+  maxPages: 200,
+  rasterTimeoutMinutes: 10,
+});
+
 /** The buckets and the URLs signed for them. */
 export interface StorageSettings {
   /** S3 region. `S3_REGION` overrides it. */

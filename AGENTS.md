@@ -76,7 +76,7 @@ engrafo/
 │       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle, stop }
 │       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
-│       │   └── steps/       # inspect, text, ocr
+│       │   └── steps/       # inspect, text, ocr, vlm
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -214,6 +214,38 @@ own text layer), `--rotate-pages`, `--deskew`, `--output-type pdfa`, plus a
 `--sidecar` for the plain text. Images additionally get `--image-dpi 300`,
 because they usually carry no DPI metadata and img2pdf refuses to guess.
 
+**A vision model may re-read the pages, but only the text is ever at stake.**
+`OCR_VLM_BASE_URL` + `OCR_VLM_MODEL` turn on `steps/vlm.ts`, which runs after
+`ocr`, rasterises the pages with the Ghostscript already in the image, and shows
+each one to an OpenAI-compatible endpoint through `ask` from
+`@cubicecho/agent-core`. It is a *hybrid* on purpose: ocrmypdf still runs and
+still writes `archiveKey`, because the PDF/A is the copy meant to outlive this
+instance and no vision model emits one. Only `contentKey` is rewritten — the
+half where a model beats Tesseract on curved scans, tables and handwriting.
+
+Three rules make that safe, and all three are the same rule:
+
+- **All the pages or none of them.** A transcript missing the page the endpoint
+  choked on would be written over text that had it. A partial answer is
+  discarded whole.
+- **A failure is not the document's failure.** The step catches (`tryAsk`),
+  keeps ocrmypdf's text, and still reports `succeeded` — the document is fine,
+  only the enhancement did not happen. It does not throw, because throwing marks
+  the *document* failed.
+- **A blank answer is a model that did not read, not a blank page.** Storing it
+  would make `storeContent` drop the text object entirely.
+
+`VLM_DEFAULTS.maxPages` (200) declines a long document rather than truncating it: the
+pipeline has no queue and runs one document at a time, so a 600-page scan at
+half a minute a page is the archive stalled for an afternoon.
+
+Pages go at 200 DPI, not the 300 ocrmypdf feeds Tesseract — a vision model is
+billed and prefilled by pixel count, and most servers downscale 300 DPI Letter
+back below that before the encoder sees it. PDFs are rasterised from the
+*archive* where there is one, since those pages are already deskewed and
+rotated upright; an image is sent as uploaded rather than round-tripped through
+ocrmypdf's PDF.
+
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
 `loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
@@ -262,7 +294,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
-`[pipeline]`, `[ocr]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[vlm]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

@@ -1,6 +1,7 @@
 import { inspectStep } from './steps/inspect.ts';
 import { ocrStep } from './steps/ocr.ts';
 import { textStep } from './steps/text.ts';
+import { vlmStep } from './steps/vlm.ts';
 import type { PipelineStep } from './types.ts';
 
 /**
@@ -8,4 +9,4 @@ import type { PipelineStep } from './types.ts';
  * documents already mid-pipeline pick it up, since the runner fills in any step
  * rows they are missing.
  */
-export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep];
+export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, vlmStep];

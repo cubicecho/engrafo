@@ -10,6 +10,7 @@ import {
   HTTP_DEFAULTS,
   OCR_DEFAULTS,
   STORAGE_DEFAULTS,
+  VLM_DEFAULTS,
 } from './defaults.ts';
 
 /** Signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. */
@@ -284,6 +285,39 @@ export function ocrLanguages(): string {
  */
 export function pipelineConcurrency(): number {
   return envPositiveInteger(process.env.OCR_CONCURRENCY, OCR_DEFAULTS.concurrency);
+}
+
+/** An OpenAI-compatible endpoint and the model on it that reads pages. */
+export interface VlmConfig {
+  baseUrl: string;
+  /** Empty for a local server, which ignores it. */
+  apiKey: string;
+  model: string;
+  /** How long one page may take. */
+  requestTimeoutSeconds: number;
+}
+
+/**
+ * Reads the vision endpoint that transcribes pages.
+ *
+ * @returns The endpoint, or null unless `OCR_VLM_BASE_URL` and `OCR_VLM_MODEL` are both set.
+ *
+ * @remarks
+ * Neither has a default worth guessing: the same pair points at vLLM on a GPU box, a CPU build
+ * of PaddleOCR-VL, Ollama, or a hosted provider, and each of those names its models differently.
+ */
+export function ocrVlm(): VlmConfig | null {
+  const baseUrl = process.env.OCR_VLM_BASE_URL?.trim() ?? '';
+  const model = process.env.OCR_VLM_MODEL?.trim() ?? '';
+  if (baseUrl === '' || model === '') {
+    return null;
+  }
+  return {
+    baseUrl,
+    model,
+    apiKey: process.env.OCR_VLM_API_KEY?.trim() ?? '',
+    requestTimeoutSeconds: envPositiveInteger(process.env.OCR_VLM_TIMEOUT_SECONDS, VLM_DEFAULTS.requestTimeoutSeconds),
+  };
 }
 
 /** How to reach the two buckets and sign for them. */
