@@ -10,6 +10,7 @@ import { FormElement } from '@/components/ui/form-element';
 import { FileText } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
+import { magicLinkSearch } from '@/lib/magic-link';
 import { ROUTES } from '@/lib/routes';
 
 const RequestSignIn = graphql(`
@@ -59,7 +60,8 @@ export function LoginPage() {
 
   // The link is built from APP_URL, which in development points at the server
   // rather than at Vite. Follow it in this tab, on this origin, instead.
-  const localLink = sent?.magicLink ? `${ROUTES.verify}${new URL(sent.magicLink).search}` : null;
+  const linkSearch = sent?.magicLink ? magicLinkSearch(sent.magicLink, window.location.origin) : null;
+  const localLink = linkSearch === null ? null : `${ROUTES.verify}${linkSearch}`;
 
   if (sent) {
     return (
