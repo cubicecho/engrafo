@@ -19,9 +19,6 @@ import { originalKey } from '../storage/s3.ts';
 // pipeline. The row exists from the first call so the key is the server's to
 // choose — a client naming its own key could overwrite someone else's object.
 
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
-type AnyDb = any;
-
 const DOCUMENTS_SDL = parse(`
   enum DocumentFileVariant {
     "The file as uploaded."
@@ -132,7 +129,7 @@ async function loadOwned(context: Context, id: string): Promise<Document> {
   if (!z.uuid().safeParse(id).success) {
     throw notFound();
   }
-  const [doc] = await (context.db as AnyDb)
+  const [doc] = await context.db
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), eq(documents.userId, userId)));
@@ -199,7 +196,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
     const id = randomUUID();
     const key = originalKey(userId, id);
-    const [doc] = await (context.db as AnyDb)
+    const [doc] = await context.db
       .insert(documents)
       .values({
         id,
@@ -235,7 +232,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       throw badInput(`The stored file is ${stored.size} bytes, but the upload declared ${doc.sizeBytes}.`);
     }
 
-    const db = context.db as AnyDb;
+    const db = context.db;
     // Conditional on the status it was read with, so two concurrent completes
     // start the pipeline once.
     const [updated] = await db
@@ -262,7 +259,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       throw badInput('Only a failed document can be retried.');
     }
 
-    const db = context.db as AnyDb;
+    const db = context.db;
     await db
       .update(processingSteps)
       .set({ status: 'queued', error: null, startedAt: null, finishedAt: null })
@@ -287,11 +284,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   ) => {
     const doc = await loadOwned(context, args.id);
     const title = parseOrThrow(titleSchema, args.title);
-    const [updated] = await (context.db as AnyDb)
-      .update(documents)
-      .set({ title })
-      .where(eq(documents.id, doc.id))
-      .returning();
+    const [updated] = await context.db.update(documents).set({ title }).where(eq(documents.id, doc.id)).returning();
     if (!updated) {
       throw notFound();
     }
@@ -306,7 +299,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     if (doc.contentKey) {
       await context.storage.text.delete([doc.contentKey]);
     }
-    await (context.db as AnyDb).delete(documents).where(eq(documents.id, doc.id));
+    await context.db.delete(documents).where(eq(documents.id, doc.id));
     return true;
   };
 

@@ -1,3 +1,4 @@
+import type { PgAsyncDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import { relations } from './relations.ts';
 import * as schema from './schema.ts';
 import { requiresSsl } from './ssl.ts';
@@ -25,9 +26,13 @@ const connection: any = {
   onnotice: () => {},
 };
 
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver at runtime; callers cast as needed
-export type DB = any;
-export const db: DB = drizzle({ connection, relations });
+/**
+ * A Drizzle Postgres database over this schema, whichever driver is behind it.
+ * The server runs on postgres-js and the tests on PGlite, and both satisfy it.
+ */
+export type DB = PgAsyncDatabase<PgQueryResultHKT, typeof relations>;
+
+export const db = drizzle({ connection, relations });
 
 export * from './schema.ts';
 export { relations, schema };

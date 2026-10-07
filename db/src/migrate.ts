@@ -5,8 +5,7 @@ import { db } from './index.ts';
 
 const migrationsFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../drizzle');
 
-// biome-ignore lint/suspicious/noExplicitAny: the driver union is compatible at runtime
-await migrate(db as any, { migrationsFolder });
+await migrate(db, { migrationsFolder });
 
 console.log('Migration complete.');
 process.exit(0);

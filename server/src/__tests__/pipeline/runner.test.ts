@@ -60,7 +60,7 @@ describe('pipeline runner', () => {
     const done = await reload(doc.id);
     expect(done.status).toBe('ready');
     expect(done.contentKey).toBe(`text/${userId}/${doc.id}.txt`);
-    expect(storage.text.objects.get(done.contentKey)?.body.toString()).toBe('hello');
+    expect(storage.text.objects.get(done.contentKey ?? '')?.body.toString()).toBe('hello');
     expect(done.checksumSha256).toBe('2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824');
     expect((await stepsOf(doc.id)).map((step) => [step.step, step.status])).toEqual([
       ['inspect', 'succeeded'],

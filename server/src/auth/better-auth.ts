@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { DB } from '@cubicecho/engrafo-db';
 import { accounts, sessions, users, verifications } from '@cubicecho/engrafo-db/schema';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -12,9 +13,6 @@ import { memoryStorage } from './session-store.ts';
 // better-auth's REST routes: the GraphQL mutations in resolvers.ts call
 // `auth.api` directly, and the bearer plugin is what lets a request carry its
 // session as `Authorization: Bearer <token>`.
-
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver (postgres-js, PGlite)
-type AnyDb = any;
 
 /** What delivering one magic link is given. */
 export interface MagicLink {
@@ -66,7 +64,7 @@ async function logMagicLink(link: MagicLink): Promise<void> {
  * @param [opts] - Test overrides.
  * @returns The auth instance.
  */
-export function createAuth(db: AnyDb, { secret = authSecret(), sendMagicLink = logMagicLink }: AuthOptions = {}) {
+export function createAuth(db: DB, { secret = authSecret(), sendMagicLink = logMagicLink }: AuthOptions = {}) {
   const usesMemorySessions = sessionStore() === SESSION_STORE_MEMORY;
   const sessionStorage = usesMemorySessions ? { secondaryStorage: memoryStorage() } : {};
 

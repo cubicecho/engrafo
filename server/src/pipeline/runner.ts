@@ -8,9 +8,6 @@ import type { StorageSet } from '../storage/s3.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep } from './types.ts';
 
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
-type AnyDb = any;
-
 export interface PipelineOptions {
   db: DB;
   storage: StorageSet;
@@ -55,25 +52,24 @@ function createLimiter(concurrency: number) {
 }
 
 export function createPipeline({ db, storage, events, steps, config, log = console.error }: PipelineOptions): Pipeline {
-  const database = db as AnyDb;
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
   const inFlight = new Map<string, Promise<void>>();
 
   async function setStep(documentId: string, step: string, values: Record<string, unknown>) {
-    await database
+    await db
       .update(processingSteps)
       .set(values)
       .where(and(eq(processingSteps.documentId, documentId), eq(processingSteps.step, step)));
   }
 
   async function failDocument(documentId: string, message: string) {
-    await database.update(documents).set({ status: 'failed', error: message }).where(eq(documents.id, documentId));
+    await db.update(documents).set({ status: 'failed', error: message }).where(eq(documents.id, documentId));
   }
 
   async function execute(documentId: string): Promise<void> {
-    const [found] = await database.select().from(documents).where(eq(documents.id, documentId));
+    const [found] = await db.select().from(documents).where(eq(documents.id, documentId));
     // Deleted while queued, or still waiting on its upload: nothing to do.
     if (!found || found.status === 'pending_upload' || found.status === 'ready') {
       return;
@@ -84,13 +80,13 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
     // are missing here is what lets a step added in a later release reach
     // documents that were mid-pipeline when the server upgraded.
     if (steps.length > 0) {
-      await database
+      await db
         .insert(processingSteps)
         .values(steps.map((step, position) => ({ userId: doc.userId, documentId, step: step.name, position })))
         .onConflictDoNothing();
     }
 
-    const rows: Array<{ step: string; status: string; attempts: number }> = await database
+    const rows: Array<{ step: string; status: string; attempts: number }> = await db
       .select()
       .from(processingSteps)
       .where(eq(processingSteps.documentId, documentId));
@@ -98,7 +94,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
       rows.filter((row) => row.status === 'succeeded' || row.status === 'skipped').map((r) => r.step),
     );
 
-    await database.update(documents).set({ status: 'processing', error: null }).where(eq(documents.id, documentId));
+    await db.update(documents).set({ status: 'processing', error: null }).where(eq(documents.id, documentId));
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-'));
     try {
@@ -124,11 +120,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         try {
           const patch = await step.run({ doc, db, storage, config, tmpDir });
           if (patch && Object.keys(patch).length > 0) {
-            const [updated] = await database
-              .update(documents)
-              .set(patch)
-              .where(eq(documents.id, documentId))
-              .returning();
+            const [updated] = await db.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
             if (!updated) {
               return; // deleted mid-run
             }
@@ -143,7 +135,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         }
       }
 
-      await database.update(documents).set({ status: 'ready' }).where(eq(documents.id, documentId));
+      await db.update(documents).set({ status: 'ready' }).where(eq(documents.id, documentId));
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -176,7 +168,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
     run,
 
     async resume() {
-      const unfinished: Array<{ id: string }> = await database
+      const unfinished: Array<{ id: string }> = await db
         .select({ id: documents.id })
         .from(documents)
         .where(inArray(documents.status, ['uploaded', 'processing']));

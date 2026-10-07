@@ -1,3 +1,4 @@
+import type { DB } from '@cubicecho/engrafo-db';
 import { AUTH_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
@@ -9,9 +10,6 @@ import { contextValues, features, scope } from './tenancy.ts';
 // `features` in tenancy.ts for why). Kept separate from schema.ts, which binds
 // it to the real database, so a test can build the same schema against a
 // throwaway one.
-
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver
-type AnyDb = any;
 
 /**
  * With every generated write turned off, drizzle-graphql omits the Mutation
@@ -25,7 +23,7 @@ function withMutationRoot(schema: GraphQLSchema): GraphQLSchema {
   return new GraphQLSchema({ ...schema.toConfig(), mutation: new GraphQLObjectType({ name: 'Mutation', fields: {} }) });
 }
 
-export function createSchema(db: AnyDb) {
+export function createSchema(db: DB) {
   const { schema: drizzleSchema, entities } = buildSchema(db, {
     prefixes: {
       insert: 'create',

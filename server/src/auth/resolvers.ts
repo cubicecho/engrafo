@@ -94,8 +94,7 @@ function normalizeEmail(email: string): string {
 }
 
 async function loadUser(ctx: Context, userId: string): Promise<dbSchema.User> {
-  // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
-  const [user] = await (ctx.db as any).select().from(dbSchema.users).where(eq(dbSchema.users.id, userId));
+  const [user] = await ctx.db.select().from(dbSchema.users).where(eq(dbSchema.users.id, userId));
   // A live session for a row that is gone — a restored database, a deleted
   // account. Same answer as an expired one: this session is over.
   if (!user) {

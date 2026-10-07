@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { DB } from '@cubicecho/engrafo-db';
 import { relations } from '@cubicecho/engrafo-db/relations';
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { PGlite } from '@electric-sql/pglite';
@@ -19,8 +20,7 @@ import type { Storage, StorageSet } from '../storage/s3.ts';
 // deliberately never imported here — it opens a real connection at import time —
 // so the schema is pulled from `@cubicecho/engrafo-db/schema`, which is inert.
 
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver
-export type TestDb = any;
+export type TestDb = DB;
 
 /** Signing secret for test auth instances. Long enough to pass `AUTH_DEFAULTS.minSecretLength`, like production's. */
 export const TEST_SECRET = 'test-secret-0123456789abcdef0123456789';
@@ -38,7 +38,7 @@ export async function createTestDb(): Promise<TestDb> {
 /** A user row created straight through Drizzle — signup is not what is under test. */
 export async function createUser(db: TestDb, email: string): Promise<string> {
   const [user] = await db.insert(dbSchema.users).values({ email }).returning();
-  return user.id as string;
+  return user.id;
 }
 
 /** A test auth instance and the magic links it captured. */
