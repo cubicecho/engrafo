@@ -59,3 +59,11 @@ export const documents = pgTable(
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 export type DocumentStatus = (typeof documentStatus.enumValues)[number];
+/** The statuses by name, for code that sets or compares one. */
+export const DocumentStatus = {
+  PendingUpload: 'pending_upload',
+  Uploaded: 'uploaded',
+  Processing: 'processing',
+  Ready: 'ready',
+  Failed: 'failed',
+} as const satisfies Record<string, DocumentStatus>;

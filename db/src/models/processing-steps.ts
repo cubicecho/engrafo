@@ -45,3 +45,11 @@ export const processingSteps = pgTable(
 export type ProcessingStep = typeof processingSteps.$inferSelect;
 export type NewProcessingStep = typeof processingSteps.$inferInsert;
 export type StepStatus = (typeof stepStatus.enumValues)[number];
+/** The statuses by name, for code that sets or compares one. */
+export const StepStatus = {
+  Queued: 'queued',
+  Running: 'running',
+  Succeeded: 'succeeded',
+  Skipped: 'skipped',
+  Failed: 'failed',
+} as const satisfies Record<string, StepStatus>;

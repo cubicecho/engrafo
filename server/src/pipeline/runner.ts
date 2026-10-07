@@ -2,7 +2,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
-import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db/schema';
+import {
+  type Document,
+  DocumentStatus,
+  documents,
+  type NewProcessingStep,
+  processingSteps,
+  StepStatus,
+} from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -64,7 +71,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
   const inFlight = new Map<string, Promise<void>>();
   let isStopping = false;
 
-  async function setStep(documentId: string, step: string, values: Record<string, unknown>) {
+  async function setStep(documentId: string, step: string, values: Partial<NewProcessingStep>) {
     await db
       .update(processingSteps)
       .set(values)
@@ -72,13 +79,16 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
   }
 
   async function failDocument(documentId: string, message: string) {
-    await db.update(documents).set({ status: 'failed', error: message }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({ status: DocumentStatus.Failed, error: message })
+      .where(eq(documents.id, documentId));
   }
 
   async function execute(documentId: string): Promise<void> {
     const [found] = await db.select().from(documents).where(eq(documents.id, documentId));
     // Deleted while queued, or still waiting on its upload: nothing to do.
-    if (!found || found.status === 'pending_upload' || found.status === 'ready') {
+    if (!found || found.status === DocumentStatus.PendingUpload || found.status === DocumentStatus.Ready) {
       return;
     }
     let doc: Document = found;
@@ -93,15 +103,15 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         .onConflictDoNothing();
     }
 
-    const rows: Array<{ step: string; status: string; attempts: number }> = await db
-      .select()
-      .from(processingSteps)
-      .where(eq(processingSteps.documentId, documentId));
+    const rows = await db.select().from(processingSteps).where(eq(processingSteps.documentId, documentId));
     const done = new Set(
-      rows.filter((row) => row.status === 'succeeded' || row.status === 'skipped').map((r) => r.step),
+      rows.filter((row) => row.status === StepStatus.Succeeded || row.status === StepStatus.Skipped).map((r) => r.step),
     );
 
-    await db.update(documents).set({ status: 'processing', error: null }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({ status: DocumentStatus.Processing, error: null })
+      .where(eq(documents.id, documentId));
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-'));
     try {
@@ -111,13 +121,13 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         }
 
         if (!step.enabled(doc, config)) {
-          await setStep(documentId, step.name, { status: 'skipped', error: null, finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Skipped, error: null, finishedAt: new Date() });
           continue;
         }
 
         const attempts = (rows.find((row) => row.step === step.name)?.attempts ?? 0) + 1;
         await setStep(documentId, step.name, {
-          status: 'running',
+          status: StepStatus.Running,
           attempts,
           error: null,
           startedAt: new Date(),
@@ -133,19 +143,19 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
             }
             doc = updated;
           }
-          await setStep(documentId, step.name, { status: 'succeeded', finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Succeeded, finishedAt: new Date() });
         } catch (error) {
           if (isStopping) {
             return;
           }
           const message = errorMessage(error);
-          await setStep(documentId, step.name, { status: 'failed', error: message, finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Failed, error: message, finishedAt: new Date() });
           await failDocument(documentId, `${step.name}: ${message}`);
           return;
         }
       }
 
-      await db.update(documents).set({ status: 'ready' }).where(eq(documents.id, documentId));
+      await db.update(documents).set({ status: DocumentStatus.Ready }).where(eq(documents.id, documentId));
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -184,10 +194,10 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
     run,
 
     async resume() {
-      const unfinished: Array<{ id: string }> = await db
+      const unfinished = await db
         .select({ id: documents.id })
         .from(documents)
-        .where(inArray(documents.status, ['uploaded', 'processing']));
+        .where(inArray(documents.status, [DocumentStatus.Uploaded, DocumentStatus.Processing]));
       for (const { id } of unfinished) {
         events.emit('document.uploaded', { documentId: id });
       }

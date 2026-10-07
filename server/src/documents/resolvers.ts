@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db/schema';
+import { type Document, DocumentStatus, documents, processingSteps, StepStatus } from '@cubicecho/engrafo-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { extendSchema, type GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
@@ -82,6 +82,14 @@ const DOCUMENTS_SDL = parse(`
   }
 `);
 
+/** The values of the SDL's `DocumentFileVariant`, by name. */
+const DocumentFileVariant = {
+  Original: 'ORIGINAL',
+  Archive: 'ARCHIVE',
+  Text: 'TEXT',
+} as const;
+type DocumentFileVariant = (typeof DocumentFileVariant)[keyof typeof DocumentFileVariant];
+
 /** Hides a missing document and someone else's behind one answer. */
 function documentNotFound(): GraphQLError {
   return notFound('Document not found');
@@ -154,14 +162,14 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   queries.documentFileUrl.resolve = async (
     _parent: unknown,
-    args: { id: string; variant: 'ORIGINAL' | 'ARCHIVE' | 'TEXT'; download: boolean },
+    args: { id: string; variant: DocumentFileVariant; download: boolean },
     context: Context,
   ) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status === 'pending_upload') {
+    if (doc.status === DocumentStatus.PendingUpload) {
       throw documentNotFound();
     }
-    if (args.variant === 'ARCHIVE') {
+    if (args.variant === DocumentFileVariant.Archive) {
       if (!doc.archiveKey) {
         throw documentNotFound();
       }
@@ -171,7 +179,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
         download: args.download,
       });
     }
-    if (args.variant === 'TEXT') {
+    if (args.variant === DocumentFileVariant.Text) {
       // The text lives in its own bucket, so this URL is signed by the other
       // Storage — same credentials, different bucket in the path.
       if (!doc.contentKey) {
@@ -207,7 +215,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
         sizeBytes: input.sizeBytes,
         originalKey: key,
         ocrRequested: input.ocr ?? ocrDefault(),
-        status: 'pending_upload',
+        status: DocumentStatus.PendingUpload,
       })
       .returning();
 
@@ -220,7 +228,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   mutations.completeDocumentUpload.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status !== 'pending_upload') {
+    if (doc.status !== DocumentStatus.PendingUpload) {
       return doc;
     }
 
@@ -237,8 +245,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     // start the pipeline once.
     const [updated] = await db
       .update(documents)
-      .set({ status: 'uploaded' })
-      .where(and(eq(documents.id, doc.id), eq(documents.status, 'pending_upload')))
+      .set({ status: DocumentStatus.Uploaded })
+      .where(and(eq(documents.id, doc.id), eq(documents.status, DocumentStatus.PendingUpload)))
       .returning();
     if (!updated) {
       return loadOwned(context, args.id);
@@ -255,19 +263,19 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   mutations.retryDocumentProcessing.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    if (doc.status !== 'failed') {
+    if (doc.status !== DocumentStatus.Failed) {
       throw badInput('Only a failed document can be retried.');
     }
 
     const db = context.db;
     await db
       .update(processingSteps)
-      .set({ status: 'queued', error: null, startedAt: null, finishedAt: null })
-      .where(and(eq(processingSteps.documentId, doc.id), eq(processingSteps.status, 'failed')));
+      .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
+      .where(and(eq(processingSteps.documentId, doc.id), eq(processingSteps.status, StepStatus.Failed)));
     const [updated] = await db
       .update(documents)
-      .set({ status: 'uploaded', error: null })
-      .where(and(eq(documents.id, doc.id), eq(documents.status, 'failed')))
+      .set({ status: DocumentStatus.Uploaded, error: null })
+      .where(and(eq(documents.id, doc.id), eq(documents.status, DocumentStatus.Failed)))
       .returning();
     if (!updated) {
       return loadOwned(context, args.id);
