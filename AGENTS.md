@@ -80,6 +80,10 @@ comments are the install instructions, so changing an env var here means changin
 them there. It pulls `vantreeseba/engrafo:latest` and must never grow a `build:`
 key.
 
+Docker Hub is the primary registry: every compose file and the README name
+`vantreeseba/engrafo`. The release workflow also pushes the same build to
+`ghcr.io/cubicecho/engrafo` as an additional copy; nothing points at it.
+
 ## Commands
 
 ```bash
