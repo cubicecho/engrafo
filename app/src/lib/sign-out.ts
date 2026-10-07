@@ -13,6 +13,9 @@ const SignOut = graphql(`
 /**
  * Ends the session on the server, then forgets it here. Dropping the token
  * alone would leave a copy of it working until the session expired.
+ *
+ * @returns A function that signs out and goes to the sign-in page. It works
+ *   even when the server cannot be reached.
  */
 export function useSignOut(): () => Promise<void> {
   const navigate = useNavigate();

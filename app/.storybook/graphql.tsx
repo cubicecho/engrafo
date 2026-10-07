@@ -77,6 +77,10 @@ function handlerLink(resolvers: ResolverMap, delay: number): ApolloLink {
 /**
  * The decorator half of the Apollo parameter. Storybook's Apollo addon ships only a panel since
  * v10 — the provider is the app's to supply, which is what this is.
+ *
+ * @param story - The rendered story.
+ * @param parameters - The story's `apolloClient` parameter, if it set one.
+ * @returns The story under a mock server or a `MockedProvider`, with a fresh client.
  */
 export function withApollo(story: ReactElement, parameters: ApolloParameters | undefined): ReactElement {
   if (parameters?.resolvers) {

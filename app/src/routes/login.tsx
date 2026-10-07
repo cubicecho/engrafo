@@ -24,6 +24,12 @@ const RequestSignIn = graphql(`
   }
 `);
 
+/**
+ * Sign-in by email: ask for an address, then say a link is on its way.
+ *
+ * On a trusted network the server answers with a session instead of a link, and
+ * the page goes straight to the archive.
+ */
 export function LoginPage() {
   const navigate = useNavigate();
   const [sent, setSent] = useState<{ email: string; magicLink: string | null } | null>(null);

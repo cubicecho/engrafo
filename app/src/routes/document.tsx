@@ -101,6 +101,11 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
   );
 }
 
+/**
+ * One document, by the id in the URL: its pipeline, preview, text and details,
+ * and the rename, download, retry and delete that act on it. Polls while the
+ * document is still being processed.
+ */
 export function DocumentRoute() {
   const { id = '' } = useParams();
   const navigate = useNavigate();

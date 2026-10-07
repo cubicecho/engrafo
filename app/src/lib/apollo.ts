@@ -34,6 +34,10 @@ const errorLink = new ErrorLink(({ error }) => {
   }
 });
 
+/**
+ * The one Apollo client the app runs on. It sends the session token with every
+ * request and goes back to sign-in when the server says the session is over.
+ */
 export const apolloClient = new ApolloClient({
   link: ApolloLink.from([errorLink, httpLink]),
   cache: new InMemoryCache(),

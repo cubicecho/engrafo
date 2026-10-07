@@ -28,17 +28,30 @@ function statusIn(known: Readonly<Record<string, Status | undefined>>, status: s
   return known[status] ?? { label: status, tone: 'outline' };
 }
 
-export function DocumentStatusBadge({ status }: { status: string }) {
+interface StatusBadgeProps {
+  /** The status as the server sent it. A word neither map knows is shown as it came. */
+  status: string;
+}
+
+/** A document's status as a word and a colour: "Queued" rather than `uploaded`. */
+export function DocumentStatusBadge({ status }: StatusBadgeProps) {
   const { label, tone } = statusIn(DOCUMENT, status);
   return <Badge variant={tone}>{label}</Badge>;
 }
 
-export function StepStatusBadge({ status }: { status: string }) {
+/** A pipeline step's status as a word and a colour. */
+export function StepStatusBadge({ status }: StatusBadgeProps) {
   const { label, tone } = statusIn(STEP, status);
   return <Badge variant={tone}>{label}</Badge>;
 }
 
-/** Statuses the server is still working through, which a page should poll while it shows. */
+/**
+ * Whether the server is still working through a document, which is when a page
+ * showing it should poll.
+ *
+ * @param status - The document's status.
+ * @returns True while the document is queued or being processed.
+ */
 export function isInProgress(status: string): boolean {
   return status === DocumentStatusEnum.Uploaded || status === DocumentStatusEnum.Processing;
 }

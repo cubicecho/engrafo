@@ -16,6 +16,10 @@ const VerifyMagicLink = graphql(`
   }
 `);
 
+/**
+ * Where a magic link lands. Trades the token in the URL for a session, once,
+ * and says so when the link is missing, spent or expired.
+ */
 export function VerifyPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();

@@ -30,6 +30,10 @@ const SettingsPage = graphql(`
   }
 `);
 
+/**
+ * The account, the theme, and what the server is configured to accept. Only the
+ * theme can be changed here: the rest is read from the server's environment.
+ */
 export function SettingsRoute() {
   const signOut = useSignOut();
   const result = useQuery(SettingsPage);

@@ -1,3 +1,4 @@
+/** A header the presigned URL was signed with, which the PUT has to repeat. */
 export interface UploadHeader {
   name: string;
   value: string;
@@ -12,6 +13,14 @@ const HTTP_REDIRECT_MIN = 300;
  *
  * XHR rather than fetch: fetch still reports no upload progress, and a 100 MB
  * scan with no progress bar looks exactly like a hung page.
+ *
+ * @param url - The presigned URL to PUT to.
+ * @param file - The file, sent as the browser's own `File` so it is streamed.
+ * @param headers - The headers the URL was signed with.
+ * @param onProgress - Called with the fraction sent so far, from 0 to 1.
+ * @param signal - Aborts the upload when it fires.
+ * @returns A promise that resolves once the bucket accepts the file, and rejects
+ *   when it refuses, cannot be reached or the upload is aborted.
  */
 export function putFile(
   url: string,

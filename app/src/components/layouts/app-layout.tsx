@@ -9,15 +9,6 @@ import { ROUTES } from '@/lib/routes';
 import { useSignOut } from '@/lib/sign-out';
 import type { SlotNode } from '@/lib/utils';
 
-/**
- * The shell around every signed-in page: cubeui's `Sidebar` on the left, the
- * page on the right, and under `md` a bar over the page in the sidebar's place.
- *
- * This owns what `PageLayout` deliberately does not: the navigation, the theme
- * control and signing out. Pages own their own headers and keep using
- * `PageLayout` inside this.
- */
-
 type NavItem = {
   to: string;
   label: string;
@@ -61,7 +52,20 @@ function Brand() {
   );
 }
 
-export function AppLayout({ contentSlot }: { contentSlot: SlotNode }) {
+interface AppLayoutProps {
+  /** The page to draw beside the sidebar. It is given a real height to scroll within. */
+  contentSlot: SlotNode;
+}
+
+/**
+ * The shell around every signed-in page: cubeui's `Sidebar` on the left, the
+ * page on the right, and under `md` a bar over the page in the sidebar's place.
+ *
+ * This owns what `PageLayout` deliberately does not: the navigation, the theme
+ * control and signing out. Pages own their own headers and keep using
+ * `PageLayout` inside this.
+ */
+export function AppLayout({ contentSlot }: AppLayoutProps) {
   const signOut = useSignOut();
 
   return (

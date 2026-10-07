@@ -22,6 +22,11 @@ export const MOCK_BUCKET_DENIED = '/__mock-bucket/denied';
 const HTTP_NO_CONTENT = 204;
 const HTTP_FORBIDDEN = 403;
 
+/**
+ * The Vite plugin that serves the mock bucket's two paths.
+ *
+ * @returns A plugin answering PUTs under `/__mock-bucket/` and passing everything else on.
+ */
 export function mockBucket(): Plugin {
   return {
     name: 'engrafo:mock-bucket',

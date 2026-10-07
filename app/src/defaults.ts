@@ -15,6 +15,7 @@ export interface PollingSettings {
   intervalMs: number;
 }
 
+/** What the pages poll at unless something says otherwise. */
 export const POLLING_DEFAULTS: Readonly<PollingSettings> = Object.freeze({
   intervalMs: 3000,
 });
@@ -25,6 +26,7 @@ export interface DocumentListSettings {
   limit: number;
 }
 
+/** What the list asks for unless something says otherwise. */
 export const DOCUMENT_LIST_DEFAULTS: Readonly<DocumentListSettings> = Object.freeze({
   limit: 200,
 });
@@ -38,6 +40,7 @@ export interface TextPreviewSettings {
   maxBytes: number;
 }
 
+/** What the text card will show unless something says otherwise. */
 export const TEXT_PREVIEW_DEFAULTS: Readonly<TextPreviewSettings> = Object.freeze({
   maxBytes: 524_288,
 });

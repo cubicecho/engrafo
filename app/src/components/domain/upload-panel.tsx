@@ -54,11 +54,18 @@ interface Job {
 }
 
 interface UploadPanelProps {
+  /** What the server will accept, as `serverConfig` reports it. */
   config: { maxUploadBytes: number; acceptedMimeTypes: string[]; ocrAvailable: boolean; ocrDefault: boolean };
   /** Called whenever a document changes state, so the list can refetch. */
   onChanged: () => void;
 }
 
+/**
+ * The dropzone, the OCR switch and a row per file being uploaded.
+ *
+ * Each file is signed for, PUT straight to the bucket and then confirmed, and a
+ * failure at any of the three is shown on that file's row.
+ */
 export function UploadPanel({ config, onChanged }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [ocr, setOcr] = useState(config.ocrAvailable && config.ocrDefault);

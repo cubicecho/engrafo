@@ -32,6 +32,10 @@ const DocumentsPage = graphql(`
   }
 `);
 
+/**
+ * The archive: the upload panel over the list of everything uploaded, newest
+ * first. Polls while any document is still being processed.
+ */
 export function DocumentsRoute() {
   const result = useQuery(DocumentsPage, { variables: { limit: DOCUMENT_LIST_DEFAULTS.limit } });
   const { data, startPolling, stopPolling } = result;
