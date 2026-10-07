@@ -1,15 +1,13 @@
 import { useQuery } from '@apollo/client/react';
 import { useEffect } from 'react';
-import { Link } from 'react-router';
 import { graphql } from '@/__generated__';
-import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
+import { DocumentsTable } from '@/components/domain/documents-table';
+import { isInProgress } from '@/components/domain/status-badge';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { FileText } from '@/components/ui/icons';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatBytes, formatDate } from '@/lib/format';
 import { queryLike } from '@/lib/query';
 
 const DocumentsPage = graphql(`
@@ -76,38 +74,7 @@ export function DocumentsRoute() {
             }
           />
 
-          {documents.length > 0 && (
-            <Table>
-              <TableCaption className="sr-only">Your documents, newest first</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Size</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Added</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableHead className="max-w-[24rem]">
-                      <Link className="font-medium text-info hover:underline" to={`/documents/${doc.id}`}>
-                        {doc.title}
-                      </Link>
-                      <div className="truncate font-normal text-foreground/60 text-xs">{doc.originalFilename}</div>
-                    </TableHead>
-                    <TableCell className="text-foreground/60">{doc.mimeType}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(doc.sizeBytes)}</TableCell>
-                    <TableCell>
-                      <DocumentStatusBadge status={doc.status} />
-                    </TableCell>
-                    <TableCell className="text-foreground/60">{formatDate(doc.createdAt)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {documents.length > 0 && <DocumentsTable documents={documents} />}
         </div>
       }
     />
