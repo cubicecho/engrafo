@@ -13,7 +13,7 @@ import { DocumentStatusBadge, isInProgress, StepStatusBadge } from '@/components
 import { ListItem } from '@/components/list-item';
 import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
-import { QueryError, RowSkeleton } from '@/components/query-state';
+import { QueryState } from '@/components/query-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CodeBlock } from '@/components/ui/code';
@@ -21,6 +21,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { FormElement } from '@/components/ui/form-element';
 import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
 import { formatAgo, formatBytes, formatDate, joinStats } from '@/lib/format';
+import { queryLike } from '@/lib/query';
 import type { SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
@@ -278,25 +279,24 @@ export function DocumentRoute() {
     }
   }
 
-  if (result.error && !doc) {
-    return (
-      <Placeholder
-        contentSlot={<QueryError error={result.error} onRetry={() => void result.refetch()} what="this document" />}
-      />
-    );
-  }
-  if (!doc && result.loading) {
-    return <Placeholder loading contentSlot={<RowSkeleton />} />;
-  }
   if (!doc) {
+    const query = queryLike(result);
     return (
       <Placeholder
+        loading={query.isPending}
         contentSlot={
-          <EmptyState
-            icon={FileText}
-            title="No such document"
-            description="It may have been deleted, or the link is for someone else's archive."
-            actionSlot={<Button variant="outline" content="Back to documents" linkSlot={<Link to="/" />} />}
+          <QueryState
+            query={query}
+            what="this document"
+            count={0}
+            emptySlot={
+              <EmptyState
+                icon={FileText}
+                title="No such document"
+                description="It may have been deleted, or the link is for someone else's archive."
+                actionSlot={<Button variant="outline" content="Back to documents" linkSlot={<Link to="/" />} />}
+              />
+            }
           />
         }
       />
