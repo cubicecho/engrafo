@@ -18,8 +18,10 @@ import { QueryState } from '@/components/query-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
+import { POLLING_DEFAULTS } from '@/defaults';
 import { formatBytes, joinStats } from '@/lib/format';
 import { queryLike } from '@/lib/query';
+import { ROUTES } from '@/lib/routes';
 import type { SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
@@ -76,12 +78,10 @@ const DeleteDocument = graphql(`
   }
 `);
 
-const POLL_MS = 3000;
-
 /** The one-step trail above every state of this page, so it does not jump as the title lands. */
 function BackToDocuments() {
   return (
-    <Link className="flex items-center gap-1 text-info text-sm hover:underline" to="/">
+    <Link className="flex items-center gap-1 text-info text-sm hover:underline" to={ROUTES.documents}>
       <ArrowLeft className="size-3.5" aria-hidden />
       Documents
     </Link>
@@ -117,7 +117,7 @@ export function DocumentRoute() {
   const busy = doc ? isInProgress(doc.status) : false;
   useEffect(() => {
     if (busy) {
-      startPolling(POLL_MS);
+      startPolling(POLLING_DEFAULTS.intervalMs);
     } else {
       stopPolling();
     }
@@ -153,7 +153,9 @@ export function DocumentRoute() {
                 icon={FileText}
                 title="No such document"
                 description="It may have been deleted, or the link is for someone else's archive."
-                actionSlot={<Button variant="outline" content="Back to documents" linkSlot={<Link to="/" />} />}
+                actionSlot={
+                  <Button variant="outline" content="Back to documents" linkSlot={<Link to={ROUTES.documents} />} />
+                }
               />
             }
           />
@@ -194,7 +196,7 @@ export function DocumentRoute() {
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
             onConfirm={() => {
-              void remove({ variables: { id: doc.id } }).then(() => navigate('/', { replace: true }));
+              void remove({ variables: { id: doc.id } }).then(() => navigate(ROUTES.documents, { replace: true }));
             }}
           />
         </>

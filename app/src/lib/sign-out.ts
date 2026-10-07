@@ -2,6 +2,7 @@ import { useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import { clearToken } from './auth';
+import { ROUTES } from './routes';
 
 const SignOut = graphql(`
   mutation SignOut {
@@ -21,6 +22,6 @@ export function useSignOut(): () => Promise<void> {
     await signOut().catch(() => undefined);
     clearToken();
     await client.clearStore();
-    navigate('/login', { replace: true });
+    navigate(ROUTES.login, { replace: true });
   };
 }

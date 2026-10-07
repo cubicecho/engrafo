@@ -4,6 +4,9 @@ import { DocumentFileVariant } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { DocumentFileUrl } from './document-file';
 
+// Plain text gets no frame of its own: the text card already shows it.
+const PLAIN_TEXT_MIME_TYPE = 'text/plain';
+
 interface DocumentPreviewCardProps {
   /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
   doc: { id: string; mimeType: string; archiveKey: string | null };
@@ -22,7 +25,7 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
   // than cached with the document. The archive is the searchable PDF; before
   // OCR has run there is only the original.
   const variant = doc.archiveKey ? DocumentFileVariant.Archive : DocumentFileVariant.Original;
-  const previewable = doc.mimeType !== 'text/plain';
+  const previewable = doc.mimeType !== PLAIN_TEXT_MIME_TYPE;
   useEffect(() => {
     if (!previewable) {
       return;
@@ -53,7 +56,9 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
     <CardLayout
       level={2}
       title="Preview"
-      description={variant === 'ARCHIVE' ? 'The searchable PDF produced by OCR.' : 'The uploaded file.'}
+      description={
+        variant === DocumentFileVariant.Archive ? 'The searchable PDF produced by OCR.' : 'The uploaded file.'
+      }
       contentSlot={
         <iframe
           title="Document preview"

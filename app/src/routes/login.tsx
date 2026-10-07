@@ -10,6 +10,7 @@ import { FormElement } from '@/components/ui/form-element';
 import { FileText } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
+import { ROUTES } from '@/lib/routes';
 
 const RequestSignIn = graphql(`
   mutation RequestSignIn($email: String!) {
@@ -39,7 +40,7 @@ export function LoginPage() {
       // SECURE_LOCAL_NET=true: the server signed us straight in.
       if (result.session) {
         setToken(result.session.token);
-        navigate('/', { replace: true });
+        navigate(ROUTES.documents, { replace: true });
         return;
       }
       setSent({ email: value.email, magicLink: result.magicLink });
@@ -47,12 +48,12 @@ export function LoginPage() {
   });
 
   if (getToken()) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTES.documents} replace />;
   }
 
   // The link is built from APP_URL, which in development points at the server
   // rather than at Vite. Follow it in this tab, on this origin, instead.
-  const localLink = sent?.magicLink ? `/auth/verify${new URL(sent.magicLink).search}` : null;
+  const localLink = sent?.magicLink ? `${ROUTES.verify}${new URL(sent.magicLink).search}` : null;
 
   if (sent) {
     return (

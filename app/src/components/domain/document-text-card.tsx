@@ -6,13 +6,9 @@ import { Button } from '@/components/ui/button';
 import { CodeBlock } from '@/components/ui/code';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Download } from '@/components/ui/icons';
+import { TEXT_PREVIEW_DEFAULTS } from '@/defaults';
 import { formatBytes, joinStats } from '@/lib/format';
 import { DocumentFileUrl } from './document-file';
-
-// The text is an object in its own bucket, so the page fetches it rather than
-// receiving it with the document. Past this much, showing it in the browser
-// helps nobody — the download link stands in for it.
-const TEXT_PREVIEW_BYTES = 512 * 1024;
 
 /**
  * The body of the text card, once it has stopped loading.
@@ -50,7 +46,10 @@ export function DocumentTextCard({ doc, onDownload }: DocumentTextCardProps) {
 
   const contentKey = doc.contentKey;
   const contentBytes = doc.contentBytes ?? 0;
-  const contentOversize = contentBytes > TEXT_PREVIEW_BYTES;
+  // The text is an object in its own bucket, so the page fetches it rather than
+  // receiving it with the document. Past the limit, showing it in the browser
+  // helps nobody — the download link stands in for it.
+  const contentOversize = contentBytes > TEXT_PREVIEW_DEFAULTS.maxBytes;
   useEffect(() => {
     if (!contentKey || contentOversize) {
       setContent(null);

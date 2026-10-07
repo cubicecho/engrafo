@@ -3,6 +3,10 @@ export interface UploadHeader {
   value: string;
 }
 
+// The 2xx range: from here up to the first redirect is the bucket saying yes.
+const HTTP_SUCCESS_MIN = 200;
+const HTTP_REDIRECT_MIN = 300;
+
 /**
  * PUTs a file straight to the presigned bucket URL.
  *
@@ -29,7 +33,7 @@ export function putFile(
       }
     };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+      if (xhr.status >= HTTP_SUCCESS_MIN && xhr.status < HTTP_REDIRECT_MIN) {
         onProgress(1);
         resolve();
       } else {

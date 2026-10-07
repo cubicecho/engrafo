@@ -8,17 +8,18 @@ import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { FileText } from '@/components/ui/icons';
+import { DOCUMENT_LIST_DEFAULTS, POLLING_DEFAULTS } from '@/defaults';
 import { queryLike } from '@/lib/query';
 
 const DocumentsPage = graphql(`
-  query DocumentsPage {
+  query DocumentsPage($limit: Int!) {
     serverConfig {
       maxUploadBytes
       acceptedMimeTypes
       ocrAvailable
       ocrDefault
     }
-    documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: 200) {
+    documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: $limit) {
       id
       title
       originalFilename
@@ -31,21 +32,18 @@ const DocumentsPage = graphql(`
   }
 `);
 
-// Long enough not to hammer the server, short enough that a small scan looks
-// live. There is no subscription: the pipeline runs in the server process and
-// says nothing until it is asked.
-const POLL_MS = 3000;
-
 export function DocumentsRoute() {
-  const result = useQuery(DocumentsPage);
+  const result = useQuery(DocumentsPage, { variables: { limit: DOCUMENT_LIST_DEFAULTS.limit } });
   const { data, startPolling, stopPolling } = result;
   const documents = data?.documents ?? [];
   const busy = documents.some((doc) => isInProgress(doc.status));
 
-  // Only while something is actually moving: a quiet archive should sit still.
+  // There is no subscription: the pipeline runs in the server process and says
+  // nothing until it is asked. So the page asks, but only while something is
+  // actually moving: a quiet archive should sit still.
   useEffect(() => {
     if (busy) {
-      startPolling(POLL_MS);
+      startPolling(POLLING_DEFAULTS.intervalMs);
     } else {
       stopPolling();
     }

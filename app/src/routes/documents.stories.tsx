@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect } from 'storybook/test';
+import { ROUTES } from '@/lib/routes';
 import { DocumentsRoute } from './documents';
 
 /**
@@ -12,9 +13,11 @@ import { DocumentsRoute } from './documents';
  * turns that into a failing story instead of a blank table.
  */
 
+const MAX_UPLOAD_BYTES = 104_857_600;
+
 const SERVER_CONFIG = {
   version: '1.4.2',
-  maxUploadBytes: 100 * 1024 * 1024,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
   acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
   ocrAvailable: true,
   ocrDefault: true,
@@ -47,7 +50,7 @@ const meta = {
   title: 'Routes/Documents',
   component: DocumentsRoute,
   render: () => <Framed />,
-  parameters: { layout: 'fullscreen', router: { initialEntries: ['/'] } },
+  parameters: { layout: 'fullscreen', router: { initialEntries: [ROUTES.documents] } },
 } satisfies Meta<typeof DocumentsRoute>;
 
 export default meta;

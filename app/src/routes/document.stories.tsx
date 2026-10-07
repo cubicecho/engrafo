@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
+import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
 
 /**
@@ -12,6 +13,8 @@ import { DocumentRoute } from './document';
  */
 
 const ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e';
+const TEXT = 'This lease is made between';
+const OVER_THE_PREVIEW_LIMIT_BYTES = 2_097_152;
 
 function step(overrides: Record<string, unknown>) {
   return {
@@ -51,7 +54,7 @@ function Framed() {
   return (
     <div className="h-screen">
       <Routes>
-        <Route path="/documents/:id" element={<DocumentRoute />} />
+        <Route path={ROUTES.document} element={<DocumentRoute />} />
       </Routes>
     </div>
   );
@@ -61,7 +64,7 @@ const meta = {
   title: 'Routes/Document',
   component: DocumentRoute,
   render: () => <Framed />,
-  parameters: { layout: 'fullscreen', router: { initialEntries: [`/documents/${ID}`] } },
+  parameters: { layout: 'fullscreen', router: { initialEntries: [documentPath(ID)] } },
 } satisfies Meta<typeof DocumentRoute>;
 
 export default meta;
@@ -130,14 +133,14 @@ export const WithText: Story = {
     apolloClient: {
       resolvers: {
         Query: {
-          document: () => document({ contentKey: 'text/lease.txt', contentBytes: 26 }),
-          documentFileUrl: () => textUrl('This lease is made between'),
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: TEXT.length }),
+          documentFileUrl: () => textUrl(TEXT),
         },
       },
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('This lease is made between')).toBeInTheDocument();
+    await expect(await canvas.findByText(TEXT)).toBeInTheDocument();
     await expect(canvas.getByRole('button', { name: 'Copy text' })).toBeInTheDocument();
   },
 };
@@ -170,7 +173,7 @@ export const TextTooLarge: Story = {
     apolloClient: {
       resolvers: {
         Query: {
-          document: () => document({ contentKey: 'text/lease.txt', contentBytes: 2 * 1024 * 1024 }),
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: OVER_THE_PREVIEW_LIMIT_BYTES }),
           documentFileUrl: () => {
             throw new Error('The oversize text must not be requested');
           },

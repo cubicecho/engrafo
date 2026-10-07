@@ -2,6 +2,7 @@ import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from '@apollo/clien
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { ErrorLink } from '@apollo/client/link/error';
 import { clearToken, getToken } from './auth';
+import { ROUTES } from './routes';
 
 // Same origin in both modes: the server serves the built bundle in production,
 // and Vite proxies /graphql to it in development.
@@ -28,8 +29,8 @@ const errorLink = new ErrorLink(({ error }) => {
     return;
   }
   clearToken();
-  if (window.location.pathname !== '/login') {
-    window.location.assign('/login');
+  if (window.location.pathname !== ROUTES.login) {
+    window.location.assign(ROUTES.login);
   }
 });
 

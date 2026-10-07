@@ -37,6 +37,13 @@ const CompleteUpload = graphql(`
   }
 `);
 
+// Browsers leave the type blank for extensions they do not know; the server's
+// allowlist says no with a clearer message than S3 would.
+const UNKNOWN_MIME_TYPE = 'application/octet-stream';
+
+// A job's progress is a fraction; the bar and its label are in percent.
+const PERCENT = 100;
+
 interface Job {
   key: string;
   name: string;
@@ -72,9 +79,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
         variables: {
           input: {
             filename: file.name,
-            // Browsers leave the type blank for extensions they do not know;
-            // the server's allowlist says no with a clearer message than S3 would.
-            mimeType: file.type || 'application/octet-stream',
+            mimeType: file.type || UNKNOWN_MIME_TYPE,
             sizeBytes: file.size,
             ocr,
           },
@@ -174,7 +179,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
                   <ListItem
                     className="p-0"
                     title={job.name}
-                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * 100)}%`}
+                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * PERCENT)}%`}
                     actionSlot={
                       job.done || job.error ? (
                         <ActionButton
@@ -187,7 +192,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
                       ) : null
                     }
                   />
-                  <Progress value={job.progress * 100} label={`${job.name} upload progress`} />
+                  <Progress value={job.progress * PERCENT} label={`${job.name} upload progress`} />
                   {job.error && <p className="text-negative text-xs">{job.error}</p>}
                 </li>
               ))}

@@ -6,6 +6,7 @@ import { CenteredLayout } from '@/components/centered-layout';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { setToken } from '@/lib/auth';
+import { ROUTES } from '@/lib/routes';
 
 const VerifyMagicLink = graphql(`
   mutation VerifyMagicLink($token: String!) {
@@ -34,7 +35,7 @@ export function VerifyPage() {
           return;
         }
         setToken(data.verifyMagicLink.token);
-        navigate('/', { replace: true });
+        navigate(ROUTES.documents, { replace: true });
       })
       .catch(() => {});
   }, [token, verify, navigate]);
@@ -45,7 +46,7 @@ export function VerifyPage() {
         level={1}
         title="This sign-in link is invalid or has expired"
         description="Links work once, and only for a short while."
-        footerActionsSlot={<Button content="Request a new one" linkSlot={<Link to="/login" />} />}
+        footerActionsSlot={<Button content="Request a new one" linkSlot={<Link to={ROUTES.login} />} />}
       />
     );
   }

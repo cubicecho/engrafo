@@ -3,6 +3,7 @@ import type { DocumentStatusEnum } from '@/__generated__/graphql';
 import { DocumentStatusBadge } from '@/components/domain/status-badge';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatBytes, formatDate } from '@/lib/format';
+import { documentPath } from '@/lib/routes';
 
 /** One document, as the list query selects it. */
 export interface DocumentRow {
@@ -39,7 +40,7 @@ export function DocumentsTable({ documents }: DocumentsTableProps) {
         {documents.map((doc) => (
           <TableRow key={doc.id}>
             <TableHead className="max-w-[24rem]">
-              <Link className="font-medium text-info hover:underline" to={`/documents/${doc.id}`}>
+              <Link className="font-medium text-info hover:underline" to={documentPath(doc.id)}>
                 {doc.title}
               </Link>
               <div className="truncate font-normal text-foreground/60 text-xs">{doc.originalFilename}</div>

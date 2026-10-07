@@ -19,6 +19,9 @@ import type { Plugin } from 'vite';
 export const MOCK_BUCKET_OK = '/__mock-bucket/ok';
 export const MOCK_BUCKET_DENIED = '/__mock-bucket/denied';
 
+const HTTP_NO_CONTENT = 204;
+const HTTP_FORBIDDEN = 403;
+
 export function mockBucket(): Plugin {
   return {
     name: 'engrafo:mock-bucket',
@@ -34,7 +37,7 @@ export function mockBucket(): Plugin {
         // panel sits at a progress bar that never finishes.
         request.resume();
         request.on('end', () => {
-          response.statusCode = request.url?.startsWith(MOCK_BUCKET_DENIED) ? 403 : 204;
+          response.statusCode = request.url?.startsWith(MOCK_BUCKET_DENIED) ? HTTP_FORBIDDEN : HTTP_NO_CONTENT;
           response.end();
         });
       });

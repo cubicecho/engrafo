@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { addons } from 'storybook/internal/preview-api';
 import { type ApolloClientAddonState, EVENTS } from 'storybook-addon-apollo-client';
+import { ROUTES } from '../src/lib/routes';
 import { type ApolloParameters, withApollo } from './graphql';
 
 // The app's own stylesheet, tokens and all. A harness that renders these components from a
@@ -74,7 +75,7 @@ const preview: Preview = {
     // `parameters.router.initialEntries` is how a story picks the route it is rendered at —
     // which is the whole subject of the sidebar's stories.
     (Story, context) => (
-      <MemoryRouter initialEntries={context.parameters.router?.initialEntries ?? ['/']}>
+      <MemoryRouter initialEntries={context.parameters.router?.initialEntries ?? [ROUTES.documents]}>
         <Story />
       </MemoryRouter>
     ),

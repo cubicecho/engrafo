@@ -5,6 +5,7 @@ import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/component
 import { SidebarLayout } from '@/components/split-layout';
 import { FileText, type IconProps, Settings } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
+import { ROUTES } from '@/lib/routes';
 import { useSignOut } from '@/lib/sign-out';
 import type { SlotNode } from '@/lib/utils';
 
@@ -27,8 +28,8 @@ type NavItem = {
 const NAV_ITEMS: readonly NavItem[] = [
   // `end` so "Documents" is not also marked active on /documents/:id — that
   // route is a document, not the list, and two lit rows read as a bug.
-  { to: '/', label: 'Documents', icon: FileText, end: true },
-  { to: '/settings', label: 'Settings', icon: Settings, end: false },
+  { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true },
+  { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false },
 ];
 
 /**

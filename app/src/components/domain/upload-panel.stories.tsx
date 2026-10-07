@@ -16,8 +16,12 @@ import { UploadPanel } from './upload-panel';
  * asking about, and a bucket that says no after the row already exists.
  */
 
+const MAX_UPLOAD_BYTES = 5_242_880;
+const OVER_THE_LIMIT_BYTES = 6_291_456;
+const SCAN_BYTES = 1024;
+
 const CONFIG = {
-  maxUploadBytes: 5 * 1024 * 1024,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
   acceptedMimeTypes: ['application/pdf', 'image/png', 'text/plain'],
   ocrAvailable: true,
   ocrDefault: true,
@@ -56,7 +60,7 @@ function uploadMocks(uploadUrl: string): MockLink.MockedResponse[] {
           input: {
             filename: 'scan.pdf',
             mimeType: 'application/pdf',
-            sizeBytes: 1024,
+            sizeBytes: SCAN_BYTES,
             ocr: true,
           },
         },
@@ -123,7 +127,7 @@ export const RejectsAnOversizedFile: Story = {
     const canvas = within(canvasElement);
     const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('enormous.pdf', 6 * 1024 * 1024));
+    await userEvent.upload(input, file('enormous.pdf', OVER_THE_LIMIT_BYTES));
 
     const job = await canvas.findByRole('listitem');
     await expect(job).toHaveTextContent(/Larger than the 5.0 MB limit/i);
@@ -138,7 +142,7 @@ export const UploadsAFile: Story = {
     const canvas = within(canvasElement);
     const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('scan.pdf', 1024));
+    await userEvent.upload(input, file('scan.pdf', SCAN_BYTES));
 
     await waitFor(() => expect(canvas.getByRole('listitem')).toHaveTextContent('Uploaded'));
     // Twice: once when the row exists so the list can show it as pending, once when it is done.
@@ -157,7 +161,7 @@ export const StorageRefusesTheUpload: Story = {
     const canvas = within(canvasElement);
     const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('scan.pdf', 1024));
+    await userEvent.upload(input, file('scan.pdf', SCAN_BYTES));
 
     await waitFor(() =>
       expect(canvas.getByRole('listitem')).toHaveTextContent(/Storage rejected the upload \(HTTP 403\)/i),

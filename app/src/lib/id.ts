@@ -1,5 +1,8 @@
 let counter = 0;
 
+// Digits and letters both, so the timestamp in a fallback id stays short.
+const BASE_36 = 36;
+
 /**
  * An id for something that exists only in this browser tab — an upload's
  * progress row, say.
@@ -13,5 +16,5 @@ let counter = 0;
  * distinguishes one row from another, so a counter is a fine fallback.
  */
 export function clientId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(36)}-${counter++}`;
+  return globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(BASE_36)}-${counter++}`;
 }
