@@ -3,9 +3,7 @@ import './core/preflight.ts';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '@cubicecho/engrafo-db';
-import cors from 'cors';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import express from 'express';
 import { createAuth } from './auth/better-auth.ts';
 import { createRateLimiter } from './auth/rate-limit.ts';
 import {
@@ -19,10 +17,8 @@ import {
   port,
   s3Config,
   secureLocalNet,
-  trustProxy,
 } from './core/config.ts';
-import { createGraphQLHandler } from './graphql/handler.ts';
-import { createStaticHandler } from './http/static.ts';
+import { createApp } from './http/app.ts';
 import { createPipeline, createPipelineEvents, STEPS } from './pipeline/index.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
 import { createS3Storage } from './storage/s3.ts';
@@ -70,27 +66,15 @@ const pipeline = createPipeline({
   config: { ocrAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
 });
 
-const app = express();
-// Which proxy hops may set X-Forwarded-For. `req.ip` feeds the sign-in throttle.
-app.set('trust proxy', trustProxy());
-const graphql = createGraphQLHandler({
+const app = createApp({
   db,
   auth: createAuth(db),
   limiter: createRateLimiter(),
   storage,
   events,
   ocrAvailable,
+  staticDir,
 });
-const serveStatic = createStaticHandler(staticDir);
-
-app.use(cors());
-// `all` rather than `use`: a mounted `use` strips the path from req.url, and
-// Yoga matches the request against `graphqlEndpoint` itself.
-app.all(graphql.graphqlEndpoint, (req, res) => graphql(req, res));
-app.get('/healthz', (_req, res) => {
-  res.json({ ok: true });
-});
-app.use((req, res) => serveStatic(req, res));
 
 app.listen(PORT, '0.0.0.0', async () => {
   // APP_URL, not localhost: on a NAS the banner is the only place the operator
