@@ -2,7 +2,8 @@
 // token. Imported for its side effects as the very first import of index.ts, so
 // a misconfigured instance fails with a sentence rather than a stack trace.
 
-const DEV_SECRET = 'dev-secret-change-in-production';
+import { DEV_SECRET, PLACEHOLDER_SECRET } from './config.ts';
+import { AUTH_DEFAULTS } from './defaults.ts';
 
 function fatal(message: string): never {
   console.error(`FATAL: ${message}`);
@@ -22,9 +23,15 @@ for (const name of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_A
 }
 
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_SECRET) {
-    // Session tokens are signed with this and nothing else. A known secret means
-    // anyone can mint a token for any account.
-    fatal('JWT_SECRET must be set to a strong random value in production. Generate one with `openssl rand -hex 32`.');
+  const secret = process.env.BETTER_AUTH_SECRET ?? '';
+  const isKnownSecret = secret === DEV_SECRET || secret === PLACEHOLDER_SECRET;
+  const isWeakSecret = secret.length < AUTH_DEFAULTS.minSecretLength || isKnownSecret;
+  if (isWeakSecret) {
+    // Sessions are signed with this and nothing else. A known or guessable secret
+    // means anyone can mint a session for any account.
+    const renamed = process.env.JWT_SECRET ? ' JWT_SECRET is no longer read: rename it.' : '';
+    fatal(
+      `BETTER_AUTH_SECRET must be a random value of at least ${AUTH_DEFAULTS.minSecretLength} characters in production. Generate one with \`openssl rand -hex 32\`.${renamed}`,
+    );
   }
 }

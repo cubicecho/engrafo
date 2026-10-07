@@ -17,8 +17,8 @@ const httpLink = new HttpLink({
   },
 });
 
-// A token that expired or was signed by a rotated secret fails every request
-// the same way. Drop it and start over at sign-in rather than rendering a page
+// A session that expired, was signed out elsewhere or was lost to a server
+// restart fails every request the same way. Drop it and start over at sign-in rather than rendering a page
 // of errors.
 const errorLink = new ErrorLink(({ error }) => {
   const isSessionOver =

@@ -1,6 +1,5 @@
 import { useQuery } from '@apollo/client/react';
 import { LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
@@ -10,9 +9,9 @@ import { SettingRow } from '@/components/setting-row';
 import { Button } from '@/components/ui/button';
 import { Settings } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
-import { clearToken } from '@/lib/auth';
 import { formatBytes, formatDate } from '@/lib/format';
 import { queryLike } from '@/lib/query';
+import { useSignOut } from '@/lib/sign-out';
 
 const SettingsPage = graphql(`
   query SettingsPage {
@@ -32,7 +31,7 @@ const SettingsPage = graphql(`
 `);
 
 export function SettingsRoute() {
-  const navigate = useNavigate();
+  const signOut = useSignOut();
   const result = useQuery(SettingsPage);
   const { data } = result;
 
@@ -63,15 +62,7 @@ export function SettingsRoute() {
                   />
                 }
                 footerActionsSlot={
-                  <Button
-                    variant="outline"
-                    iconSlot={<LogOut />}
-                    content="Sign out"
-                    onClick={() => {
-                      clearToken();
-                      navigate('/login', { replace: true });
-                    }}
-                  />
+                  <Button variant="outline" iconSlot={<LogOut />} content="Sign out" onClick={signOut} />
                 }
               />
 

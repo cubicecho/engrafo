@@ -8,8 +8,13 @@ import { createClient, createTestDb, createUser, type TestDb } from '../helpers.
 // what confines every generated read to the caller; a table missing from it is
 // readable across tenants, and nothing else in the codebase would say so.
 
+/** better-auth's tables, which are not exposed through GraphQL. */
+const AUTH_TABLES = new Set<string>(dbSchema.AUTH_TABLES);
+
+const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && AUTH_TABLES.has(key) === false;
+
 const tableKeys = Object.entries(dbSchema)
-  .filter(([, value]) => is(value, Table))
+  .filter(([key, value]) => isServedTable(key, value))
   .map(([key]) => key);
 
 describe('tenancy configuration', () => {
@@ -28,7 +33,7 @@ describe('tenancy configuration', () => {
   it('names every table by its Drizzle key, not its SQL name', () => {
     for (const [key, value] of Object.entries(dbSchema)) {
       const isOtherExport = is(value, Table) === false;
-      if (isOtherExport) {
+      if (isOtherExport || AUTH_TABLES.has(key)) {
         continue;
       }
       expect(Object.keys(scope)).toContain(key);
@@ -99,6 +104,11 @@ describe('tenancy at runtime', () => {
   it('refuses the unauthenticated', async () => {
     const error = await createClient(db, null).expectError('{ documents { id } }');
     expect(error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it.each(['sessions', 'accounts', 'verifications'])('keeps %s out of the schema', async (table) => {
+    const result = await createClient(db, alice).run(`{ ${table} { id } }`);
+    expect(result.errors?.[0]?.message).toMatch(new RegExp(`Cannot query field "${table}"`));
   });
 
   it('generates no writes for any table', async () => {

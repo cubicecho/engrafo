@@ -39,7 +39,7 @@ mkdir engrafo && cd engrafo
 curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
 
 # The three secrets it refuses to start without, plus the address you reach it at.
-printf 'ENGRAFO_HOST=%s\nJWT_SECRET=%s\nPOSTGRES_PASSWORD=%s\nMINIO_PASSWORD=%s\n' \
+printf 'ENGRAFO_HOST=%s\nBETTER_AUTH_SECRET=%s\nPOSTGRES_PASSWORD=%s\nMINIO_PASSWORD=%s\n' \
   "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" > .env
 
 docker compose -f docker-compose.quickstart.yml up -d
@@ -71,7 +71,7 @@ channel:
 docker logs -f engrafo          # or the Logs tab in Portainer
 ```
 
-Keep that `.env`. `JWT_SECRET` signs sessions, so changing it signs everyone out.
+Keep that `.env`. `BETTER_AUTH_SECRET` signs sessions, so changing it signs everyone out.
 Your documents and their extracted text live in the `engrafo_minio` volume and
 their metadata in `engrafo_pgdata`; both survive `docker compose down`, and a
 backup needs both, because one without the other is not a working archive.
@@ -86,7 +86,7 @@ domain.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DATABASE_URL` | — | **Required.** Postgres connection string. |
-| `JWT_SECRET` | — | **Required in production.** Signs session and magic-link tokens. `openssl rand -hex 32`. |
+| `BETTER_AUTH_SECRET` | — | **Required in production**, at least 32 characters. Signs sessions and hashes magic-link tokens. `openssl rand -hex 32`. |
 | `S3_ENDPOINT` | — | **Required.** Where the *server* reaches the bucket. |
 | `S3_BUCKET` | — | **Required.** Bucket for uploaded files and OCR archives. Engrafo does not create it. |
 | `S3_TEXT_BUCKET` | `$S3_BUCKET-text` | Bucket for extracted text. Must exist too. |
@@ -103,6 +103,8 @@ domain.
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | The narrower spelling of the same thing: `false` turns the link off and leaves everything else alone. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
+| `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
+| `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
 
 Accepted uploads are PDF, PNG, JPEG, TIFF and plain text — what the pipeline can
 do something with.
@@ -119,8 +121,9 @@ for an instance on the public internet. Before putting Engrafo on a domain:
 
 - **Put it behind something.** A reverse proxy with TLS, and — if the instance is
   yours alone — an allowlist, VPN, or auth in front of it. Engrafo rate-limits
-  sign-in requests per address in process; per-IP limiting is the proxy's job,
-  because the proxy is the only thing that reliably knows the client's address.
+  sign-in in process, by email address and by client address. Set `TRUST_PROXY`
+  to the number of proxies in front, or every visitor counts as the proxy and
+  shares one budget.
 - **The bucket is reachable too.** Browsers upload and download directly, so
   MinIO's port is published. Terminate TLS in front of it and set
   `S3_PUBLIC_ENDPOINT` to that address — objects are only ever reached through
@@ -131,7 +134,7 @@ for an instance on the public internet. Before putting Engrafo on a domain:
   which is the only place "secure local net" is a true statement.
 - **Never set `EXPOSE_MAGIC_LINK=true` on a reachable instance.** It hands the
   sign-in token to whoever asked for it, which is the same thing by another route.
-- **Set a real `JWT_SECRET`** and keep it. Changing it signs everyone out; leaking
+- **Set a real `BETTER_AUTH_SECRET`** and keep it. Changing it signs everyone out; leaking
   it lets anyone mint a session.
 
 ## Development
@@ -141,7 +144,7 @@ git clone https://github.com/cubicecho/engrafo.git
 cd engrafo
 
 cp .env.example .env
-sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
+sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$(openssl rand -hex 32)/" .env
 
 npm install
 npm run db:up          # Postgres on 127.0.0.1:5436, MinIO on 9000 (console 9001)
@@ -189,7 +192,7 @@ The repo ships its own `docker-compose.yml`, which builds the image rather than
 pulling it:
 
 ```bash
-export JWT_SECRET=$(openssl rand -hex 32) MINIO_PASSWORD=$(openssl rand -hex 24)
+export BETTER_AUTH_SECRET=$(openssl rand -hex 32) MINIO_PASSWORD=$(openssl rand -hex 24)
 docker compose up --build
 ```
 

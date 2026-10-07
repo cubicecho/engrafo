@@ -1,124 +1,124 @@
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
-import jwt from 'jsonwebtoken';
-import { appUrl, magicLinkExposed, magicLinkRequired } from '../core/config.ts';
+import { z } from 'zod';
+import { magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
-import { createRateLimiter } from './rate-limit.ts';
-
-const DEV_SECRET = 'dev-secret-change-in-production';
-
-/** Read at call time so a test — or a reload — sees the current environment. */
-function jwtSecret(): string {
-  return process.env.JWT_SECRET ?? DEV_SECRET;
-}
-
-// Five sign-in attempts per address per quarter hour. requestMagicLink is
-// unauthenticated, so without this anyone who can reach the port can mint magic
-// tokens at will. Per-IP limiting belongs in the reverse proxy, which is the
-// only thing that reliably knows the client's address.
-const signInLimiter = createRateLimiter(5, 15 * 60 * 1000);
+import { requestMagicLink } from './better-auth.ts';
 
 const AUTH_SDL = parse(`
-  """
-  The outcome of a sign-in request. When the instance runs with
-  AUTH_MAGIC_LINK=false there is no link to follow, so a live session comes back
-  immediately in \`token\`/\`userId\`. When magic links are on, \`magicLink\` is
-  filled in only where exposing it is enabled.
-  """
-  type RequestMagicLinkResult {
-    ok: Boolean!
-    magicLink: String
-    token: String
-    userId: ID
+  "How this instance signs people in, so the client can render the right form."
+  type AuthConfig {
+    "Whether an address alone signs in, with no link to follow."
+    secureLocalNet: Boolean!
+    "Whether signing in means following a link."
+    magicLink: Boolean!
   }
 
-  type AuthPayload {
+  type AuthSession {
+    "Sent back as \`Authorization: Bearer <token>\`."
     token: String!
-    userId: ID!
+    user: User!
+  }
+
+  """
+  The outcome of a sign-in request. Where no link is required there is none to
+  follow, so a live session comes back at once and \`sent\` is false. Otherwise
+  \`magicLink\` is filled in only where exposing it is enabled.
+  """
+  type SignInResult {
+    sent: Boolean!
+    session: AuthSession
+    magicLink: String
   }
 
   extend type Query {
-    "The signed-in user. UNAUTHENTICATED when the token is missing or expired."
+    "The signed-in user. UNAUTHENTICATED when the session is missing or over."
     me: User!
+    authConfig: AuthConfig!
   }
 
   extend type Mutation {
-    requestMagicLink(email: String!): RequestMagicLinkResult!
-    verifyMagicLink(token: String!): AuthPayload!
+    "Sends a sign-in link, or where none is required signs straight in and returns a session."
+    requestSignIn(email: String!): SignInResult!
+    verifyMagicLink(token: String!): AuthSession!
+    "Ends the caller's session. False when there was none."
+    signOut: Boolean!
   }
 `);
 
-/** A session token. Long-lived: there is no refresh flow and no session table. */
-export function signToken(userId: string): string {
-  return jwt.sign({ userId }, jwtSecret(), { expiresIn: '30d' });
-}
+/** The auth mutations that are rate limited. Each has its own budget. */
+export const AuthFlow = {
+  RequestSignIn: 'requestSignIn',
+  VerifyMagicLink: 'verifyMagicLink',
+} as const;
+export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 
-/** A single-use-in-practice sign-in token, short-lived because it travels by mail. */
-export function signMagicToken(email: string): string {
-  return jwt.sign({ email }, jwtSecret(), { expiresIn: '15m' });
-}
+/** Where a user made without a link came from, as better-auth's `validateUserInfo` gate sees it. */
+const LOCAL_NET_SOURCE = { method: 'secure-local-net' };
 
-export function verifyToken(token: string): { userId: string } | null {
-  try {
-    return jwt.verify(token, jwtSecret()) as { userId: string };
-  } catch {
-    return null;
-  }
-}
-
-export function verifyMagicToken(token: string): { email: string } | null {
-  try {
-    const payload = jwt.verify(token, jwtSecret()) as { email?: string };
-    return payload.email ? { email: payload.email } : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Read the authenticated userId from a request's Bearer token, if any. */
-export function extractUserId(req: { headers: { authorization?: string } }): string | null {
-  const auth = req.headers.authorization;
-  const isAnonymous = auth === undefined || auth.startsWith('Bearer ') === false;
-  if (isAnonymous) {
-    return null;
-  }
-  return verifyToken(auth.slice(7))?.userId ?? null;
+function unauthenticated(): GraphQLError {
+  return new GraphQLError('Unauthenticated', { extensions: { code: 'UNAUTHENTICATED' } });
 }
 
 export function requireAuth(ctx: Context): string {
   if (!ctx.userId) {
-    throw new GraphQLError('Unauthenticated', {
-      extensions: { code: 'UNAUTHENTICATED' },
-    });
+    throw unauthenticated();
   }
   return ctx.userId;
 }
 
+/**
+ * Counts one attempt at an auth flow, by client address and by account.
+ *
+ * Two keys, because the two attacks differ: the address key stops one client
+ * spraying many accounts, and the email key stops many clients burying one
+ * address in sign-in links.
+ *
+ * @throws A TOO_MANY_REQUESTS error when the address or the account is over its budget.
+ */
+function throttle(ctx: Context, flow: AuthFlow, email?: string): void {
+  const keys = [`${flow}:ip:${ctx.ip}`];
+  if (email !== undefined) {
+    keys.push(`${flow}:email:${email.trim().toLowerCase()}`);
+  }
+  ctx.limiter.hit(...keys);
+}
+
 function normalizeEmail(email: string): string {
-  return email.toLowerCase().trim();
+  const parsed = z.email().safeParse(email.trim().toLowerCase());
+  if (parsed.success === false) {
+    throw new GraphQLError('Enter a valid email address', { extensions: { code: 'BAD_USER_INPUT' } });
+  }
+  return parsed.data;
+}
+
+async function loadUser(ctx: Context, userId: string): Promise<dbSchema.User> {
+  // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
+  const [user] = await (ctx.db as any).select().from(dbSchema.users).where(eq(dbSchema.users.id, userId));
+  // A live session for a row that is gone — a restored database, a deleted
+  // account. Same answer as an expired one: this session is over.
+  if (!user) {
+    throw unauthenticated();
+  }
+  return user;
 }
 
 /**
- * Registration is open: completing a sign-in for an address that has never been
- * seen creates the account. Self-hosting is the deployment model, so the person
- * who can reach the instance is the person who is meant to have an account.
+ * Opens a session for an address with no link to follow, creating the account
+ * on first use. Registration is open: self-hosting is the deployment model, so
+ * the person who can reach the instance is the person who is meant to have an
+ * account.
  */
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 column type compat
-export async function findOrCreateUser(db: any, email: string): Promise<string> {
-  const existing = await db
-    .select({ id: dbSchema.users.id })
-    .from(dbSchema.users)
-    .where(eq(dbSchema.users.email, email));
-  if (existing.length > 0) {
-    return existing[0].id;
-  }
-
-  const [created] = await db.insert(dbSchema.users).values({ email }).returning({ id: dbSchema.users.id });
-  if (!created) {
-    throw new GraphQLError('Failed to create user');
-  }
-  return created.id;
+async function signInDirectly(ctx: Context, email: string): Promise<{ token: string; userId: string }> {
+  const internal = (await ctx.auth.$context).internalAdapter;
+  const existing = await internal.findUserByEmail(email);
+  const [localPart = email] = email.split('@');
+  // Unverified, so a later sign-in by link verifies this same row.
+  const user =
+    existing?.user ?? (await internal.createUser({ email, name: localPart, emailVerified: false }, LOCAL_NET_SOURCE));
+  const session = await internal.createSession(user.id);
+  return { token: session.token, userId: user.id };
 }
 
 export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
@@ -127,50 +127,52 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const fields = mutationType.getFields();
   const queries = (extendedSchema.getType('Query') as GraphQLObjectType).getFields();
 
-  queries.me.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
-    const userId = requireAuth(context);
-    // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
-    const [user] = await (context.db as any).select().from(dbSchema.users).where(eq(dbSchema.users.id, userId));
-    // A valid token for a row that is gone — a restored database, a deleted
-    // account. Same answer as an expired one: this session is over.
-    if (!user) {
-      throw new GraphQLError('Unauthenticated', { extensions: { code: 'UNAUTHENTICATED' } });
-    }
-    return user;
-  };
+  queries.me.resolve = (_parent: unknown, _args: unknown, context: Context) => loadUser(context, requireAuth(context));
 
-  fields.requestMagicLink.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
+  queries.authConfig.resolve = () => ({
+    secureLocalNet: magicLinkRequired() === false,
+    magicLink: magicLinkRequired(),
+  });
+
+  fields.requestSignIn.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
+    throttle(context, AuthFlow.RequestSignIn, args.email);
     const email = normalizeEmail(args.email);
-    if (!signInLimiter.allow(email)) {
-      throw new GraphQLError('Too many sign-in attempts. Try again in a few minutes.', {
-        extensions: { code: 'TOO_MANY_REQUESTS' },
-      });
-    }
 
     // No-link mode: the address alone is the credential. Only ever appropriate
     // on a private instance — see config.ts and the README's "Before you expose
     // it".
     if (!magicLinkRequired()) {
-      const userId = await findOrCreateUser(context.db, email);
+      const { token, userId } = await signInDirectly(context, email);
       console.log(`[auth] Magic links are off; signed ${email} in directly.`);
-      return { ok: true, magicLink: null, token: signToken(userId), userId };
+      return { sent: false, session: { token, user: await loadUser(context, userId) }, magicLink: null };
     }
 
-    const magicLink = `${appUrl()}/auth/verify?token=${signMagicToken(email)}`;
-    // Engrafo ships no mail provider, so the console is the delivery channel.
-    console.log(`\n[auth] Magic link for ${email}:\n${magicLink}\n`);
-    return { ok: true, magicLink: magicLinkExposed() ? magicLink : null, token: null, userId: null };
+    const link = await requestMagicLink(context.auth, email);
+    return { sent: true, session: null, magicLink: magicLinkExposed() ? (link?.url ?? null) : null };
   };
 
   fields.verifyMagicLink.resolve = async (_parent: unknown, args: { token: string }, context: Context) => {
-    const payload = verifyMagicToken(args.token);
-    if (!payload) {
-      throw new GraphQLError('Invalid or expired magic link', {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
+    throttle(context, AuthFlow.VerifyMagicLink);
+    // A used, expired or made-up token is answered with a redirect to an error
+    // URL, which arrives here as a thrown response. Every failure means the same
+    // thing, and none of them is an expired session.
+    const result = await context.auth.api
+      .magicLinkVerify({ query: { token: args.token }, headers: new Headers() })
+      .catch(() => null);
+    if (result === null) {
+      throw new GraphQLError('Invalid or expired magic link', { extensions: { code: 'BAD_USER_INPUT' } });
     }
-    const userId = await findOrCreateUser(context.db, normalizeEmail(payload.email));
-    return { token: signToken(userId), userId };
+    return { token: result.token, user: await loadUser(context, result.user.id) };
+  };
+
+  fields.signOut.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
+    // better-auth reports success even with no session, so look first.
+    const session = await context.auth.api.getSession({ headers: context.headers });
+    if (session === null) {
+      return false;
+    }
+    await context.auth.api.signOut({ headers: context.headers });
+    return true;
   };
 
   return extendedSchema;

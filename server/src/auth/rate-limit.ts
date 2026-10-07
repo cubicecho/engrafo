@@ -1,36 +1,64 @@
-/**
- * Fixed-window counter, in process.
- *
- * Sign-in here is unauthenticated and passwordless, which makes
- * `requestMagicLink` an oracle for anyone who can reach the port: uncapped, one
- * prober can mint tokens for addresses at will or bury a real user in sign-in
- * mail. Per process is the right size for a single-container deployment —
- * anything larger belongs in the reverse proxy in front of it.
- */
+import { GraphQLError } from 'graphql';
+import { RATE_LIMIT_DEFAULTS, type RateLimitSettings } from '../core/defaults.ts';
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../core/wire.ts';
+
+/** Counts attempts per key and refuses once a key is over its budget. */
 export interface RateLimiter {
-  /** Records an attempt; false once the key is over the limit for this window. */
-  allow(key: string): boolean;
+  /**
+   * Records one attempt against every key, or records nothing and throws.
+   *
+   * @param keys - For example `requestSignIn:ip:203.0.113.7` and `requestSignIn:email:a@x.com`.
+   * @throws A TOO_MANY_REQUESTS error when any key is already at its budget.
+   */
+  hit(...keys: string[]): void;
 }
 
-export function createRateLimiter(limit: number, windowMs: number): RateLimiter {
-  const windows = new Map<string, { count: number; resetAt: number }>();
+/**
+ * Builds a sliding-window limiter that lives in process memory.
+ *
+ * @param [overrides] - Settings that differ from `RATE_LIMIT_DEFAULTS`. Tests pass a small budget.
+ * @param [now] - Clock. Tests pass one they control.
+ * @returns The limiter.
+ *
+ * @remarks
+ * Sign-in is unauthenticated and passwordless, so uncapped, anyone who can reach the port can
+ * mint sign-in links at will. A restart forgets the counts and replicas don't share them, the
+ * same trade as in-memory sessions.
+ */
+export function createRateLimiter(
+  overrides: Partial<RateLimitSettings> = {},
+  now: () => number = Date.now,
+): RateLimiter {
+  const { maxAttempts, windowMinutes, sweepAtKeys } = { ...RATE_LIMIT_DEFAULTS, ...overrides };
+  const windowMs = windowMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND;
+  const attempts = new Map<string, number[]>();
   return {
-    allow(key: string): boolean {
-      const now = Date.now();
-      // Sweep on write: the map holds only keys seen within one window, so a
-      // long-running server does not accumulate every address ever probed.
-      for (const [seen, window] of windows) {
-        if (window.resetAt <= now) {
-          windows.delete(seen);
+    hit(...keys) {
+      const at = now();
+      const windowStart = at - windowMs;
+      const recent = keys.map((key) => (attempts.get(key) ?? []).filter((time) => time > windowStart));
+      const full = recent.find((times) => times.length >= maxAttempts);
+      if (full !== undefined) {
+        const [oldest = at] = full;
+        const retryAfter = Math.ceil((oldest + windowMs - at) / MS_PER_SECOND);
+        throw new GraphQLError(`Too many attempts. Try again in ${retryAfter} seconds.`, {
+          extensions: { code: 'TOO_MANY_REQUESTS', retryAfter },
+        });
+      }
+      for (const [index, key] of keys.entries()) {
+        attempts.set(key, [...(recent[index] ?? []), at]);
+      }
+      // Every attacker-chosen email is a new key, so the map must not grow without bound.
+      const isCrowded = attempts.size > sweepAtKeys;
+      if (isCrowded) {
+        for (const [key, times] of attempts) {
+          const newest = times.at(-1);
+          const isStale = newest !== undefined && newest <= windowStart;
+          if (isStale) {
+            attempts.delete(key);
+          }
         }
       }
-      const window = windows.get(key);
-      if (!window) {
-        windows.set(key, { count: 1, resetAt: now + windowMs });
-        return true;
-      }
-      window.count += 1;
-      return window.count <= limit;
     },
   };
 }

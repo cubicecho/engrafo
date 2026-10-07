@@ -1,3 +1,4 @@
+import { AUTH_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
@@ -34,6 +35,8 @@ export function createSchema(db: AnyDb) {
     // Table keys are plural (`documents`); derive singular names for the type
     // and single-row fields (Document, document).
     typeNameMapper: 'singularize',
+    // Sessions and magic-link tokens are only ever touched through better-auth.
+    exclude: { tables: [...AUTH_TABLES] },
     scope,
     contextValues,
     features,

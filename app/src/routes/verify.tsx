@@ -11,7 +11,6 @@ const VerifyMagicLink = graphql(`
   mutation VerifyMagicLink($token: String!) {
     verifyMagicLink(token: $token) {
       token
-      userId
     }
   }
 `);

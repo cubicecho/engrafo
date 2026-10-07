@@ -2,6 +2,20 @@
 // environment.
 
 import { createRequire } from 'node:module';
+import { AUTH_DEFAULTS, type AuthSettings, HTTP_DEFAULTS } from './defaults.ts';
+
+/** Signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. */
+export const DEV_SECRET = 'dev-secret-change-in-production-0123456789';
+/** The value `.env.example` ships, which preflight refuses in production. */
+export const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
+/** The two values `SESSION_STORE` takes. */
+export const SESSION_STORE_MEMORY = 'memory';
+export const SESSION_STORE_DATABASE = 'database';
+/** The two words `TRUST_PROXY` takes besides a hop count or a subnet list. */
+const TRUST_PROXY_OFF = 'false';
+const TRUST_PROXY_ON = 'true';
+/** A whole number of proxy hops. */
+const HOP_COUNT = /^\d+$/;
 
 // The exception to "read at call time": this is stamped into the build, not
 // configured. The root package.json is the one semantic-release bumps, and the
@@ -35,6 +49,42 @@ function envNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/** What better-auth signs sessions and hashes magic-link tokens with. */
+export function authSecret(): string {
+  return process.env.BETTER_AUTH_SECRET || DEV_SECRET;
+}
+
+/**
+ * Where better-auth keeps sessions. In memory, a restart signs everyone out;
+ * in the database they survive one, and more than one replica can share them.
+ */
+export function sessionStore(): AuthSettings['sessionStore'] {
+  const value = (process.env.SESSION_STORE ?? '').trim().toLowerCase();
+  if (value === SESSION_STORE_MEMORY || value === SESSION_STORE_DATABASE) {
+    return value;
+  }
+  return AUTH_DEFAULTS.sessionStore;
+}
+
+/**
+ * What Express trusts `X-Forwarded-For` from, which decides whose address
+ * `req.ip` is. The sign-in throttle counts by `req.ip`: wrong, every client
+ * shares the proxy's address and is locked out together.
+ */
+export function trustProxy(): boolean | number | string {
+  const value = (process.env.TRUST_PROXY ?? '').trim();
+  if (value === '') {
+    return HTTP_DEFAULTS.trustProxy;
+  }
+  if (value === TRUST_PROXY_OFF) {
+    return false;
+  }
+  if (value === TRUST_PROXY_ON) {
+    return true;
+  }
+  return HOP_COUNT.test(value) ? Number(value) : value;
+}
+
 /**
  * Whether this instance trusts the network it is on.
  *
@@ -50,7 +100,7 @@ export function secureLocalNet(): boolean {
  * Whether signing in requires following a magic link at all.
  *
  * Off — by `SECURE_LOCAL_NET=true` or the narrower `AUTH_MAGIC_LINK=false` —
- * `requestMagicLink` hands back a live session for whatever address it is given.
+ * `requestSignIn` hands back a live session for whatever address it is given.
  * That is a deliberate convenience for a private self-hosted instance, and must
  * never be set on one exposed to the internet: the email address becomes the
  * entire credential.

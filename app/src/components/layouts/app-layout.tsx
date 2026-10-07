@@ -1,11 +1,11 @@
 import { LogOut } from 'lucide-react';
-import { useLinkClickHandler, useMatch, useNavigate } from 'react-router';
+import { useLinkClickHandler, useMatch } from 'react-router';
 import { ActionButton } from '@/components/action-button';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { FileText, type IconProps, Settings } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
-import { clearToken } from '@/lib/auth';
+import { useSignOut } from '@/lib/sign-out';
 import type { SlotNode } from '@/lib/utils';
 
 /**
@@ -49,14 +49,6 @@ function RailLink({ item }: { item: NavItem }) {
 function BarLink({ item }: { item: NavItem }) {
   const Icon = item.icon;
   return <BarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} />;
-}
-
-function useSignOut() {
-  const navigate = useNavigate();
-  return () => {
-    clearToken();
-    navigate('/login', { replace: true });
-  };
 }
 
 function Brand() {

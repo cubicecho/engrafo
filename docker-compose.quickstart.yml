@@ -11,7 +11,7 @@
 #
 #   ENGRAFO_HOST      The address you will actually open Engrafo at — your NAS's
 #                     hostname or LAN IP, no scheme. e.g. truenas.local, 192.168.1.50
-#   JWT_SECRET        openssl rand -hex 32
+#   BETTER_AUTH_SECRET openssl rand -hex 32
 #   POSTGRES_PASSWORD openssl rand -hex 24
 #   MINIO_PASSWORD    openssl rand -hex 24  (at least 8 characters)
 #   TZ                optional, e.g. America/Chicago
@@ -55,7 +55,7 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment:
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET — openssl rand -hex 32}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET — openssl rand -hex 32}
       DATABASE_URL: postgres://engrafo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/engrafo
       # The address sign-in links are built from.
       APP_URL: http://${ENGRAFO_HOST:?set ENGRAFO_HOST to this machine's hostname or LAN IP}:${ENGRAFO_PORT:-3004}
@@ -75,6 +75,10 @@ services:
       # entire credential, so it is wrong the moment this port is reachable from
       # anywhere you do not control.
       SECURE_LOCAL_NET: ${SECURE_LOCAL_NET:-false}
+      # "memory" signs everyone out when the container restarts; "database" does not.
+      SESSION_STORE: ${SESSION_STORE:-memory}
+      # Behind a reverse proxy, the number of proxies in front (usually 1).
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       # OCR is on. It is CPU-bound: raise OCR_CONCURRENCY only if this machine
       # has cores to spare. Extra languages need their Tesseract data in the
       # image, so `eng` is what this one can do.

@@ -59,7 +59,7 @@ engrafo/
 │       │   ├── schema.ts    # The schema bound to the real db
 │       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
 │       │   └── write-schema.ts # Prints the SDL for codegen
-│       ├── auth/            # Who the caller is and how they sign in: resolvers, rate-limit
+│       ├── auth/            # Who the caller is and how they sign in: better-auth, session-store, rate-limit, resolvers
 │       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -208,12 +208,23 @@ row exists, which is itself something the caller is not entitled to know.
 a UUID, too.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
-means sign-in needs no link: `requestMagicLink` returns a live session for
-whatever address it is handed, and the login page uses it (`if (result.token)`).
+means sign-in needs no link: `requestSignIn` returns a live session for
+whatever address it is handed, and the login page uses it (`if (result.session)`).
 `AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
 `magicLinkRequired()` in `core/config.ts` is where the two meet, and the boot warning
 names whichever one is responsible. Both make an email address the entire
 credential, so neither belongs on a reachable instance.
+
+**Auth is better-auth, reached only through GraphQL.** `createAuth(db, opts)` in
+`auth/better-auth.ts` builds the instance and it travels on the context
+(`ctx.auth`); no REST routes are mounted and no module imports a global. Sessions
+are opaque bearer tokens, held in memory unless `SESSION_STORE=database`, so a
+restart signs everyone out by default. better-auth's own rate limiter never runs
+for `auth.api.*` calls, so the sign-in mutations call `throttle` first, which
+counts by client address (`TRUST_PROXY`) and by email. The `sessions`, `accounts`
+and `verifications` tables are excluded from the GraphQL schema in
+`graphql/build-schema.ts`. Passwords are off: with no mail provider there is no
+way to prove an address before a password is set on it.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

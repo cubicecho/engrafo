@@ -11,12 +11,14 @@ import { FileText } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
 
-const RequestMagicLink = graphql(`
-  mutation RequestMagicLink($email: String!) {
-    requestMagicLink(email: $email) {
-      ok
+const RequestSignIn = graphql(`
+  mutation RequestSignIn($email: String!) {
+    requestSignIn(email: $email) {
+      sent
       magicLink
-      token
+      session {
+        token
+      }
     }
   }
 `);
@@ -24,7 +26,7 @@ const RequestMagicLink = graphql(`
 export function LoginPage() {
   const navigate = useNavigate();
   const [sent, setSent] = useState<{ email: string; magicLink: string | null } | null>(null);
-  const [requestLink, { error }] = useMutation(RequestMagicLink);
+  const [requestLink, { error }] = useMutation(RequestSignIn);
 
   const form = useAppForm({
     defaultValues: { email: '' },
@@ -33,10 +35,10 @@ export function LoginPage() {
       if (!data) {
         return;
       }
-      const result = data.requestMagicLink;
-      // AUTH_MAGIC_LINK=false: the server signed us straight in.
-      if (result.token) {
-        setToken(result.token);
+      const result = data.requestSignIn;
+      // SECURE_LOCAL_NET=true: the server signed us straight in.
+      if (result.session) {
+        setToken(result.session.token);
         navigate('/', { replace: true });
         return;
       }
