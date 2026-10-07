@@ -46,13 +46,21 @@ engrafo/
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
 │   └── src/
-│       ├── index.ts         # Entry point: migrate, detect OCR, mount /graphql, serve the SPA
+│       ├── index.ts         # Boot only: wait for Postgres, migrate, detect OCR, listen, stop on a signal
 │       ├── core/            # What every folder reads, about no one concept
 │       │   ├── preflight.ts # Boot guards — imported first, on purpose
 │       │   ├── config.ts    # Every env var, read at call time
+│       │   ├── defaults.ts  # <CONCEPT>_DEFAULTS — every tunable, named, with its unit
+│       │   ├── wire.ts      # Unit conversions and HttpStatus
+│       │   ├── errors.ts    # ErrorCode and the errors the API answers with; requireAuth
+│       │   ├── validation.ts # parseOrThrow: zod → BAD_USER_INPUT
 │       │   ├── context.ts   # The per-request GraphQL context
 │       │   └── preload-env.ts # Loads ../.env for codegen
-│       ├── http/            # The Express side: static.ts serves the SPA and its fallback
+│       ├── http/            # The Express side
+│       │   ├── app.ts       # createApp(deps) — the whole app, with nothing listening
+│       │   ├── health.ts    # What /healthz answers
+│       │   ├── shutdown.ts  # stopOnSignals: drain, then close what was opened
+│       │   └── static.ts    # Serves the SPA and its fallback
 │       ├── graphql/         # The served schema and the rules every operation obeys
 │       │   ├── handler.ts   # The Yoga handler and its context
 │       │   ├── build-schema.ts # createSchema(db) — buildSchema + extensions
@@ -65,17 +73,21 @@ engrafo/
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
 │       │   ├── events.ts    # Typed EventEmitter: 'document.uploaded'
-│       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle }
-│       │   ├── index.ts     # STEPS, in order
+│       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle, stop }
+│       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
 │       │   └── steps/       # inspect, text, ocr
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, processing-steps
+│       ├── models/          # users, documents, processing-steps, auth (better-auth's tables)
+│       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
-│       └── index.ts         # DB singleton + re-exports
+│       ├── defaults.ts      # DATABASE_DEFAULTS
+│       ├── wait.ts          # waitForDatabase: boot does not race Postgres
+│       ├── ssl.ts           # requiresSsl: TLS only for an address that could leave the LAN
+│       └── index.ts         # The DB type, the singleton, closeDatabase
 ├── .agents/mvp-plan.md      # The plan this repo was built from
 ├── Dockerfile               # node:26-slim + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
 ├── docker-compose.dev.yml   # Postgres + MinIO for development
@@ -226,6 +238,32 @@ and `verifications` tables are excluded from the GraphQL schema in
 `graphql/build-schema.ts`. Passwords are off: with no mail provider there is no
 way to prove an address before a password is set on it.
 
+**The app is built in one place and booted in another.** `createApp(deps)` in
+`http/app.ts` returns the Express app with everything it needs handed to it and
+nothing listening; `index.ts` is the only file that opens a port, a connection
+or a signal handler. That split is what lets `http/app.test.ts` run the real
+app on a random port. There is no CORS: the server serves its own client, so
+the API is same-origin, and Yoga's default of answering every origin is turned
+off in `graphql/handler.ts`.
+
+**Boot waits, shutdown drains.** `waitForDatabase` runs before `migrate`, so a
+compose stack whose Postgres is still starting does not crash-loop the server.
+On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, calls
+`pipeline.stop()` — new runs resolve without starting, and a step cut off
+mid-run is not recorded as failed, so `resume()` picks it up on the next boot —
+then closes the database. `/healthz` answers 503 while the database is
+unreachable, which is what the image's healthcheck reads.
+
+**Tunables have names, and `process.env` has three readers.** A number or a
+default lives in a `<CONCEPT>_DEFAULTS` object in `core/defaults.ts` (or
+`db/src/defaults.ts`) with its unit in the field name; `core/config.ts` reads
+the environment and falls back to them. Only config, preflight and the db
+package read `process.env`. Errors the API answers with come from
+`core/errors.ts`, and tests compare against `ErrorCode`, not a string.
+
+**Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
+`[pipeline]`, `[ocr]`, `[preflight]`. No emoji.
+
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
 sign anyone out.
@@ -304,8 +342,8 @@ states it is in.
 
 **`app/src/components/ui/` is vendored.** Those files come from the cubeui
 registry and are kept as published, so `shadcn add` can update them.
-`biome.json` exempts them from two lint rules rather than letting anyone edit
-them into compliance. The cubeui shells one level up (`page-layout.tsx`,
+`biome.json` turns the linter and the formatter off for them rather than letting
+anyone edit them into compliance. The cubeui shells one level up (`page-layout.tsx`,
 `query-state.tsx`, …) are the same deal.
 
 ## Stories are the frontend tests
