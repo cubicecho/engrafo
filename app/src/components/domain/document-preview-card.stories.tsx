@@ -77,3 +77,23 @@ export const PlainText: Story = {
     await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
   },
 };
+
+/** The server would not sign an address. A missing frame would read as "this file has no preview". */
+export const AddressRefused: Story = {
+  args: { doc: { id: ID, mimeType: 'application/pdf', archiveKey: null } },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentFileUrl: () => {
+            throw new Error('Storage is unreachable');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load the preview');
+    await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
+  },
+};
