@@ -9,6 +9,6 @@ import { schema } from './schema.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const outputDir = resolve(__dirname, '..', '__generated__');
+const outputDir = resolve(__dirname, '..', '..', '__generated__');
 await mkdir(outputDir, { recursive: true });
 await writeFile(resolve(outputDir, 'schema.graphql'), printSchema(schema), 'utf-8');

@@ -1,4 +1,4 @@
-import './preflight.ts';
+import './core/preflight.ts';
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,14 +16,14 @@ import {
   port,
   s3Config,
   secureLocalNet,
-} from './config.ts';
-import { createGraphQLHandler } from './graphql.ts';
+} from './core/config.ts';
+import { createGraphQLHandler } from './graphql/handler.ts';
+import { createStaticHandler } from './http/static.ts';
 import { createPipeline, createPipelineEvents, STEPS } from './pipeline/index.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
-import { createStaticHandler } from './static.ts';
 import { createS3Storage } from './storage/s3.ts';
 
-export type { Context } from './context.ts';
+export type { Context } from './core/context.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = port();

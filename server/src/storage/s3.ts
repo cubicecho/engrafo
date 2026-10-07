@@ -11,7 +11,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { S3Config } from '../config.ts';
+import type { S3Config } from '../core/config.ts';
 
 /**
  * Everything the app asks of object storage. An interface rather than the S3

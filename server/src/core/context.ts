@@ -1,6 +1,6 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import type { PipelineEvents } from './pipeline/events.ts';
-import type { StorageSet } from './storage/s3.ts';
+import type { PipelineEvents } from '../pipeline/events.ts';
+import type { StorageSet } from '../storage/s3.ts';
 
 /**
  * What every resolver — generated or hand-written — is handed. `userId` is the

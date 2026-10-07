@@ -1,7 +1,7 @@
 import { buildSchema } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
-import { applyAuthExtension } from './resolvers/auth.ts';
-import { applyDocumentsExtension } from './resolvers/documents.ts';
+import { applyAuthExtension } from '../auth/resolvers.ts';
+import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
 // Reads are generated from the Drizzle schema; every write is hand-written (see

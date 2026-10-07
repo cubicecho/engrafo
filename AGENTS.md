@@ -47,10 +47,20 @@ engrafo/
 │   ├── __generated__/       # Generated SDL (not committed)
 │   └── src/
 │       ├── index.ts         # Entry point: migrate, detect OCR, mount /graphql, serve the SPA
-│       ├── preflight.ts     # Boot guards — imported first, on purpose
-│       ├── config.ts        # Every env var, read at call time
-│       ├── build-schema.ts  # createSchema(db) — buildSchema + extensions
-│       ├── tenancy.ts       # Row scope + server-owned columns, as buildSchema config
+│       ├── core/            # What every folder reads, about no one concept
+│       │   ├── preflight.ts # Boot guards — imported first, on purpose
+│       │   ├── config.ts    # Every env var, read at call time
+│       │   ├── context.ts   # The per-request GraphQL context
+│       │   └── preload-env.ts # Loads ../.env for codegen
+│       ├── http/            # The Express side: static.ts serves the SPA and its fallback
+│       ├── graphql/         # The served schema and the rules every operation obeys
+│       │   ├── handler.ts   # The Yoga handler and its context
+│       │   ├── build-schema.ts # createSchema(db) — buildSchema + extensions
+│       │   ├── schema.ts    # The schema bound to the real db
+│       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
+│       │   └── write-schema.ts # Prints the SDL for codegen
+│       ├── auth/            # Who the caller is and how they sign in: resolvers, rate-limit
+│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -59,8 +69,7 @@ engrafo/
 │       │   ├── index.ts     # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
 │       │   └── steps/       # inspect, text, ocr
-│       ├── resolvers/       # auth, documents — SDL extensions for what CRUD cannot express
-│       └── __tests__/       # Server tests
+│       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
@@ -115,16 +124,16 @@ to expose it.
   update, updateMany and delete, because every write here is a step in a
   lifecycle — a document without an object in the bucket is not a document. That
   leaves the generated schema with no `Mutation` type at all, so
-  `withMutationRoot` in `build-schema.ts` adds an empty one before the SDL
+  `withMutationRoot` in `graphql/build-schema.ts` adds an empty one before the SDL
   extensions can extend it.
 - **Only what CRUD cannot express gets a resolver.** Those live in
-  `server/src/resolvers/` and are applied by `build-schema.ts` in order.
+  each concept's `resolvers.ts` (`server/src/auth/`, `server/src/documents/`) and are applied by `graphql/build-schema.ts` in order.
 - **Ids are `UUID`, not `ID`.** The generated scalar, and what hand-written SDL
   has to declare too, or a variable will not typecheck against it.
 
 ## Rules that carry weight
 
-**Every table needs a `scope` entry.** `server/src/tenancy.ts` maps each table to
+**Every table needs a `scope` entry.** `server/src/graphql/tenancy.ts` maps each table to
 a `RowScope` that is ANDed into the SQL of every generated read. A table missing
 from `scope` is visible across tenants, and nothing else in the code will say so.
 `tenancy.test.ts` fails when you forget — do not delete the test to make it pass.
@@ -195,14 +204,14 @@ because they usually carry no DPI metadata and img2pdf refuses to guess.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
-`loadOwned` in `resolvers/documents.ts` returns `NOT_FOUND` for an id that is not
+`loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
 a UUID, too.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
 means sign-in needs no link: `requestMagicLink` returns a live session for
 whatever address it is handed, and the login page uses it (`if (result.token)`).
 `AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
-`magicLinkRequired()` in `config.ts` is where the two meet, and the boot warning
+`magicLinkRequired()` in `core/config.ts` is where the two meet, and the boot warning
 names whichever one is responsible. Both make an email address the entire
 credential, so neither belongs on a reachable instance.
 
@@ -359,7 +368,7 @@ through and the run dies with "browser connection was closed".
 - **Never add `--preserve-symlinks`.** It resolves `@cubicecho/engrafo-db` to its
   path inside `node_modules`, and Node refuses to strip types from anything
   under there.
-- `import './preflight.ts';` stays first in `server/src/index.ts`, separated by a
+- `import './core/preflight.ts';` stays first in `server/src/index.ts`, separated by a
   blank line so Biome's import sorting leaves it there. It has to run before
   `@cubicecho/engrafo-db` is imported.
 - Comments explain *why*. The code already says what.

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../.env --watch src/index.ts",
     "start": "node src/index.ts",
-    "codegen": "node --import=./src/preload-env.ts src/write-schema.ts && graphql-codegen-esm"
+    "codegen": "node --import=./src/core/preload-env.ts src/graphql/write-schema.ts && graphql-codegen-esm"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1133.0",

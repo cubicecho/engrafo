@@ -1,7 +1,7 @@
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { getTableName, is, Table } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { contextValues, scope } from '../tenancy.ts';
+import { contextValues, scope } from '../graphql/tenancy.ts';
 import { createClient, createTestDb, createUser, type TestDb } from './helpers.ts';
 
 // The test that fails when someone adds a table and forgets tenancy. `scope` is

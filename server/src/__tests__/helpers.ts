@@ -8,8 +8,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { pushSchema } from 'drizzle-kit/api-postgres';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, graphql } from 'graphql';
-import { createSchema } from '../build-schema.ts';
-import type { Context } from '../context.ts';
+import type { Context } from '../core/context.ts';
+import { createSchema } from '../graphql/build-schema.ts';
 import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
 import type { Storage, StorageSet } from '../storage/s3.ts';
 

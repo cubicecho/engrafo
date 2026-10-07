@@ -3,12 +3,12 @@ import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db
 import { and, eq } from 'drizzle-orm';
 import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
-import { maxUploadBytes, ocrDefault, version } from '../config.ts';
-import type { Context } from '../context.ts';
+import { requireAuth } from '../auth/resolvers.ts';
+import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
+import type { Context } from '../core/context.ts';
 import { STEPS } from '../pipeline/index.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
 import { originalKey } from '../storage/s3.ts';
-import { requireAuth } from './auth.ts';
 
 // Every write to a document. Reads — `documents`, `document`, and the
 // `processingSteps` relation — are generated and scoped in tenancy.ts.
