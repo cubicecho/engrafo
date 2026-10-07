@@ -1,3 +1,6 @@
+/** Name endings that never resolve off a private network: a router's domain, mDNS, and the reserved ones. */
+const PRIVATE_SUFFIXES = ['.localhost', '.lan', '.local', '.internal', '.home.arpa'];
+
 /**
  * Whether to insist on TLS for a connection string.
  *
@@ -24,7 +27,8 @@ export function requiresSsl(url: string): boolean {
     return false;
   }
 
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+  const hasPrivateSuffix = PRIVATE_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+  if (hostname === 'localhost' || hasPrivateSuffix) {
     return false;
   }
   // A name with no dots is a container or LAN hostname, not a public address.
