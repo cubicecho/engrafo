@@ -1,0 +1,73 @@
+---
+layout: base.njk
+---
+<section class="hero project-hero">
+  <h1>{{ site.name }}</h1>
+  <p>{{ site.tagline }}</p>
+  <p class="cta">
+    <a class="button" href="#start">Get started</a>
+    <a class="button secondary" href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
+  </p>
+</section>
+
+<section class="section">
+  <h2>What it does</h2>
+  <p class="section-intro">
+    Upload a file and it goes straight into a bucket you own. A small pipeline
+    runs over it, the text it found is stored beside it, and the document's page
+    shows what came out. It is for someone who wants scans and PDFs kept and
+    readable on their own server, without the search, tags, correspondents and
+    mail ingestion that Paperless-ngx is for.
+  </p>
+
+  <ul class="card-grid">
+    <li>
+      <article class="card">
+        <h3>Upload straight to your bucket</h3>
+        <p>Drag in a folder of PDFs or scans, each with its own progress bar. The browser uploads directly to S3-compatible storage; the server only signs the URL.</p>
+      </article>
+    </li>
+    <li>
+      <article class="card">
+        <h3>OCR, optionally</h3>
+        <p><code>ocrmypdf</code> with Paperless's own flags turns a scan into a searchable PDF/A plus its plain text. A born-digital PDF keeps the text layer it already has.</p>
+      </article>
+    </li>
+    <li>
+      <article class="card">
+        <h3>A pipeline you can watch</h3>
+        <p>Every step is a row with a status, so a document says where it got to, and a failed one says why and offers a retry.</p>
+      </article>
+    </li>
+  </ul>
+</section>
+
+<section class="section" id="start">
+  <h2>Get started</h2>
+  <div class="prose">
+    <p>
+      Four containers from a published image: Engrafo, Postgres, MinIO and a
+      one-shot job that creates the buckets. Nothing to clone or build.
+    </p>
+    <pre class="code"><code>mkdir engrafo &amp;&amp; cd engrafo
+curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
+
+# The three secrets it refuses to start without, plus the address you reach it at.
+printf 'ENGRAFO_HOST=%s\nJWT_SECRET=%s\nPOSTGRES_PASSWORD=%s\nMINIO_PASSWORD=%s\n' \
+  "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" &gt; .env
+
+docker compose -f docker-compose.quickstart.yml up -d</code></pre>
+    <p>
+      Engrafo is then on <code>http://ENGRAFO_HOST:3004</code>. Set
+      <code>ENGRAFO_HOST</code> to the hostname or LAN address you browse to,
+      not <code>localhost</code>: uploads go to a URL signed for that host.
+      Sign in with any email address; the magic link is written to the
+      container's log.
+    </p>
+  </div>
+
+  <p class="readme-link">
+    Full documentation lives in the project README:
+    <a href="{{ site.repo }}#readme" rel="noopener">{{ site.repo }}</a>
+  </p>
+</section>
