@@ -2,6 +2,7 @@
 // environment.
 
 import { createRequire } from 'node:module';
+import { DATABASE_DEFAULTS } from '@cubicecho/engrafo-db/defaults';
 import {
   AUTH_DEFAULTS,
   type AuthSettings,
@@ -75,6 +76,15 @@ function envNumber(value: string | undefined, fallback: number): number {
 /** Whether this is a deployed instance rather than a development or test one. */
 export function isProduction(): boolean {
   return process.env.NODE_ENV === PRODUCTION;
+}
+
+/**
+ * How long boot waits for Postgres before exiting.
+ *
+ * @returns `DB_CONNECT_TIMEOUT_MS`, or `DATABASE_DEFAULTS.connectTimeoutMs`, in milliseconds.
+ */
+export function dbConnectTimeoutMs(): number {
+  return envNumber(process.env.DB_CONNECT_TIMEOUT_MS, DATABASE_DEFAULTS.connectTimeoutMs);
 }
 
 /** The Postgres connection string. Preflight has already refused to boot without one. */

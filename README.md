@@ -95,6 +95,7 @@ domain.
 | `S3_REGION` | `us-east-1` | MinIO ignores it; AWS does not. |
 | `APP_URL` | `http://localhost:$PORT` | Public URL; magic-link URLs are built from it. |
 | `PORT` | `3004` | Port the server listens on. |
+| `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
 | `MAX_UPLOAD_BYTES` | `104857600` | Largest accepted upload, 100 MiB by default. |
 | `OCR_ENABLED` | `true` | Set to `false` to turn OCR off. Also needs `ocrmypdf` on PATH — the image has it. |
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |

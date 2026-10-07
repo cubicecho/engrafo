@@ -2,13 +2,15 @@ import './core/preflight.ts';
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db } from '@cubicecho/engrafo-db';
+import { closeDatabase, db } from '@cubicecho/engrafo-db';
+import { waitForDatabase } from '@cubicecho/engrafo-db/wait';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { createAuth } from './auth/better-auth.ts';
 import { createRateLimiter } from './auth/rate-limit.ts';
 import {
   appUrl,
   databaseUrl,
+  dbConnectTimeoutMs,
   magicLinkExposed,
   magicLinkRequired,
   ocrEnabled,
@@ -18,34 +20,40 @@ import {
   s3Config,
   secureLocalNet,
 } from './core/config.ts';
+import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
+import { stopOnSignals } from './http/shutdown.ts';
 import { createPipeline, createPipelineEvents, STEPS } from './pipeline/index.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
 import { createS3Storage } from './storage/s3.ts';
 
 export type { Context } from './core/context.ts';
 
+/** Postgres's port, shown when DATABASE_URL names none. */
+const DEFAULT_POSTGRES_PORT = '5432';
+/** Every interface. The container's port mapping decides who can reach it. */
+const LISTEN_HOST = '0.0.0.0';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = port();
 const staticDir = join(__dirname, '../../app/dist');
 
+try {
+  await waitForDatabase(db, { connectTimeoutMs: dbConnectTimeoutMs() });
+} catch (error) {
+  const { hostname, port: urlPort } = new URL(databaseUrl());
+  const dbPort = urlPort === '' ? DEFAULT_POSTGRES_PORT : urlPort;
+  console.error(`✖ Cannot reach Postgres at ${hostname}:${dbPort}: ${errorMessage(error)}`);
+  console.error('  Check DATABASE_URL in .env, and that the database is up and reachable from here.');
+  console.error('  If your Docker daemon is remote (`docker context ls`), a container published on');
+  console.error("  127.0.0.1 is bound to the daemon host's loopback. Set DEV_BIND=0.0.0.0 and");
+  console.error('  re-run `npm run db:up`.');
+  process.exit(1);
+}
+
 // Migrations run at boot so `docker compose up` on a fresh volume is the whole
 // install. They are idempotent; a container restart is a no-op.
-try {
-  await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
-} catch (error) {
-  const cause = (error as { cause?: NodeJS.ErrnoException })?.cause;
-  if (cause && (cause.code === 'ECONNREFUSED' || cause.code === 'ENOTFOUND' || cause.code === 'ETIMEDOUT')) {
-    const { hostname, port } = new URL(databaseUrl());
-    console.error(`✖ Cannot reach Postgres at ${hostname}:${port || 5432} (${cause.code}).`);
-    console.error('  Check DATABASE_URL in .env, and that the database is up and reachable from here.');
-    console.error('  If your Docker daemon is remote (`docker context ls`), a container published on');
-    console.error("  127.0.0.1 is bound to the daemon host's loopback. Set DEV_BIND=0.0.0.0 and");
-    console.error('  re-run `npm run db:up`.');
-    process.exit(1);
-  }
-  throw error;
-}
+await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
 let ocrAvailable = false;
 if (ocrEnabled()) {
@@ -76,7 +84,7 @@ const app = createApp({
   staticDir,
 });
 
-app.listen(PORT, '0.0.0.0', async () => {
+const server = app.listen(PORT, LISTEN_HOST, async () => {
   // APP_URL, not localhost: on a NAS the banner is the only place the operator
   // sees what the instance thinks its own address is, and a wrong one there is
   // the same wrong one that breaks their magic links.
@@ -98,3 +106,5 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log(`   Resuming ${resumed} unfinished document(s)`);
   }
 });
+// The pipeline first: a run the exit cuts off is not a failure, and the next boot resumes it.
+stopOnSignals(server, { before: pipeline.stop, after: closeDatabase });

@@ -1,4 +1,5 @@
 import type { PgAsyncDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import { DATABASE_DEFAULTS } from './defaults.ts';
 import { relations } from './relations.ts';
 import * as schema from './schema.ts';
 import { requiresSsl } from './ssl.ts';
@@ -33,6 +34,13 @@ const connection: any = {
 export type DB = PgAsyncDatabase<PgQueryResultHKT, typeof relations>;
 
 export const db = drizzle({ connection, relations });
+
+/**
+ * Closes the pool at shutdown, after the server has drained.
+ *
+ * @returns Resolves once every connection is closed. Queries still running are cancelled after `closeTimeoutSeconds`.
+ */
+export const closeDatabase = (): Promise<void> => db.$client.end({ timeout: DATABASE_DEFAULTS.closeTimeoutSeconds });
 
 export * from './schema.ts';
 export { relations, schema };

@@ -23,8 +23,17 @@ export interface Pipeline {
   run(documentId: string): Promise<void>;
   /** Re-emits every document a previous process left unfinished. */
   resume(): Promise<number>;
-  /** Resolves once nothing is queued or running. For tests and graceful shutdown. */
+  /** Resolves once nothing is queued or running. For tests. */
   idle(): Promise<void>;
+  /**
+   * Stops taking documents and stops recording failures, for shutdown.
+   *
+   * @remarks
+   * A step cut off by the process ending did not fail, and marking it failed
+   * would leave the document waiting on a person. Left as it is, the next boot's
+   * `resume()` runs it again.
+   */
+  stop(): void;
 }
 
 /**
@@ -53,6 +62,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
   const inFlight = new Map<string, Promise<void>>();
+  let isStopping = false;
 
   async function setStep(documentId: string, step: string, values: Record<string, unknown>) {
     await db
@@ -125,6 +135,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
           }
           await setStep(documentId, step.name, { status: 'succeeded', finishedAt: new Date() });
         } catch (error) {
+          if (isStopping) {
+            return;
+          }
           const message = errorMessage(error);
           await setStep(documentId, step.name, { status: 'failed', error: message, finishedAt: new Date() });
           await failDocument(documentId, `${step.name}: ${message}`);
@@ -139,6 +152,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
   }
 
   function run(documentId: string): Promise<void> {
+    if (isStopping) {
+      return Promise.resolve();
+    }
     const existing = inFlight.get(documentId);
     if (existing) {
       return existing;
@@ -146,6 +162,9 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
 
     const task = limit(() => execute(documentId))
       .catch(async (error) => {
+        if (isStopping) {
+          return;
+        }
         // A step's own failure is recorded inside execute. Reaching here means
         // the bookkeeping itself broke (the database went away); try once to say
         // so on the document, so it does not sit at "processing" forever.
@@ -179,6 +198,10 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
       while (inFlight.size > 0) {
         await Promise.all(inFlight.values());
       }
+    },
+
+    stop() {
+      isStopping = true;
     },
   };
 }

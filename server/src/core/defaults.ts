@@ -4,6 +4,10 @@
 export interface HttpSettings {
   /** Port the server listens on. `PORT` overrides it. */
   port: number;
+  /** How long shutdown lets open requests finish before it cuts them. */
+  drainSeconds: number;
+  /** How long shutdown may take in all before a hard exit. Keep it under Docker's 10 s. */
+  shutdownDeadlineSeconds: number;
   /** How long a browser may keep a hashed bundle without asking again. */
   assetCacheDays: number;
   /** Express `trust proxy`: which hops may set X-Forwarded-For. False trusts none. `TRUST_PROXY` overrides it. */
@@ -12,6 +16,8 @@ export interface HttpSettings {
 
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
   port: 3004,
+  drainSeconds: 5,
+  shutdownDeadlineSeconds: 8,
   assetCacheDays: 365,
   trustProxy: false,
 });

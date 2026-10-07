@@ -140,6 +140,38 @@ describe('pipeline runner', () => {
     expect((await reload(doc.id)).status).toBe('failed');
   });
 
+  it('leaves a step cut off by shutdown for the next boot, rather than failing it', async () => {
+    let interrupt = (_error: Error): void => {};
+    let hasStarted = (): void => {};
+    const started = new Promise<void>((resolve) => {
+      hasStarted = resolve;
+    });
+    const cutOff: PipelineStep = {
+      name: 'slow',
+      enabled: () => true,
+      run: () =>
+        new Promise((_resolve, reject) => {
+          interrupt = reject;
+          hasStarted();
+        }),
+    };
+    const pipeline = createPipeline({ db, storage, events, steps: [cutOff], config: CONFIG, log: () => {} });
+    const doc = await insertDocument();
+
+    const running = pipeline.run(doc.id);
+    await started;
+    pipeline.stop();
+    interrupt(new Error('ocrmypdf was killed'));
+    await running;
+
+    expect((await reload(doc.id)).status).toBe('processing');
+    expect(await stepsOf(doc.id)).toMatchObject([{ step: 'slow', status: 'running' }]);
+
+    const afterStop = await insertDocument();
+    await pipeline.run(afterStop.id);
+    expect((await reload(afterStop.id)).status).toBe('uploaded');
+  });
+
   it('resumes documents a previous process left unfinished', async () => {
     const pipeline = createPipeline({ db, storage, events, steps: [], config: CONFIG });
     const uploaded = await insertDocument();
