@@ -115,9 +115,9 @@ export function DocumentRoute() {
   const doc = data?.document ?? null;
 
   const [renaming, setRenaming] = useState(false);
-  const [retry] = useMutation(RetryProcessing);
+  const [retry, retryState] = useMutation(RetryProcessing);
   const [rename] = useMutation(RenameDocument);
-  const [remove] = useMutation(DeleteDocument);
+  const [remove, removeState] = useMutation(DeleteDocument);
 
   const busy = doc ? isInProgress(doc.status) : false;
   useEffect(() => {
@@ -201,7 +201,11 @@ export function DocumentRoute() {
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
             onConfirm={() => {
-              void remove({ variables: { id: doc.id } }).then(() => navigate(ROUTES.documents, { replace: true }));
+              // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
+              void remove({ variables: { id: doc.id } }).then(
+                () => navigate(ROUTES.documents, { replace: true }),
+                () => undefined,
+              );
             }}
           />
         </>
@@ -216,6 +220,17 @@ export function DocumentRoute() {
             />
           ) : null}
 
+          {removeState.error && (
+            <Alert
+              variant="destructive"
+              title="Could not delete this document"
+              description={removeState.error.message}
+            />
+          )}
+          {retryState.error && (
+            <Alert variant="destructive" title="Could not retry processing" description={retryState.error.message} />
+          )}
+
           {doc.error && (
             <Alert
               variant="destructive"
@@ -226,7 +241,7 @@ export function DocumentRoute() {
                   variant="outline"
                   iconSlot={<RefreshCw />}
                   content="Retry"
-                  onClick={() => void retry({ variables: { id: doc.id } })}
+                  onClick={() => void retry({ variables: { id: doc.id } }).catch(() => undefined)}
                 />
               }
             />
