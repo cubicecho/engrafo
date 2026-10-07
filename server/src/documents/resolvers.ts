@@ -277,17 +277,26 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       throw badInput('Only a failed document can be retried.');
     }
 
-    const db = context.db;
-    await db
-      .update(processingSteps)
-      .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
-      .where(and(eq(processingSteps.documentId, doc.id), eq(processingSteps.status, StepStatus.Failed)));
-    const [updated] = await db
-      .update(documents)
-      .set({ status: DocumentStatus.Uploaded, error: null })
-      .where(and(eq(documents.id, doc.id), eq(documents.status, DocumentStatus.Failed)))
-      .returning();
-    if (!updated) {
+    // Claim the document first, and reset its steps only once the claim is won.
+    // Two retries can both read `failed` above; the one that loses must not put
+    // steps back to `queued` under the run the winner has already started. One
+    // transaction, so a crash between the two leaves neither half behind.
+    const updated = await context.db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(documents)
+        .set({ status: DocumentStatus.Uploaded, error: null })
+        .where(and(eq(documents.id, doc.id), eq(documents.status, DocumentStatus.Failed)))
+        .returning();
+      if (!claimed) {
+        return null;
+      }
+      await tx
+        .update(processingSteps)
+        .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
+        .where(and(eq(processingSteps.documentId, doc.id), eq(processingSteps.status, StepStatus.Failed)));
+      return claimed;
+    });
+    if (updated === null) {
       return loadOwned(context, args.id);
     }
 
