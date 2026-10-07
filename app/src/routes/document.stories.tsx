@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
 import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
+import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
 
@@ -24,7 +25,7 @@ type Step = Document['processingSteps'][number];
 
 function step(overrides: Partial<Step>): Step {
   return {
-    id: crypto.randomUUID(),
+    id: clientId(),
     step: 'store',
     status: StepStatusEnum.Succeeded,
     attempts: 1,
@@ -110,6 +111,50 @@ export const Failed: Story = {
     await expect(alert).toHaveTextContent('Processing failed');
     await expect(within(alert).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     await expect(canvas.getAllByRole('listitem')[1]).toHaveTextContent('3 attempts');
+  },
+};
+
+const FAILED_DOCUMENT = () =>
+  document({
+    status: DocumentStatusEnum.Failed,
+    error: 'ocrmypdf exited with code 2',
+    processingSteps: [step({ step: 'ocr', status: StepStatusEnum.Failed, error: 'ocrmypdf exited with code 2' })],
+  });
+
+function refuse(): never {
+  throw new Error('The server is restarting');
+}
+
+/** A retry the server refuses is said on the page, not left as a button that did nothing. */
+export const RetryRefused: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: { Query: { document: FAILED_DOCUMENT }, Mutation: { retryDocumentProcessing: refuse } },
+    },
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Retry' }));
+    await expect(await canvas.findByText('Could not retry processing')).toBeInTheDocument();
+    await expect(canvas.getByText('The server is restarting')).toBeInTheDocument();
+  },
+};
+
+/** A delete the server refuses leaves the reader on the document, told why it is still there. */
+export const DeleteRefused: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: { Query: { document: () => document({}) }, Mutation: { deleteDocument: refuse } },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Delete' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
+      name: 'Delete this document?',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await expect(await canvas.findByText('Could not delete this document')).toBeInTheDocument();
+    // Found, not got: the page is hidden from the tree until the dialog has finished closing.
+    await expect(await canvas.findByRole('heading', { level: 1 })).toBeInTheDocument();
   },
 };
 

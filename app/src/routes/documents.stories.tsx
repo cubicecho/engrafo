@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect } from 'storybook/test';
 import { DocumentStatusEnum, type DocumentsPageQuery } from '@/__generated__/graphql';
+import { clientId } from '@/lib/id';
 import { ROUTES } from '@/lib/routes';
 import { DocumentsRoute } from './documents';
 
@@ -28,7 +29,7 @@ type Document = DocumentsPageQuery['documents'][number];
 
 function document(overrides: Partial<Document>): Document {
   return {
-    id: crypto.randomUUID(),
+    id: clientId(),
     title: 'Untitled',
     originalFilename: 'untitled.pdf',
     mimeType: 'application/pdf',

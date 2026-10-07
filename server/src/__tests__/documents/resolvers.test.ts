@@ -119,6 +119,21 @@ describe('document uploads', () => {
     expect(emitted).toEqual([document.id]);
   });
 
+  it('starts one run when the same document is retried twice at once', async () => {
+    const { document } = await createUpload();
+    const retry = 'mutation ($id: UUID!) { retryDocumentProcessing(id: $id) { status } }';
+    await db.update(documents).set({ status: 'failed', error: 'ocr: boom' }).where(eq(documents.id, document.id));
+    await db
+      .insert(processingSteps)
+      .values({ userId, documentId: document.id, step: 'ocr', position: 2, status: 'failed', error: 'boom' });
+
+    await Promise.all([client().run(retry, { id: document.id }), client().run(retry, { id: document.id })]);
+
+    expect(emitted).toEqual([document.id]);
+    const [step] = await db.select().from(processingSteps).where(eq(processingSteps.documentId, document.id));
+    expect(step).toMatchObject({ status: 'queued', error: null });
+  });
+
   it('renames, and refuses an empty title', async () => {
     const { document } = await createUpload();
     const rename = 'mutation ($id: UUID!, $title: String!) { renameDocument(id: $id, title: $title) { title } }';

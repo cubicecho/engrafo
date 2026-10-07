@@ -8,7 +8,7 @@ import { version } from '../../core/config.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { HttpStatus } from '../../core/wire.ts';
 import { createApp, HEALTH_PATH } from '../../http/app.ts';
-import { checkHealth } from '../../http/health.ts';
+import { checkHealth, DATABASE_UNREACHABLE } from '../../http/health.ts';
 import { createPipelineEvents } from '../../pipeline/events.ts';
 import { createFakeStorage, createTestAuth, createTestDb } from '../helpers.ts';
 
@@ -121,13 +121,13 @@ describe('createApp', () => {
 });
 
 describe('checkHealth', () => {
-  it('is not healthy when the database does not answer, and says why', async () => {
+  it('is not healthy when the database does not answer, and keeps the driver error to the log', async () => {
     const down = {
       execute: async () => {
         throw new Error('connection refused');
       },
     };
 
-    expect(await checkHealth(down)).toEqual({ ok: false, version: version(), error: 'connection refused' });
+    expect(await checkHealth(down)).toEqual({ ok: false, version: version(), error: DATABASE_UNREACHABLE });
   });
 });

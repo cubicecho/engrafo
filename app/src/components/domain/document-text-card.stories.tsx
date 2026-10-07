@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent } from 'storybook/test';
+import { MOCK_BUCKET_DENIED } from '../../../.storybook/mock-bucket.ts';
 import { DocumentTextCard } from './document-text-card';
 
 /**
@@ -71,6 +72,39 @@ export const TooLarge: Story = {
     await expect(canvas.getByText('Too large to show here.')).toBeInTheDocument();
     await expect(canvas.getByRole('button', { name: 'Download text' })).toBeInTheDocument();
     await expect(canvas.queryByRole('status')).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * An expired signature. The bucket answers 403 with a body, and that body is not the document's
+ * text: the card says it failed and leaves the download, which asks for a fresh address.
+ */
+export const StorageRefused: Story = {
+  args: { doc: { id: ID, contentKey: 'text/lease.txt', contentBytes: TEXT.length } },
+  parameters: { apolloClient: { resolvers: { Query: { documentFileUrl: () => MOCK_BUCKET_DENIED } } } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load the text');
+    await expect(canvas.queryByRole('button', { name: 'Copy text' })).not.toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Download text' })).toBeInTheDocument();
+  },
+};
+
+/** The server would not sign an address at all. Same answer: say so, rather than load for ever. */
+export const AddressRefused: Story = {
+  args: { doc: { id: ID, contentKey: 'text/lease.txt', contentBytes: TEXT.length } },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentFileUrl: () => {
+            throw new Error('Storage is unreachable');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load the text');
   },
 };
 

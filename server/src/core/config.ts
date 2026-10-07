@@ -79,9 +79,20 @@ function envSwitch(value: string | undefined, fallback: boolean): boolean {
   return envDisabled(value) ? false : fallback;
 }
 
-function envNumber(value: string | undefined, fallback: number): number {
+/**
+ * Reads a count or a size: a whole number above zero.
+ *
+ * @param value - The variable as set, if it is.
+ * @param fallback - What to use when the variable is unset or is not a positive whole number.
+ * @returns The number to use.
+ *
+ * @remarks
+ * Every number configured here is a port, a byte count, a millisecond count or a number of
+ * workers. A fraction is a typo in all four, and `OCR_CONCURRENCY=0.5` used to pass.
+ */
+export function envPositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /**
@@ -99,7 +110,7 @@ export function isProduction(): boolean {
  * @returns `DB_CONNECT_TIMEOUT_MS`, or `DATABASE_DEFAULTS.connectTimeoutMs`, in milliseconds.
  */
 export function dbConnectTimeoutMs(): number {
-  return envNumber(process.env.DB_CONNECT_TIMEOUT_MS, DATABASE_DEFAULTS.connectTimeoutMs);
+  return envPositiveInteger(process.env.DB_CONNECT_TIMEOUT_MS, DATABASE_DEFAULTS.connectTimeoutMs);
 }
 
 /**
@@ -204,7 +215,7 @@ export function magicLinkExposed(): boolean {
  * @returns `PORT`, or `HTTP_DEFAULTS.port`.
  */
 export function port(): number {
-  return envNumber(process.env.PORT, HTTP_DEFAULTS.port);
+  return envPositiveInteger(process.env.PORT, HTTP_DEFAULTS.port);
 }
 
 /**
@@ -230,7 +241,7 @@ export function appUrl(): string {
  * The browser uploads straight to S3, so this is enforced by the signature, not a body parser.
  */
 export function maxUploadBytes(): number {
-  return envNumber(process.env.MAX_UPLOAD_BYTES, DOCUMENT_DEFAULTS.maxUploadBytes);
+  return envPositiveInteger(process.env.MAX_UPLOAD_BYTES, DOCUMENT_DEFAULTS.maxUploadBytes);
 }
 
 /**
@@ -272,7 +283,7 @@ export function ocrLanguages(): string {
  * OCR is CPU-bound, so one is the safe default.
  */
 export function pipelineConcurrency(): number {
-  return envNumber(process.env.OCR_CONCURRENCY, OCR_DEFAULTS.concurrency);
+  return envPositiveInteger(process.env.OCR_CONCURRENCY, OCR_DEFAULTS.concurrency);
 }
 
 /** How to reach the two buckets and sign for them. */
