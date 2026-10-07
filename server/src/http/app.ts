@@ -3,9 +3,11 @@ import express, { type Express } from 'express';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import { trustProxy } from '../core/config.ts';
+import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { checkHealth } from './health.ts';
 import { createStaticHandler } from './static.ts';
 
 /** Where the liveness probe answers. */
@@ -39,8 +41,11 @@ export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
   // `all` rather than `use`: a mounted `use` strips the path from req.url, and
   // Yoga matches the request against `graphqlEndpoint` itself.
   app.all(graphql.graphqlEndpoint, (req, res) => graphql(req, res));
-  app.get(HEALTH_PATH, (_req, res) => {
-    res.json({ ok: true });
+  // Before the static handler, whose fallback would answer 200 while the database is down.
+  app.get(HEALTH_PATH, async (_req, res) => {
+    const health = await checkHealth(graphqlDeps.db);
+    const status = health.ok ? HttpStatus.Ok : HttpStatus.ServiceUnavailable;
+    res.status(status).json(health);
   });
   if (staticDir !== undefined) {
     const serveStatic = createStaticHandler(staticDir);

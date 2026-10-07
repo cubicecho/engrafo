@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
+import { version } from '../../core/config.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { HttpStatus } from '../../core/wire.ts';
 import { createApp, HEALTH_PATH } from '../../http/app.ts';
+import { checkHealth } from '../../http/health.ts';
 import { createPipelineEvents } from '../../pipeline/events.ts';
 import { createFakeStorage, createTestAuth, createTestDb } from '../helpers.ts';
 
@@ -87,11 +89,11 @@ describe('createApp', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });
 
-  it('answers the liveness probe', async () => {
+  it('reports health with a database round trip, and the version it is running', async () => {
     const response = await fetch(`${origin}${HEALTH_PATH}`);
 
     expect(response.status).toBe(HttpStatus.Ok);
-    expect((await response.json()).ok).toBe(true);
+    expect(await response.json()).toEqual({ ok: true, version: version() });
   });
 
   it('serves a hashed bundle as immutable', async () => {
@@ -113,5 +115,17 @@ describe('createApp', () => {
     const response = await fetch(`${origin}/..%2f..%2fetc%2fpasswd`);
 
     expect(await response.text()).toBe(INDEX_HTML);
+  });
+});
+
+describe('checkHealth', () => {
+  it('is not healthy when the database does not answer, and says why', async () => {
+    const down = {
+      execute: async () => {
+        throw new Error('connection refused');
+      },
+    };
+
+    expect(await checkHealth(down)).toEqual({ ok: false, version: version(), error: 'connection refused' });
   });
 });
