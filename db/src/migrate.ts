@@ -7,5 +7,5 @@ const migrationsFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url
 
 await migrate(db, { migrationsFolder });
 
-console.log('Migration complete.');
+console.log('[db] migration complete');
 process.exit(0);

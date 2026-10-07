@@ -6,7 +6,7 @@ import { DEV_SECRET, PLACEHOLDER_SECRET } from './config.ts';
 import { AUTH_DEFAULTS } from './defaults.ts';
 
 function fatal(message: string): never {
-  console.error(`FATAL: ${message}`);
+  console.error(`[preflight] ${message}`);
   process.exit(1);
 }
 
