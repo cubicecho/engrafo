@@ -1,14 +1,16 @@
 import type { Queryable } from '@cubicecho/engrafo-db/wait';
 import { sql } from 'drizzle-orm';
 import { version } from '../core/config.ts';
-import { errorMessage } from '../core/errors.ts';
+
+/** What a failed probe says. The reason itself is in the server log. */
+export const DATABASE_UNREACHABLE = 'database unreachable';
 
 /** What /healthz answers. */
 export interface Health {
   ok: boolean;
   /** The released version (config.ts). */
   version: string;
-  /** Why the database didn't answer. Only present when `ok` is false. */
+  /** What is wrong, in words that are safe to hand an unauthenticated caller. Only present when `ok` is false. */
   error?: string;
 }
 
@@ -23,6 +25,8 @@ export async function checkHealth(db: Queryable): Promise<Health> {
     await db.execute(sql`select 1`);
     return { ok: true, version: version() };
   } catch (error) {
-    return { ok: false, version: version(), error: errorMessage(error) };
+    // The driver's message names the query and can name the host; it goes to the log, not the caller.
+    console.error('[server] health check failed:', error);
+    return { ok: false, version: version(), error: DATABASE_UNREACHABLE };
   }
 }
