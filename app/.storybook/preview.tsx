@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { addons } from 'storybook/internal/preview-api';
 import { type ApolloClientAddonState, EVENTS } from 'storybook-addon-apollo-client';
+import { ROUTES } from '../src/lib/routes';
 import { type ApolloParameters, withApollo } from './graphql';
 
 // The app's own stylesheet, tokens and all. A harness that renders these components from a
@@ -28,7 +29,9 @@ function stringify(value: unknown): string | undefined {
 function panelState(mocks: readonly MockLink.MockedResponse[], activeIndex: number): ApolloClientAddonState {
   const mock = mocks[activeIndex];
   const options = mocks.map(mockName);
-  if (!mock) return { options, activeIndex: -1 };
+  if (!mock) {
+    return { options, activeIndex: -1 };
+  }
   return {
     options,
     activeIndex,
@@ -50,7 +53,9 @@ const preview: Preview = {
   decorators: [
     // Innermost, so a story's own decorators still see the router and the client.
     (Story, context) => {
-      const parameters = context.parameters.apolloClient as ApolloParameters | undefined;
+      // Storybook types every parameter as `any`, so this annotation is where the shape is
+      // stated; nothing upstream checks a story against it.
+      const parameters: ApolloParameters | undefined = context.parameters.apolloClient;
 
       // The addon ships a panel and no decorator, so the mocks it displays have to be handed to
       // it from here. Only `mocks` has anything to show — a `resolvers` story has no list of
@@ -72,7 +77,7 @@ const preview: Preview = {
     // `parameters.router.initialEntries` is how a story picks the route it is rendered at —
     // which is the whole subject of the sidebar's stories.
     (Story, context) => (
-      <MemoryRouter initialEntries={context.parameters.router?.initialEntries ?? ['/']}>
+      <MemoryRouter initialEntries={context.parameters.router?.initialEntries ?? [ROUTES.documents]}>
         <Story />
       </MemoryRouter>
     ),

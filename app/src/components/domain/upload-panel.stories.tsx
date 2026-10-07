@@ -16,8 +16,12 @@ import { UploadPanel } from './upload-panel';
  * asking about, and a bucket that says no after the row already exists.
  */
 
+const MAX_UPLOAD_BYTES = 5_242_880;
+const OVER_THE_LIMIT_BYTES = 6_291_456;
+const SCAN_BYTES = 1024;
+
 const CONFIG = {
-  maxUploadBytes: 5 * 1024 * 1024,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
   acceptedMimeTypes: ['application/pdf', 'image/png', 'text/plain'],
   ocrAvailable: true,
   ocrDefault: true,
@@ -27,6 +31,23 @@ const DOCUMENT_ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e';
 
 function file(name: string, bytes: number, type = 'application/pdf'): File {
   return new File([new Uint8Array(bytes)], name, { type });
+}
+
+/**
+ * The panel's file input, found by selector because it has no role to find it by.
+ *
+ * It is `hidden` and the dropzone button stands in for it, so it is absent from the
+ * accessibility tree — which is the one case a role query cannot reach.
+ *
+ * @param canvasElement - The story's root element.
+ * @returns The hidden `<input type="file">`.
+ */
+function fileInput(canvasElement: HTMLElement): HTMLInputElement {
+  const input = canvasElement.querySelector('input[type="file"]');
+  if (input instanceof HTMLInputElement) {
+    return input;
+  }
+  throw new Error('The upload panel rendered no file input');
 }
 
 /** The pair of mutations one successful upload makes, pointed at a bucket that accepts. */
@@ -39,7 +60,7 @@ function uploadMocks(uploadUrl: string): MockLink.MockedResponse[] {
           input: {
             filename: 'scan.pdf',
             mimeType: 'application/pdf',
-            sizeBytes: 1024,
+            sizeBytes: SCAN_BYTES,
             ocr: true,
           },
         },
@@ -75,8 +96,8 @@ type Story = StoryObj<typeof meta>;
 export const Idle: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText(/up to 5.0 MB each/i)).toBeInTheDocument();
-    await expect(canvas.getByLabelText('Run OCR on new uploads')).toBeChecked();
+    await expect(canvas.getByRole('button', { name: /up to 5.0 MB each/i })).toBeInTheDocument();
+    await expect(canvas.getByRole('switch', { name: 'Run OCR on new uploads' })).toBeChecked();
   },
 };
 
@@ -89,10 +110,10 @@ export const OcrUnavailable: Story = {
   args: { config: { ...CONFIG, ocrAvailable: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const ocr = canvas.getByLabelText('Run OCR on new uploads');
+    const ocr = canvas.getByRole('switch', { name: 'Run OCR on new uploads' });
     await expect(ocr).toBeDisabled();
     await expect(ocr).not.toBeChecked();
-    await expect(canvas.getByText(/ocrmypdf is not installed/i)).toBeInTheDocument();
+    await expect(ocr).toHaveAccessibleDescription(/ocrmypdf is not installed/i);
   },
 };
 
@@ -104,12 +125,13 @@ export const OcrUnavailable: Story = {
 export const RejectsAnOversizedFile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvasElement.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('enormous.pdf', 6 * 1024 * 1024));
+    await userEvent.upload(input, file('enormous.pdf', OVER_THE_LIMIT_BYTES));
 
-    await waitFor(() => expect(canvas.getByText(/Larger than the 5.0 MB limit/i)).toBeInTheDocument());
-    await expect(canvas.getByText('Failed')).toBeInTheDocument();
+    const job = await canvas.findByRole('listitem');
+    await expect(job).toHaveTextContent(/Larger than the 5.0 MB limit/i);
+    await expect(job).toHaveTextContent('Failed');
   },
 };
 
@@ -118,11 +140,11 @@ export const UploadsAFile: Story = {
   parameters: { apolloClient: { mocks: uploadMocks(MOCK_BUCKET_OK) } },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvasElement.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('scan.pdf', 1024));
+    await userEvent.upload(input, file('scan.pdf', SCAN_BYTES));
 
-    await waitFor(() => expect(canvas.getByText('Uploaded')).toBeInTheDocument());
+    await waitFor(() => expect(canvas.getByRole('listitem')).toHaveTextContent('Uploaded'));
     // Twice: once when the row exists so the list can show it as pending, once when it is done.
     // The list has no subscription, so a missed call is a row that never appears.
     await expect(args.onChanged).toHaveBeenCalledTimes(2);
@@ -137,10 +159,12 @@ export const StorageRefusesTheUpload: Story = {
   parameters: { apolloClient: { mocks: uploadMocks(MOCK_BUCKET_DENIED) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvasElement.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = fileInput(canvasElement);
 
-    await userEvent.upload(input, file('scan.pdf', 1024));
+    await userEvent.upload(input, file('scan.pdf', SCAN_BYTES));
 
-    await waitFor(() => expect(canvas.getByText(/Storage rejected the upload \(HTTP 403\)/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(canvas.getByRole('listitem')).toHaveTextContent(/Storage rejected the upload \(HTTP 403\)/i),
+    );
   },
 };

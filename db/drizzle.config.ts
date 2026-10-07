@@ -6,7 +6,9 @@ import { defineConfig } from 'drizzle-kit';
 // drizzle-kit runs this file with db/ as the cwd, but the .env lives one level
 // up at the repo root. Load it here so `npm run db:generate` needs no wrapper.
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.env');
-if (existsSync(envPath)) process.loadEnvFile(envPath);
+if (existsSync(envPath)) {
+  process.loadEnvFile(envPath);
+}
 
 const url = process.env.DATABASE_URL;
 if (!url) {

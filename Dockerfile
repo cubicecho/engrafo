@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM node:24-alpine AS builder
+# Stage 1: build.
+FROM node:26-slim AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm ci
 ENV DATABASE_URL=postgres://build:build@127.0.0.1:5432/build
 RUN npm run codegen && npm run build:app
 
-# ── Stage 2: test ─────────────────────────────────────────────────────────────
+# Stage 2: test.
 # `docker build --target test -t engrafo-test . && docker run --rm engrafo-test`.
 # This is the only place the OCR integration test actually runs: it needs
 # ocrmypdf, which a dev host usually lacks, and ImageMagick to draw the page of
@@ -24,30 +24,36 @@ RUN npm run codegen && npm run build:app
 FROM builder AS test
 
 # Same OCR packages as the runtime stage, plus ImageMagick to draw the test's
-# page of text. font-dejavu and fontconfig are for ImageMagick, not OCR: Alpine
-# ships it without a single font, and `-annotate` then fails with
+# page of text. fonts-dejavu-core and fontconfig are for ImageMagick, not OCR:
+# the slim image has no font at all, and `-annotate` then fails with
 # "unable to read font ''".
-RUN apk add --no-cache ocrmypdf tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-osd ghostscript \
-      imagemagick font-dejavu fontconfig
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript \
+      imagemagick fonts-dejavu-core fontconfig \
+ && rm -rf /var/lib/apt/lists/*
 
-# Not `npm test`: that also runs the `storybook` project, which launches a Chromium, and
-# Playwright ships no browser for Alpine's musl. The stories run in CI's `check` job, on glibc.
+# Not `npm test`: that also runs the `storybook` project, which needs a Chromium
+# this image does not carry. The stories run in CI's `check` job.
 CMD ["npx", "vitest", "run", "--project", "node", "--project", "dom"]
 
-# ── Stage 3: runtime ──────────────────────────────────────────────────────────
-FROM node:24-alpine
+# Stage 3: runtime.
+FROM node:26-slim AS runtime
 
 WORKDIR /app
 
 # OCR is what Paperless-ngx does: ocrmypdf driving Tesseract, with Ghostscript
 # writing the PDF/A. The server only shells out to it. Add more
-# tesseract-ocr-data-<lang> packages here and list them in OCR_LANGUAGES.
+# tesseract-ocr-<lang> packages here and list them in OCR_LANGUAGES.
 #
-# -data-osd is not a language: it is the orientation and script model, and
-# Alpine packages it separately. `--rotate-pages` and `--deskew` — two of the
-# flags every run passes — load it, so without it every document fails with
+# -osd is not a language: it is the orientation and script model.
+# `--rotate-pages` and `--deskew` — two of the flags every run passes — load
+# it, so without it every document fails with
 # "Tesseract couldn't load any languages".
-RUN apk add --no-cache ocrmypdf tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-osd ghostscript
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript \
+ && rm -rf /var/lib/apt/lists/*
 
 # Only the runtime workspaces are installed; Vite and its plugins exist to
 # produce app/dist and are useless once it exists.
@@ -58,8 +64,8 @@ COPY app/package.json app/
 RUN npm ci --omit=dev --include-workspace-root --workspace @cubicecho/engrafo-db --workspace @cubicecho/engrafo-server \
  && npm cache clean --force
 
-# The server is not compiled: it runs its TypeScript sources directly under
-# --experimental-strip-types, so the sources are the build output.
+# The server is not compiled: Node strips the types from its TypeScript sources
+# as it loads them, so the sources are the build output.
 COPY db/src db/src
 COPY db/drizzle db/drizzle
 COPY server/src server/src
@@ -75,4 +81,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s \
 
 # No --preserve-symlinks: it would resolve @cubicecho/engrafo-db to its path
 # inside node_modules, and Node refuses to strip types from anything under there.
-CMD ["node", "--experimental-strip-types", "server/src/index.ts"]
+CMD ["node", "server/src/index.ts"]

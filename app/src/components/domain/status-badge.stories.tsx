@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
+import { DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { DocumentStatusBadge, StepStatusBadge } from './status-badge';
 
 /**
@@ -20,8 +21,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const DOCUMENT_STATUSES = ['pending_upload', 'uploaded', 'processing', 'ready', 'failed'] as const;
-const STEP_STATUSES = ['queued', 'running', 'succeeded', 'skipped', 'failed'] as const;
+const DOCUMENT_STATUSES = [
+  DocumentStatusEnum.PendingUpload,
+  DocumentStatusEnum.Uploaded,
+  DocumentStatusEnum.Processing,
+  DocumentStatusEnum.Ready,
+  DocumentStatusEnum.Failed,
+];
+const STEP_STATUSES = [
+  StepStatusEnum.Queued,
+  StepStatusEnum.Running,
+  StepStatusEnum.Succeeded,
+  StepStatusEnum.Skipped,
+  StepStatusEnum.Failed,
+];
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -34,7 +47,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 /** Every state a document can be in, in the order it passes through them. */
 export const DocumentStatuses: Story = {
-  args: { status: 'ready' },
+  args: { status: DocumentStatusEnum.Ready },
   render: () => (
     <Row label="Document">
       {DOCUMENT_STATUSES.map((status) => (
@@ -54,7 +67,7 @@ export const DocumentStatuses: Story = {
 
 /** The same for a pipeline step, which has its own set — `skipped` has no document equivalent. */
 export const StepStatuses: Story = {
-  args: { status: 'ready' },
+  args: { status: DocumentStatusEnum.Ready },
   render: () => (
     <Row label="Pipeline step">
       {STEP_STATUSES.map((status) => (

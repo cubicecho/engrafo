@@ -10,43 +10,56 @@ import { FormElement } from '@/components/ui/form-element';
 import { FileText } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
+import { ROUTES } from '@/lib/routes';
 
-const RequestMagicLink = graphql(`
-  mutation RequestMagicLink($email: String!) {
-    requestMagicLink(email: $email) {
-      ok
+const RequestSignIn = graphql(`
+  mutation RequestSignIn($email: String!) {
+    requestSignIn(email: $email) {
+      sent
       magicLink
-      token
+      session {
+        token
+      }
     }
   }
 `);
 
+/**
+ * Sign-in by email: ask for an address, then say a link is on its way.
+ *
+ * On a trusted network the server answers with a session instead of a link, and
+ * the page goes straight to the archive.
+ */
 export function LoginPage() {
   const navigate = useNavigate();
   const [sent, setSent] = useState<{ email: string; magicLink: string | null } | null>(null);
-  const [requestLink, { error }] = useMutation(RequestMagicLink);
+  const [requestLink, { error }] = useMutation(RequestSignIn);
 
   const form = useAppForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       const { data } = await requestLink({ variables: { email: value.email } }).catch(() => ({ data: undefined }));
-      if (!data) return;
-      const result = data.requestMagicLink;
-      // AUTH_MAGIC_LINK=false: the server signed us straight in.
-      if (result.token) {
-        setToken(result.token);
-        navigate('/', { replace: true });
+      if (!data) {
+        return;
+      }
+      const result = data.requestSignIn;
+      // SECURE_LOCAL_NET=true: the server signed us straight in.
+      if (result.session) {
+        setToken(result.session.token);
+        navigate(ROUTES.documents, { replace: true });
         return;
       }
       setSent({ email: value.email, magicLink: result.magicLink });
     },
   });
 
-  if (getToken()) return <Navigate to="/" replace />;
+  if (getToken()) {
+    return <Navigate to={ROUTES.documents} replace />;
+  }
 
   // The link is built from APP_URL, which in development points at the server
   // rather than at Vite. Follow it in this tab, on this origin, instead.
-  const localLink = sent?.magicLink ? `/auth/verify${new URL(sent.magicLink).search}` : null;
+  const localLink = sent?.magicLink ? `${ROUTES.verify}${new URL(sent.magicLink).search}` : null;
 
   if (sent) {
     return (

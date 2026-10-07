@@ -2,6 +2,7 @@ import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from '@apollo/clien
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { ErrorLink } from '@apollo/client/link/error';
 import { clearToken, getToken } from './auth';
+import { ROUTES } from './routes';
 
 // Same origin in both modes: the server serves the built bundle in production,
 // and Vite proxies /graphql to it in development.
@@ -10,21 +11,33 @@ const httpLink = new HttpLink({
   fetch: (uri, options) => {
     const headers = new Headers(options?.headers);
     const token = getToken();
-    if (token) headers.set('authorization', `Bearer ${token}`);
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
     return fetch(uri, { ...options, headers });
   },
 });
 
-// A token that expired or was signed by a rotated secret fails every request
-// the same way. Drop it and start over at sign-in rather than rendering a page
+// A session that expired, was signed out elsewhere or was lost to a server
+// restart fails every request the same way. Drop it and start over at sign-in rather than rendering a page
 // of errors.
 const errorLink = new ErrorLink(({ error }) => {
-  if (!CombinedGraphQLErrors.is(error)) return;
-  if (!error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED')) return;
+  const isSessionOver =
+    CombinedGraphQLErrors.is(error) && error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED');
+  const isOtherFailure = isSessionOver === false;
+  if (isOtherFailure) {
+    return;
+  }
   clearToken();
-  if (window.location.pathname !== '/login') window.location.assign('/login');
+  if (window.location.pathname !== ROUTES.login) {
+    window.location.assign(ROUTES.login);
+  }
 });
 
+/**
+ * The one Apollo client the app runs on. It sends the session token with every
+ * request and goes back to sign-in when the server says the session is over.
+ */
 export const apolloClient = new ApolloClient({
   link: ApolloLink.from([errorLink, httpLink]),
   cache: new InMemoryCache(),

@@ -37,6 +37,13 @@ const CompleteUpload = graphql(`
   }
 `);
 
+// Browsers leave the type blank for extensions they do not know; the server's
+// allowlist says no with a clearer message than S3 would.
+const UNKNOWN_MIME_TYPE = 'application/octet-stream';
+
+// A job's progress is a fraction; the bar and its label are in percent.
+const PERCENT = 100;
+
 interface Job {
   key: string;
   name: string;
@@ -47,11 +54,18 @@ interface Job {
 }
 
 interface UploadPanelProps {
+  /** What the server will accept, as `serverConfig` reports it. */
   config: { maxUploadBytes: number; acceptedMimeTypes: string[]; ocrAvailable: boolean; ocrDefault: boolean };
   /** Called whenever a document changes state, so the list can refetch. */
   onChanged: () => void;
 }
 
+/**
+ * The dropzone, the OCR switch and a row per file being uploaded.
+ *
+ * Each file is signed for, PUT straight to the bucket and then confirmed, and a
+ * failure at any of the three is shown on that file's row.
+ */
 export function UploadPanel({ config, onChanged }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [ocr, setOcr] = useState(config.ocrAvailable && config.ocrDefault);
@@ -72,15 +86,15 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
         variables: {
           input: {
             filename: file.name,
-            // Browsers leave the type blank for extensions they do not know;
-            // the server's allowlist says no with a clearer message than S3 would.
-            mimeType: file.type || 'application/octet-stream',
+            mimeType: file.type || UNKNOWN_MIME_TYPE,
             sizeBytes: file.size,
             ocr,
           },
         },
       });
-      if (!data) throw new Error('The server did not answer');
+      if (!data) {
+        throw new Error('The server did not answer');
+      }
       const { document, uploadUrl, uploadHeaders } = data.createDocumentUpload;
       onChanged();
 
@@ -94,13 +108,17 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
   }
 
   function start(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
     const added = Array.from(files).map((file) => ({
       file,
       job: { key: clientId(), name: file.name, size: file.size, progress: 0, error: null, done: false },
     }));
     setJobs((current) => [...added.map(({ job }) => job), ...current.filter((job) => !job.done)]);
-    for (const { file, job } of added) void uploadOne(file, job);
+    for (const { file, job } of added) {
+      void uploadOne(file, job);
+    }
   }
 
   const dropZone = (
@@ -168,7 +186,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
                   <ListItem
                     className="p-0"
                     title={job.name}
-                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * 100)}%`}
+                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * PERCENT)}%`}
                     actionSlot={
                       job.done || job.error ? (
                         <ActionButton
@@ -181,7 +199,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
                       ) : null
                     }
                   />
-                  <Progress value={job.progress * 100} label={`${job.name} upload progress`} />
+                  <Progress value={job.progress * PERCENT} label={`${job.name} upload progress`} />
                   {job.error && <p className="text-negative text-xs">{job.error}</p>}
                 </li>
               ))}

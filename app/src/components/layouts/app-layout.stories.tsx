@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { PageLayout } from '@/components/page-layout';
+import { documentPath, ROUTES } from '@/lib/routes';
 import { AppLayout } from './app-layout';
 
 /**
@@ -48,7 +49,7 @@ type Story = StoryObj<typeof meta>;
 /** Only one row is current, ever. `Documents` carries `end`, so `/documents/:id` does not lift it. */
 export const DocumentsRoute: Story = {
   args: { contentSlot: <Page title="Documents" /> },
-  parameters: { router: { initialEntries: ['/'] } },
+  parameters: { router: { initialEntries: [ROUTES.documents] } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const current = canvas.getAllByRole('link', { current: 'page' });
@@ -59,7 +60,7 @@ export const DocumentsRoute: Story = {
 
 export const SettingsRoute: Story = {
   args: { contentSlot: <Page title="Settings" /> },
-  parameters: { router: { initialEntries: ['/settings'] } },
+  parameters: { router: { initialEntries: [ROUTES.settings] } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const current = canvas.getAllByRole('link', { current: 'page' });
@@ -75,7 +76,7 @@ export const SettingsRoute: Story = {
  */
 export const OnADocument: Story = {
   args: { contentSlot: <Page title="Invoice.pdf" /> },
-  parameters: { router: { initialEntries: ['/documents/3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e'] } },
+  parameters: { router: { initialEntries: [documentPath('3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e')] } },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).queryAllByRole('link', { current: 'page' })).toHaveLength(0);
   },
@@ -89,14 +90,13 @@ export const OnADocument: Story = {
 export const Narrow: Story = {
   args: { contentSlot: <Page title="Documents" /> },
   globals: { viewport: { value: 'mobile1' } },
-  parameters: { router: { initialEntries: ['/'] } },
+  parameters: { router: { initialEntries: [ROUTES.documents] } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
     // Both navs are in the DOM; only one is laid out. `getAllByRole` would find four links and
     // pass whatever the CSS did, so the assertion has to be about the box, not the markup.
-    const sidebar = canvasElement.querySelector('aside') as HTMLElement;
-    await expect(sidebar).not.toBeVisible();
+    await expect(canvas.getByRole('complementary', { hidden: true })).not.toBeVisible();
 
     await expect(canvas.getByRole('banner')).toBeVisible();
     // One of each, not two: the sidebar's copies are in the DOM and must not be reachable.

@@ -53,12 +53,16 @@ function handlerLink(resolvers: ResolverMap, delay: number): ApolloLink {
           handler
             .query(print(operation.query), operation.variables)
             .then((result) => {
-              if (cancelled) return;
+              if (cancelled) {
+                return;
+              }
               observer.next(result);
               observer.complete();
             })
             .catch((error) => {
-              if (!cancelled) observer.error(error);
+              if (!cancelled) {
+                observer.error(error);
+              }
             });
         }, delay);
 
@@ -73,9 +77,15 @@ function handlerLink(resolvers: ResolverMap, delay: number): ApolloLink {
 /**
  * The decorator half of the Apollo parameter. Storybook's Apollo addon ships only a panel since
  * v10 — the provider is the app's to supply, which is what this is.
+ *
+ * @param story - The rendered story.
+ * @param parameters - The story's `apolloClient` parameter, if it set one.
+ * @returns The story under a mock server or a `MockedProvider`, with a fresh client.
  */
 export function withApollo(story: ReactElement, parameters: ApolloParameters | undefined): ReactElement {
-  if (parameters?.resolvers) return <MockServer parameters={parameters}>{story}</MockServer>;
+  if (parameters?.resolvers) {
+    return <MockServer parameters={parameters}>{story}</MockServer>;
+  }
   return (
     // Unconditional, even with no mocks at all. Every screen in this app renders under an
     // ApolloProvider, so a story without one does not fail on the assertion it was written for

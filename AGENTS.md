@@ -24,7 +24,7 @@ what Paperless is for.
 | OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to; optionally a vision model over `@cubicecho/agent-core` |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
-| Runtime  | Node.js 24+, ESM (`"type": "module"` throughout)              |
+| Runtime  | Node.js 26, ESM (`"type": "module"` throughout)               |
 
 ## Project Structure
 
@@ -46,29 +46,50 @@ engrafo/
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
 │   └── src/
-│       ├── index.ts         # Entry point: migrate, detect OCR, mount /graphql, serve the SPA
-│       ├── preflight.ts     # Boot guards — imported first, on purpose
-│       ├── config.ts        # Every env var, read at call time
-│       ├── build-schema.ts  # createSchema(db) — buildSchema + extensions
-│       ├── tenancy.ts       # Row scope + server-owned columns, as buildSchema config
+│       ├── index.ts         # Boot only: wait for Postgres, migrate, detect OCR, listen, stop on a signal
+│       ├── core/            # What every folder reads, about no one concept
+│       │   ├── preflight.ts # Boot guards — imported first, on purpose
+│       │   ├── config.ts    # Every env var, read at call time
+│       │   ├── defaults.ts  # <CONCEPT>_DEFAULTS — every tunable, named, with its unit
+│       │   ├── wire.ts      # Unit conversions and HttpStatus
+│       │   ├── errors.ts    # ErrorCode and the errors the API answers with; requireAuth
+│       │   ├── validation.ts # parseOrThrow: zod → BAD_USER_INPUT
+│       │   ├── context.ts   # The per-request GraphQL context
+│       │   └── preload-env.ts # Loads ../.env for codegen
+│       ├── http/            # The Express side
+│       │   ├── app.ts       # createApp(deps) — the whole app, with nothing listening
+│       │   ├── health.ts    # What /healthz answers
+│       │   ├── shutdown.ts  # stopOnSignals: drain, then close what was opened
+│       │   └── static.ts    # Serves the SPA and its fallback
+│       ├── graphql/         # The served schema and the rules every operation obeys
+│       │   ├── handler.ts   # The Yoga handler and its context
+│       │   ├── build-schema.ts # createSchema(db) — buildSchema + extensions
+│       │   ├── schema.ts    # The schema bound to the real db
+│       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
+│       │   └── write-schema.ts # Prints the SDL for codegen
+│       ├── auth/            # Who the caller is and how they sign in: better-auth, session-store, rate-limit, resolvers
+│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
 │       │   ├── events.ts    # Typed EventEmitter: 'document.uploaded'
-│       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle }
-│       │   ├── index.ts     # STEPS, in order
+│       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle, stop }
+│       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
 │       │   └── steps/       # inspect, text, ocr
-│       ├── resolvers/       # auth, documents — SDL extensions for what CRUD cannot express
-│       └── __tests__/       # Server tests
+│       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, processing-steps
+│       ├── models/          # users, documents, processing-steps, auth (better-auth's tables)
+│       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
-│       └── index.ts         # DB singleton + re-exports
+│       ├── defaults.ts      # DATABASE_DEFAULTS
+│       ├── wait.ts          # waitForDatabase: boot does not race Postgres
+│       ├── ssl.ts           # requiresSsl: TLS only for an address that could leave the LAN
+│       └── index.ts         # The DB type, the singleton, closeDatabase
 ├── .agents/mvp-plan.md      # The plan this repo was built from
-├── Dockerfile               # node:24-alpine + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
+├── Dockerfile               # node:26-slim + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
 ├── docker-compose.dev.yml   # Postgres + MinIO for development
 ├── docker-compose.yml       # The whole stack, built from this checkout
 └── docker-compose.quickstart.yml  # The whole stack, pulled — what self-hosters paste
@@ -79,6 +100,10 @@ raw URL on `main`, and people paste it into Portainer and TrueNAS. Its header
 comments are the install instructions, so changing an env var here means changing
 them there. It pulls `vantreeseba/engrafo:latest` and must never grow a `build:`
 key.
+
+Docker Hub is the primary registry: every compose file and the README name
+`vantreeseba/engrafo`. The release workflow also pushes the same build to
+`ghcr.io/cubicecho/engrafo` as an additional copy; nothing points at it.
 
 ## Commands
 
@@ -111,16 +136,16 @@ to expose it.
   update, updateMany and delete, because every write here is a step in a
   lifecycle — a document without an object in the bucket is not a document. That
   leaves the generated schema with no `Mutation` type at all, so
-  `withMutationRoot` in `build-schema.ts` adds an empty one before the SDL
+  `withMutationRoot` in `graphql/build-schema.ts` adds an empty one before the SDL
   extensions can extend it.
 - **Only what CRUD cannot express gets a resolver.** Those live in
-  `server/src/resolvers/` and are applied by `build-schema.ts` in order.
+  each concept's `resolvers.ts` (`server/src/auth/`, `server/src/documents/`) and are applied by `graphql/build-schema.ts` in order.
 - **Ids are `UUID`, not `ID`.** The generated scalar, and what hand-written SDL
   has to declare too, or a variable will not typecheck against it.
 
 ## Rules that carry weight
 
-**Every table needs a `scope` entry.** `server/src/tenancy.ts` maps each table to
+**Every table needs a `scope` entry.** `server/src/graphql/tenancy.ts` maps each table to
 a `RowScope` that is ANDed into the SQL of every generated read. A table missing
 from `scope` is visible across tenants, and nothing else in the code will say so.
 `tenancy.test.ts` fails when you forget — do not delete the test to make it pass.
@@ -172,10 +197,10 @@ actually `failed`.
 **The OCR integration test only really runs in the image.** `ocr.test.ts` skips
 itself without ocrmypdf and ImageMagick, which a dev host usually lacks — so the
 Dockerfile's `test` stage installs both and CI runs the suite there. That stage
-is what caught `tesseract-ocr-data-osd` missing from the runtime image:
-`--rotate-pages` and `--deskew` load the orientation model, Alpine packages it
-apart from the languages, and without it every OCR run fails with "Tesseract
-couldn't load any languages". Any new `apk` dependency belongs in both stages.
+is what caught the orientation model (`tesseract-ocr-osd`) missing from the
+runtime image: `--rotate-pages` and `--deskew` load it, it is packaged apart
+from the languages, and without it every OCR run fails with "Tesseract couldn't
+load any languages". Any new `apt` dependency belongs in both stages.
 
 **OCR being *enabled* and OCR being *available* are different questions.**
 `ocrEnabled()` reads the env var; `detectOcr()` asks whether `ocrmypdf` is on the
@@ -191,16 +216,53 @@ because they usually carry no DPI metadata and img2pdf refuses to guess.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
-`loadOwned` in `resolvers/documents.ts` returns `NOT_FOUND` for an id that is not
+`loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
 a UUID, too.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
-means sign-in needs no link: `requestMagicLink` returns a live session for
-whatever address it is handed, and the login page uses it (`if (result.token)`).
+means sign-in needs no link: `requestSignIn` returns a live session for
+whatever address it is handed, and the login page uses it (`if (result.session)`).
 `AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
-`magicLinkRequired()` in `config.ts` is where the two meet, and the boot warning
+`magicLinkRequired()` in `core/config.ts` is where the two meet, and the boot warning
 names whichever one is responsible. Both make an email address the entire
 credential, so neither belongs on a reachable instance.
+
+**Auth is better-auth, reached only through GraphQL.** `createAuth(db, opts)` in
+`auth/better-auth.ts` builds the instance and it travels on the context
+(`ctx.auth`); no REST routes are mounted and no module imports a global. Sessions
+are opaque bearer tokens, held in memory unless `SESSION_STORE=database`, so a
+restart signs everyone out by default. better-auth's own rate limiter never runs
+for `auth.api.*` calls, so the sign-in mutations call `throttle` first, which
+counts by client address (`TRUST_PROXY`) and by email. The `sessions`, `accounts`
+and `verifications` tables are excluded from the GraphQL schema in
+`graphql/build-schema.ts`. Passwords are off: with no mail provider there is no
+way to prove an address before a password is set on it.
+
+**The app is built in one place and booted in another.** `createApp(deps)` in
+`http/app.ts` returns the Express app with everything it needs handed to it and
+nothing listening; `index.ts` is the only file that opens a port, a connection
+or a signal handler. That split is what lets `http/app.test.ts` run the real
+app on a random port. There is no CORS: the server serves its own client, so
+the API is same-origin, and Yoga's default of answering every origin is turned
+off in `graphql/handler.ts`.
+
+**Boot waits, shutdown drains.** `waitForDatabase` runs before `migrate`, so a
+compose stack whose Postgres is still starting does not crash-loop the server.
+On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, calls
+`pipeline.stop()` — new runs resolve without starting, and a step cut off
+mid-run is not recorded as failed, so `resume()` picks it up on the next boot —
+then closes the database. `/healthz` answers 503 while the database is
+unreachable, which is what the image's healthcheck reads.
+
+**Tunables have names, and `process.env` has three readers.** A number or a
+default lives in a `<CONCEPT>_DEFAULTS` object in `core/defaults.ts` (or
+`db/src/defaults.ts`) with its unit in the field name; `core/config.ts` reads
+the environment and falls back to them. Only config, preflight and the db
+package read `process.env`. Errors the API answers with come from
+`core/errors.ts`, and tests compare against `ErrorCode`, not a string.
+
+**Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
+`[pipeline]`, `[ocr]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
@@ -280,8 +342,8 @@ states it is in.
 
 **`app/src/components/ui/` is vendored.** Those files come from the cubeui
 registry and are kept as published, so `shadcn add` can update them.
-`biome.json` exempts them from two lint rules rather than letting anyone edit
-them into compliance. The cubeui shells one level up (`page-layout.tsx`,
+`biome.json` turns the linter and the formatter off for them rather than letting
+anyone edit them into compliance. The cubeui shells one level up (`page-layout.tsx`,
 `query-state.tsx`, …) are the same deal.
 
 ## Stories are the frontend tests
@@ -344,16 +406,18 @@ through and the run dies with "browser connection was closed".
 
 ## Code style
 
-- Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check:fix`.
+- Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check` applies the safe fixes; CI runs `npx biome ci .`, which writes nothing.
 - `biome.json` is parsed as strict JSON here — **no comments in it**, or Biome
   reports a confusing "nested root configuration" error.
-- `server/` and `db/` run under `--experimental-strip-types` with no build step,
-  so **relative imports there carry an explicit `.ts` extension**. `app/` is
+- `server/` and `db/` have no build step: Node 26 strips the types as it loads
+  each file, with no flag. So **relative imports there carry an explicit `.ts`
+  extension**, and the same Node major runs in dev, CI and the image
+  (`node:26-slim`). `app/` is
   bundled by Vite and omits it.
 - **Never add `--preserve-symlinks`.** It resolves `@cubicecho/engrafo-db` to its
   path inside `node_modules`, and Node refuses to strip types from anything
   under there.
-- `import './preflight.ts';` stays first in `server/src/index.ts`, separated by a
+- `import './core/preflight.ts';` stays first in `server/src/index.ts`, separated by a
   blank line so Biome's import sorting leaves it there. It has to run before
   `@cubicecho/engrafo-db` is imported.
 - Comments explain *why*. The code already says what.

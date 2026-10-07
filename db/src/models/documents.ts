@@ -16,6 +16,10 @@ export const documentStatus = pgEnum('document_status', [
   'failed',
 ]);
 
+/**
+ * One row per uploaded file: its metadata and the keys of its objects. The bytes and the
+ * extracted text live in the buckets, never here.
+ */
 export const documents = pgTable(
   'documents',
   {
@@ -56,6 +60,17 @@ export const documents = pgTable(
   ],
 );
 
+/** A document row as read. */
 export type Document = typeof documents.$inferSelect;
+/** A document row as inserted. */
 export type NewDocument = typeof documents.$inferInsert;
+/** One value of the `documentStatus` enum. */
 export type DocumentStatus = (typeof documentStatus.enumValues)[number];
+/** The statuses by name, for code that sets or compares one. */
+export const DocumentStatus = {
+  PendingUpload: 'pending_upload',
+  Uploaded: 'uploaded',
+  Processing: 'processing',
+  Ready: 'ready',
+  Failed: 'failed',
+} as const satisfies Record<string, DocumentStatus>;

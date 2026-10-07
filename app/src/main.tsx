@@ -7,6 +7,7 @@ import { useThemePreference } from '@/components/ui/theme-preference';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { apolloClient } from '@/lib/apollo';
 import { getToken } from '@/lib/auth';
+import { ROUTES } from '@/lib/routes';
 import type { SlotNode } from '@/lib/utils';
 import { DocumentRoute } from '@/routes/document';
 import { DocumentsRoute } from '@/routes/documents';
@@ -23,7 +24,7 @@ import './index.css';
  * two pages with nothing to navigate to, stay bare.
  */
 function RequireAuth({ contentSlot }: { contentSlot: SlotNode }) {
-  return getToken() ? <AppLayout contentSlot={contentSlot} /> : <Navigate to="/login" replace />;
+  return getToken() ? <AppLayout contentSlot={contentSlot} /> : <Navigate to={ROUTES.login} replace />;
 }
 
 /**
@@ -36,19 +37,24 @@ function ThemeSync() {
   return null;
 }
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root');
+if (!root) {
+  throw new Error('index.html has no #root element to mount the app in');
+}
+
+createRoot(root).render(
   <StrictMode>
     <ApolloProvider client={apolloClient}>
       <TooltipProvider>
         <ThemeSync />
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/verify" element={<VerifyPage />} />
-            <Route path="/" element={<RequireAuth contentSlot={<DocumentsRoute />} />} />
-            <Route path="/documents/:id" element={<RequireAuth contentSlot={<DocumentRoute />} />} />
-            <Route path="/settings" element={<RequireAuth contentSlot={<SettingsRoute />} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path={ROUTES.login} element={<LoginPage />} />
+            <Route path={ROUTES.verify} element={<VerifyPage />} />
+            <Route path={ROUTES.documents} element={<RequireAuth contentSlot={<DocumentsRoute />} />} />
+            <Route path={ROUTES.document} element={<RequireAuth contentSlot={<DocumentRoute />} />} />
+            <Route path={ROUTES.settings} element={<RequireAuth contentSlot={<SettingsRoute />} />} />
+            <Route path="*" element={<Navigate to={ROUTES.documents} replace />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

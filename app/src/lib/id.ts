@@ -1,17 +1,19 @@
 let counter = 0;
 
+// Digits and letters both, so the timestamp in a fallback id stays short.
+const BASE_36 = 36;
+
 /**
- * An id for something that exists only in this browser tab — an upload's
- * progress row, say.
+ * An id for something that exists only in this browser tab, such as an upload's
+ * progress row.
  *
  * Not plain `crypto.randomUUID()`: that is a secure-context API, so it is
- * undefined over plain HTTP to anything but `localhost`. That is not an edge
- * case here — it is how a self-hosted instance on a LAN is normally reached,
- * and calling it there throws "crypto.randomUUID is not a function".
+ * undefined over plain HTTP at a LAN address, which is how a self-hosted
+ * instance is normally reached. The id only tells one row from another, so a
+ * counter is a fine fallback.
  *
- * Nothing built here is a secret, is guessed at, or ever leaves the tab: it
- * distinguishes one row from another, so a counter is a fine fallback.
+ * @returns A string unique within this tab.
  */
 export function clientId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(36)}-${counter++}`;
+  return globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(BASE_36)}-${counter++}`;
 }
