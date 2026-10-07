@@ -6,9 +6,9 @@ import { DocumentRoute } from './document';
 /**
  * One document: what it is, how far the pipeline got with it, and what can be done to it.
  *
- * The documents here are plain text with nothing extracted, so the page asks for no presigned
- * URL — the preview and the text card are the two parts that reach past GraphQL to the bucket,
- * and a story has no bucket.
+ * Most documents here are plain text with nothing extracted, so the page asks for no presigned
+ * URL. The stories about the text card answer `documentFileUrl` with a `data:` URL instead: a
+ * story has no bucket, and the page only ever fetches whatever address it is handed.
  */
 
 const ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e';
@@ -116,6 +116,71 @@ export const Renaming: Story = {
     await expect(within(dialog).getByLabelText(/Title/)).toHaveValue('Lease agreement');
     await expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
     await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  },
+};
+
+/** Where the text bucket would be: the page fetches whatever address `documentFileUrl` hands it. */
+function textUrl(text: string): string {
+  return `data:text/plain,${encodeURIComponent(text)}`;
+}
+
+/** Extracted text is fetched from its own bucket and shown beside a way to copy it. */
+export const WithText: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: 26 }),
+          documentFileUrl: () => textUrl('This lease is made between'),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('This lease is made between')).toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Copy text' })).toBeInTheDocument();
+  },
+};
+
+/**
+ * The text object exists and has nothing in it. The card used to answer every case it had no
+ * text for with "Too large to show here.", which is only true of one of them.
+ */
+export const EmptyText: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: 0 }),
+          documentFileUrl: () => textUrl(''),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('No text was extracted from this document.')).toBeInTheDocument();
+    await expect(canvas.queryByText('Too large to show here.')).not.toBeInTheDocument();
+    await expect(canvas.queryByRole('button', { name: 'Copy text' })).not.toBeInTheDocument();
+  },
+};
+
+/** Past the preview limit the text is never fetched: the download button stands in for it. */
+export const TextTooLarge: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: 2 * 1024 * 1024 }),
+          documentFileUrl: () => {
+            throw new Error('The oversize text must not be requested');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Too large to show here.')).toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Download text' })).toBeInTheDocument();
   },
 };
 

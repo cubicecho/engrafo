@@ -170,6 +170,24 @@ function RenameDialog({ title, onRename, onClose }: RenameDialogProps) {
   );
 }
 
+/**
+ * The body of the text card, once it has stopped loading.
+ *
+ * Three answers, and each has to be its own sentence: text over the preview
+ * limit is never fetched, and text that came back empty is not "too large".
+ */
+function ExtractedText({ content, oversize }: { content: string | null; oversize: boolean }) {
+  if (oversize) {
+    return <p className="text-foreground/60 text-sm">Too large to show here.</p>;
+  }
+  if (!content) {
+    return <p className="text-foreground/60 text-sm">No text was extracted from this document.</p>;
+  }
+  return (
+    <CodeBlock content={content} wrap maxHeight="lg" actionSlot={<CopyButton value={content} label="Copy text" />} />
+  );
+}
+
 export function DocumentRoute() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -401,18 +419,7 @@ export function DocumentRoute() {
                   onClick={() => void download(DocumentFileVariant.Text)}
                 />
               }
-              contentSlot={
-                contentOversize || content === null ? (
-                  <p className="text-foreground/60 text-sm">Too large to show here.</p>
-                ) : (
-                  <CodeBlock
-                    content={content}
-                    wrap
-                    maxHeight="lg"
-                    actionSlot={<CopyButton value={content} label="Copy text" />}
-                  />
-                )
-              }
+              contentSlot={<ExtractedText content={content} oversize={contentOversize} />}
             />
           )}
 
