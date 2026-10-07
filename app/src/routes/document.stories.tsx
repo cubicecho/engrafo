@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
 import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
+import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
 
@@ -24,7 +25,7 @@ type Step = Document['processingSteps'][number];
 
 function step(overrides: Partial<Step>): Step {
   return {
-    id: crypto.randomUUID(),
+    id: clientId(),
     step: 'store',
     status: StepStatusEnum.Succeeded,
     attempts: 1,
