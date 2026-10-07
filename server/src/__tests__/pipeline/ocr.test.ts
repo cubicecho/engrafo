@@ -87,7 +87,7 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
         '-fill',
         'black',
         '-font',
-        font as string,
+        font ?? '',
         '-pointsize',
         '96',
         '-annotate',

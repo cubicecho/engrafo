@@ -78,7 +78,8 @@ export const ocrStep: PipelineStep = {
     } catch (error) {
       // ocrmypdf explains itself on stderr; the exec error's own message is just
       // the command line.
-      const stderr = (error as { stderr?: string }).stderr?.trim();
+      const stderr =
+        error instanceof Error && 'stderr' in error && typeof error.stderr === 'string' ? error.stderr.trim() : '';
       throw new Error(stderr ? stderr.split('\n').slice(-OCR_DEFAULTS.errorTailLines).join('\n') : errorMessage(error));
     }
 

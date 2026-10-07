@@ -23,7 +23,7 @@ const scopeByUserId: RowScope<Context> = (context, table) => eq((table as AnyTab
 
 export const scope: NonNullable<BuildSchemaConfig['scope']> = {
   // A user row is only ever visible to its owner. There is no directory here.
-  users: (context, table) => eq((table as AnyTable).id, requireAuth(context as Context)),
+  users: (context, table) => eq((table as AnyTable).id, requireAuth(context)),
   ...Object.fromEntries(USER_OWNED_TABLES.map((name) => [name, scopeByUserId])),
 };
 

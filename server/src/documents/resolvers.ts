@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type Document, DocumentStatus, documents, processingSteps, StepStatus } from '@cubicecho/engrafo-db/schema';
 import { and, eq } from 'drizzle-orm';
-import { extendSchema, type GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
+import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
@@ -149,8 +149,8 @@ async function loadOwned(context: Context, id: string): Promise<Document> {
 
 export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   const extended = extendSchema(schema, DOCUMENTS_SDL);
-  const queries = (extended.getType('Query') as GraphQLObjectType).getFields();
-  const mutations = (extended.getType('Mutation') as GraphQLObjectType).getFields();
+  const queries = assertObjectType(extended.getType('Query')).getFields();
+  const mutations = assertObjectType(extended.getType('Mutation')).getFields();
 
   queries.serverConfig.resolve = (_parent: unknown, _args: unknown, context: Context) => ({
     version: version(),

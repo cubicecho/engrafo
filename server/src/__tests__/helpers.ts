@@ -103,7 +103,7 @@ export function createFakeBucket(): FakeBucket {
       await pipeline(Readable.from([get(key).body]), createWriteStream(path));
     },
     put: async (key, body, contentType) => {
-      objects.set(key, { body: Buffer.from(body as string), contentType });
+      objects.set(key, { body: Buffer.from(body), contentType });
     },
     putFile: async (key, path, contentType) => {
       objects.set(key, { body: await readFile(path), contentType });

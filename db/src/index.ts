@@ -17,10 +17,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 // drizzle-orm 1.0 takes the tables through the relations config built by
 // defineRelations, and that config is also what drizzle-graphql reads.
 const { drizzle } = await import('drizzle-orm/postgres-js');
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc overload resolution
-const connection: any = {
+const connection = {
   url: DATABASE_URL,
-  ...(isProduction && requiresSsl(DATABASE_URL) ? { ssl: 'require' } : {}),
+  ...(isProduction && requiresSsl(DATABASE_URL) ? { ssl: 'require' as const } : {}),
   // Every boot runs `CREATE SCHEMA IF NOT EXISTS "drizzle"`, and Postgres answers
   // with a NOTICE when it already does. Printing it makes a healthy restart look
   // like a failure, so notices are dropped; real errors still throw.

@@ -1,6 +1,6 @@
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
-import { extendSchema, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
+import { assertObjectType, extendSchema, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
@@ -112,9 +112,8 @@ async function signInDirectly(ctx: Context, email: string): Promise<{ token: str
 
 export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const extendedSchema = extendSchema(schema, AUTH_SDL);
-  const mutationType = extendedSchema.getType('Mutation') as GraphQLObjectType;
-  const fields = mutationType.getFields();
-  const queries = (extendedSchema.getType('Query') as GraphQLObjectType).getFields();
+  const fields = assertObjectType(extendedSchema.getType('Mutation')).getFields();
+  const queries = assertObjectType(extendedSchema.getType('Query')).getFields();
 
   queries.me.resolve = (_parent: unknown, _args: unknown, context: Context) => loadUser(context, requireAuth(context));
 

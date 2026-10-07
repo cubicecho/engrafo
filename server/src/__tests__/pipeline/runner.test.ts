@@ -41,11 +41,11 @@ describe('pipeline runner', () => {
   }
 
   const stepsOf = async (documentId: string) =>
-    (await db
+    db
       .select()
       .from(processingSteps)
       .where(eq(processingSteps.documentId, documentId))
-      .orderBy(asc(processingSteps.position))) as Array<{ step: string; status: string; attempts: number }>;
+      .orderBy(asc(processingSteps.position));
 
   const reload = async (id: string) => (await db.select().from(documents).where(eq(documents.id, id)))[0];
 

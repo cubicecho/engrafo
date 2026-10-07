@@ -1,6 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -53,8 +52,11 @@ describe('createApp', () => {
     server = await new Promise<Server>((resolve) => {
       const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
     });
-    const { port } = server.address() as AddressInfo;
-    origin = `http://127.0.0.1:${port}`;
+    const address = server.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error('expected the test server to listen on a TCP port');
+    }
+    origin = `http://127.0.0.1:${address.port}`;
   });
 
   afterAll(async () => {

@@ -23,7 +23,7 @@ export const inspectStep: PipelineStep = {
     let headLength = 0;
 
     for await (const chunk of await storage.files.getStream(doc.originalKey)) {
-      const buffer = chunk as Buffer;
+      const buffer: Buffer = chunk;
       hash.update(buffer);
       if (headLength < SNIFF_BYTES) {
         head.push(buffer);

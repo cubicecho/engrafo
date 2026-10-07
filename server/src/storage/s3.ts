@@ -1,6 +1,6 @@
 import { createWriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import type { Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   DeleteObjectsCommand,
@@ -82,6 +82,20 @@ export function createS3Storage(config: S3Config): StorageSet {
 }
 
 /** One bucket's worth of `Storage`. The clients are shared; only the bucket differs. */
+/**
+ * Narrows a GetObject body to the stream it is under Node.
+ *
+ * @param body - `GetObjectCommandOutput.Body`, which the SDK types for every runtime at once.
+ * @returns The body as a Node stream.
+ * @throws When the object came back with no body, or one that is not a Node stream.
+ */
+function bodyStream(body: unknown): Readable {
+  if (body instanceof Readable) {
+    return body;
+  }
+  throw new Error('The bucket returned an object with no readable body.');
+}
+
 function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Storage {
   return {
     presignPut(key, { contentType, contentLength }) {
@@ -110,7 +124,8 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
         const result = await client.send(new HeadObjectCommand({ Bucket, Key: key }));
         return { size: result.ContentLength ?? 0, contentType: result.ContentType ?? null };
       } catch (error) {
-        if (error instanceof NotFound || (error as { name?: string }).name === 'NotFound') {
+        const isMissing = error instanceof NotFound || (error instanceof Error && error.name === 'NotFound');
+        if (isMissing) {
           return null;
         }
         throw error;
@@ -119,12 +134,12 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
 
     async getStream(key) {
       const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
-      return result.Body as Readable;
+      return bodyStream(result.Body);
     },
 
     async download(key, path) {
       const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
-      await pipeline(result.Body as Readable, createWriteStream(path));
+      await pipeline(bodyStream(result.Body), createWriteStream(path));
     },
 
     async put(key, body, contentType) {
