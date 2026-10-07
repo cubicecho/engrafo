@@ -1,3 +1,16 @@
+## [2.0.1](https://github.com/cubicecho/engrafo/compare/v2.0.0...v2.0.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **app:** keep the session when the browser blocks storage ([af27e12](https://github.com/cubicecho/engrafo/commit/af27e12160e95ebdbf6fb4b83da8b1683e6cc81e))
+* **app:** report a delete or a retry the server refused ([031467b](https://github.com/cubicecho/engrafo/commit/031467b3f44d6713f61f71a9cfc9329bc4574dcb))
+* **app:** say so when the text or the preview cannot be loaded ([694a3b3](https://github.com/cubicecho/engrafo/commit/694a3b3e93e93724d5a698baaf3f728909a6c84e))
+* **app:** survive a magic link that is not a URL ([88ad0e3](https://github.com/cubicecho/engrafo/commit/88ad0e3b20e0a0db6a731bd88460cecb0212acc3))
+* **server:** accept only whole positive numbers for numeric settings ([b387cc9](https://github.com/cubicecho/engrafo/commit/b387cc946c0f4c87a1c3ca14c0034ca1cd61fe05))
+* **server:** keep the database error out of the /healthz body ([8907569](https://github.com/cubicecho/engrafo/commit/8907569b215fbbd62a05f61f4366550778988b9a))
+* **server:** let only one of two simultaneous retries start a run ([d97799b](https://github.com/cubicecho/engrafo/commit/d97799b75c217c07cf9fb93dd4e41eda05a98710))
+
 # [2.0.0](https://github.com/cubicecho/engrafo/compare/v1.5.0...v2.0.0) (2026-10-07)
 
 
