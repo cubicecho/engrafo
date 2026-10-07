@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect } from 'storybook/test';
+import { DocumentStatusEnum, type DocumentsPageQuery } from '@/__generated__/graphql';
 import { ROUTES } from '@/lib/routes';
 import { DocumentsRoute } from './documents';
 
@@ -23,14 +24,16 @@ const SERVER_CONFIG = {
   ocrDefault: true,
 };
 
-function document(overrides: Record<string, unknown>) {
+type Document = DocumentsPageQuery['documents'][number];
+
+function document(overrides: Partial<Document>): Document {
   return {
     id: crypto.randomUUID(),
     title: 'Untitled',
     originalFilename: 'untitled.pdf',
     mimeType: 'application/pdf',
     sizeBytes: 482_113,
-    status: 'ready',
+    status: DocumentStatusEnum.Ready,
     ocrRequested: true,
     createdAt: '2026-09-02T11:04:00.000Z',
     ...overrides,
@@ -66,8 +69,12 @@ export const WithDocuments: Story = {
           documents: () => [
             document({ title: 'Electricity bill — August', originalFilename: 'bill-aug.pdf' }),
             document({ title: 'Passport scan', originalFilename: 'passport.png', mimeType: 'image/png' }),
-            document({ title: 'Lease agreement', originalFilename: 'lease.pdf', status: 'processing' }),
-            document({ title: 'Warranty', originalFilename: 'warranty.pdf', status: 'failed' }),
+            document({
+              title: 'Lease agreement',
+              originalFilename: 'lease.pdf',
+              status: DocumentStatusEnum.Processing,
+            }),
+            document({ title: 'Warranty', originalFilename: 'warranty.pdf', status: DocumentStatusEnum.Failed }),
           ],
         },
       },

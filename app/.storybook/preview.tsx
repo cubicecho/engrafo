@@ -53,7 +53,9 @@ const preview: Preview = {
   decorators: [
     // Innermost, so a story's own decorators still see the router and the client.
     (Story, context) => {
-      const parameters = context.parameters.apolloClient as ApolloParameters | undefined;
+      // Storybook types every parameter as `any`, so this annotation is where the shape is
+      // stated; nothing upstream checks a story against it.
+      const parameters: ApolloParameters | undefined = context.parameters.apolloClient;
 
       // The addon ships a panel and no decorator, so the mocks it displays have to be handed to
       // it from here. Only `mocks` has anything to show — a `resolvers` story has no list of

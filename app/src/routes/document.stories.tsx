@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
+import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
 
@@ -16,11 +17,16 @@ const ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e';
 const TEXT = 'This lease is made between';
 const OVER_THE_PREVIEW_LIMIT_BYTES = 2_097_152;
 
-function step(overrides: Record<string, unknown>) {
+// The builders are typed by the page's own query, so a field the page stops selecting, or a
+// status the schema drops, is a type error here rather than a story quietly out of date.
+type Document = NonNullable<DocumentDetailQuery['document']>;
+type Step = Document['processingSteps'][number];
+
+function step(overrides: Partial<Step>): Step {
   return {
     id: crypto.randomUUID(),
     step: 'store',
-    status: 'succeeded',
+    status: StepStatusEnum.Succeeded,
     attempts: 1,
     error: null,
     startedAt: '2026-09-02T11:04:00.000Z',
@@ -29,7 +35,7 @@ function step(overrides: Record<string, unknown>) {
   };
 }
 
-function document(overrides: Record<string, unknown>) {
+function document(overrides: Partial<Document>): Document {
   return {
     id: ID,
     title: 'Lease agreement',
@@ -41,7 +47,7 @@ function document(overrides: Record<string, unknown>) {
     contentKey: null,
     contentBytes: null,
     ocrRequested: false,
-    status: 'ready',
+    status: DocumentStatusEnum.Ready,
     error: null,
     createdAt: '2026-09-02T11:04:00.000Z',
     processingSteps: [step({ step: 'store' }), step({ step: 'extract-text' })],
@@ -88,11 +94,11 @@ export const Failed: Story = {
         Query: {
           document: () =>
             document({
-              status: 'failed',
+              status: DocumentStatusEnum.Failed,
               error: 'ocrmypdf exited with code 2',
               processingSteps: [
                 step({ step: 'store' }),
-                step({ step: 'ocr', status: 'failed', attempts: 3, error: 'ocrmypdf exited with code 2' }),
+                step({ step: 'ocr', status: StepStatusEnum.Failed, attempts: 3, error: 'ocrmypdf exited with code 2' }),
               ],
             }),
         },
