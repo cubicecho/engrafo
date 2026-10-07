@@ -1,6 +1,9 @@
 # Required repository secrets:
 #   DOCKERHUB_USERNAME — your Docker Hub username
 #   DOCKERHUB_TOKEN    — a Docker Hub access token (not your password)
+#
+# Docker Hub is the registry the compose files and the README name. The same
+# build is also pushed to GHCR, which needs nothing beyond the built-in token.
 
 name: Release
 
@@ -8,6 +11,12 @@ on:
   push:
     branches:
       - main
+  # Publishes the images for a version that already exists, without cutting a release.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to tag the images with, such as 1.5.0
+        required: true
 
 jobs:
   release:
@@ -16,17 +25,18 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # semantic-release reads the whole history to work out what the last
           # release was and which commits have landed since.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/changelog @semantic-release/git @semantic-release/github
@@ -38,7 +48,13 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_VERSION: ${{ inputs.version }}
         run: |
+          if [ -n "$DISPATCH_VERSION" ]; then
+            echo "version=$DISPATCH_VERSION" >> $GITHUB_OUTPUT
+            echo "released=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           OUTPUT=$(npx semantic-release --dry-run 2>&1)
           echo "$OUTPUT"
           VERSION=$(echo "$OUTPUT" | grep -oP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
@@ -52,24 +68,34 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.release.outputs.released == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: steps.release.outputs.released == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        if: steps.release.outputs.released == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # `latest` as well as the version, because that is the tag
       # docker-compose.quickstart.yml pulls — the file the README tells
       # self-hosters to paste into Portainer or TrueNAS.
-      - name: Build and push to Docker Hub
+      - name: Build and push
         if: steps.release.outputs.released == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/engrafo:${{ steps.release.outputs.version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/engrafo:latest
+            ghcr.io/${{ github.repository }}:${{ steps.release.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest

@@ -1,17 +1,22 @@
 import type { DB, Document } from '@cubicecho/engrafo-db';
-import type { VlmConfig } from '../config.ts';
+import type { VlmConfig } from '../core/config.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
+/** The settings every run is handed, decided once at boot. */
 export interface PipelineConfig {
   /** OCR allowed by config and ocrmypdf present. */
   ocrAvailable: boolean;
+  /** Tesseract language codes joined with `+`. */
   ocrLanguages: string;
+  /** How many documents run at once. */
   concurrency: number;
   /** The vision endpoint that re-reads pages after ocrmypdf, or null where none is configured. */
   vlm: VlmConfig | null;
 }
 
+/** What a step's `run` is given. */
 export interface StepContext {
+  /** The document as earlier steps left it. */
   doc: Document;
   db: DB;
   storage: StorageSet;

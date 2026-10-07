@@ -23,7 +23,7 @@ export const inspectStep: PipelineStep = {
     let headLength = 0;
 
     for await (const chunk of await storage.files.getStream(doc.originalKey)) {
-      const buffer = chunk as Buffer;
+      const buffer: Buffer = chunk;
       hash.update(buffer);
       if (headLength < SNIFF_BYTES) {
         head.push(buffer);
@@ -33,7 +33,8 @@ export const inspectStep: PipelineStep = {
 
     const sniffed = await fileTypeFromBuffer(Buffer.concat(head).subarray(0, SNIFF_BYTES));
     const mimeType = sniffed?.mime ?? (doc.mimeType === 'text/plain' ? 'text/plain' : null);
-    if (!mimeType || !isAcceptedMimeType(mimeType)) {
+    const isUnsupported = !mimeType || isAcceptedMimeType(mimeType) === false;
+    if (isUnsupported) {
       throw new Error(`Unsupported file type${sniffed ? ` (${sniffed.mime})` : ''}.`);
     }
 

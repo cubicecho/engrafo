@@ -1,26 +1,25 @@
 import { useQuery } from '@apollo/client/react';
-import { FileText } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link } from 'react-router';
 import { graphql } from '@/__generated__';
-import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
+import { DocumentsTable } from '@/components/domain/documents-table';
+import { isInProgress } from '@/components/domain/status-badge';
 import { UploadPanel } from '@/components/domain/upload-panel';
+import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { FileText } from '@/components/ui/icons';
+import { DOCUMENT_LIST_DEFAULTS, POLLING_DEFAULTS } from '@/defaults';
 import { queryLike } from '@/lib/query';
 
 const DocumentsPage = graphql(`
-  query DocumentsPage {
+  query DocumentsPage($limit: Int!) {
     serverConfig {
       maxUploadBytes
       acceptedMimeTypes
       ocrAvailable
       ocrDefault
     }
-    documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: 200) {
+    documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: $limit) {
       id
       title
       originalFilename
@@ -33,30 +32,34 @@ const DocumentsPage = graphql(`
   }
 `);
 
-// Long enough not to hammer the server, short enough that a small scan looks
-// live. There is no subscription: the pipeline runs in the server process and
-// says nothing until it is asked.
-const POLL_MS = 3000;
-
+/**
+ * The archive: the upload panel over the list of everything uploaded, newest
+ * first. Polls while any document is still being processed.
+ */
 export function DocumentsRoute() {
-  const result = useQuery(DocumentsPage);
+  const result = useQuery(DocumentsPage, { variables: { limit: DOCUMENT_LIST_DEFAULTS.limit } });
   const { data, startPolling, stopPolling } = result;
   const documents = data?.documents ?? [];
   const busy = documents.some((doc) => isInProgress(doc.status));
 
-  // Only while something is actually moving: a quiet archive should sit still.
+  // There is no subscription: the pipeline runs in the server process and says
+  // nothing until it is asked. So the page asks, but only while something is
+  // actually moving: a quiet archive should sit still.
   useEffect(() => {
-    if (busy) startPolling(POLL_MS);
-    else stopPolling();
+    if (busy) {
+      startPolling(POLLING_DEFAULTS.intervalMs);
+    } else {
+      stopPolling();
+    }
     return () => stopPolling();
   }, [busy, startPolling, stopPolling]);
 
   return (
     <PageLayout
-      icon={<FileText />}
+      iconSlot={<FileText />}
       title="Documents"
       description="Everything you have uploaded."
-      content={
+      contentSlot={
         <div className="flex flex-col gap-6 py-4">
           {data?.serverConfig && <UploadPanel config={data.serverConfig} onChanged={() => void result.refetch()} />}
 
@@ -64,50 +67,16 @@ export function DocumentsRoute() {
             query={queryLike(result)}
             what="your documents"
             count={documents.length}
-            empty={
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <FileText />
-                  </EmptyMedia>
-                  <EmptyTitle>No documents yet</EmptyTitle>
-                  <EmptyDescription>Upload a PDF, a scan or a text file to get started.</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+            emptySlot={
+              <EmptyState
+                icon={FileText}
+                title="No documents yet"
+                description="Upload a PDF, a scan or a text file to get started."
+              />
             }
           />
 
-          {documents.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Size</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Added</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell className="max-w-[24rem]">
-                      <Link className="font-medium hover:underline" to={`/documents/${doc.id}`}>
-                        {doc.title}
-                      </Link>
-                      <div className="truncate text-muted-foreground text-xs">{doc.originalFilename}</div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{doc.mimeType}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(doc.sizeBytes)}</TableCell>
-                    <TableCell>
-                      <DocumentStatusBadge status={doc.status} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatDateTime(doc.createdAt)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {documents.length > 0 && <DocumentsTable documents={documents} />}
         </div>
       }
     />

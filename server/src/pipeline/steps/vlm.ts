@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ask, type SideTaskInput, tryAsk } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db';
-import type { VlmConfig } from '../../config.ts';
+import { VLM_DEFAULTS } from '../../core/defaults.ts';
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 import type { StorageSet } from '../../storage/s3.ts';
 import { storeContent } from '../content.ts';
 import { isImage, isOcrable } from '../mime.ts';
@@ -14,35 +15,7 @@ const exec = promisify(execFile);
 
 // Ghostscript is already in the image, rendering ocrmypdf's PDF/A. Rasterising
 // with it costs no new package in either Docker stage.
-const GHOSTSCRIPT_TIMEOUT_MS = 10 * 60 * 1000;
-
-/**
- * 200, not the 300 ocrmypdf hands Tesseract. A vision model is billed and
- * prefilled by pixel count, and 300 DPI on US Letter is 8.4 megapixels — most
- * servers downscale it back below this before the encoder ever sees it, so the
- * extra pixels buy latency and tokens rather than accuracy.
- */
-const PAGE_DPI = 200;
-
-/**
- * A dense A4 page of prose is around 1,500 tokens, and a side task's own default
- * ceiling is 512 — sized for the one-line answers the module is named for. A page
- * truncated at the ceiling is silently half a page, so this is set where a page
- * cannot plausibly reach it.
- */
-const PAGE_MAX_TOKENS = 8192;
-
-/**
- * Past this, fall back to ocrmypdf's text rather than spending hours on one
- * document.
- *
- * The pipeline runs one document at a time by default and has no queue, so a
- * 600-page scan at half a minute a page is the whole archive stalled for an
- * afternoon. The cap declines the job rather than truncating it: half a
- * document's text, written over text that was complete, is worse than not
- * running at all.
- */
-const MAX_PAGES = 200;
+const GHOSTSCRIPT_TIMEOUT_MS = VLM_DEFAULTS.rasterTimeoutMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 /**
  * The instruction. Blunt about what not to do, because the failure mode of a
@@ -58,12 +31,24 @@ export const TRANSCRIBE = [
 ].join(' ');
 
 /**
- * Ghostscript's arguments: one PNG per page, numbered, into `pattern`.
+ * Builds the Ghostscript command line that writes one numbered PNG per page.
  *
- * `-dLastPage` asks for one more than the cap so the caller can tell "exactly at
- * the cap" from "over it" without first counting the pages in a separate pass.
+ * @param input - Path of the PDF to rasterise.
+ * @param pattern - Output path with a `%d` placeholder for the page number.
+ * @param lastPage - The last page to render.
+ * @param dpi - Resolution to render at. Defaults to `VLM_DEFAULTS.pageDpi`.
+ * @returns The arguments, in the order Ghostscript takes them.
+ *
+ * @remarks
+ * The caller asks for one page more than the cap, so it can tell "exactly at the cap" from
+ * "over it" without first counting the pages in a separate pass.
  */
-export function rasterArgs(input: string, pattern: string, lastPage: number, dpi: number = PAGE_DPI): string[] {
+export function rasterArgs(
+  input: string,
+  pattern: string,
+  lastPage: number,
+  dpi: number = VLM_DEFAULTS.pageDpi,
+): string[] {
   return [
     '-q',
     '-dNOPAUSE',
@@ -77,7 +62,13 @@ export function rasterArgs(input: string, pattern: string, lastPage: number, dpi
   ];
 }
 
-/** The user turn: the instruction's object, and the page it applies to, as an OpenAI content part. */
+/**
+ * Builds the user turn for one page.
+ *
+ * @param image - The page's bytes.
+ * @param mimeType - The image's media type, which the data URL carries.
+ * @returns The instruction's object and the page it applies to, as OpenAI content parts.
+ */
 export function pageInput(image: Buffer, mimeType: string): SideTaskInput {
   return [
     { type: 'text', text: 'Transcribe this page.' },
@@ -111,13 +102,15 @@ async function pageImages(storage: StorageSet, doc: Document, dir: string): Prom
   const source = join(dir, 'source.pdf');
   await storage.files.download(doc.archiveKey ?? doc.originalKey, source);
 
-  await exec('gs', rasterArgs(source, join(dir, 'page-%04d.png'), MAX_PAGES + 1), {
+  await exec('gs', rasterArgs(source, join(dir, 'page-%04d.png'), VLM_DEFAULTS.maxPages + 1), {
     timeout: GHOSTSCRIPT_TIMEOUT_MS,
   });
 
   // Zero-padded to four digits by Ghostscript, so lexical order is page order.
   const files = (await readdir(dir)).filter((name) => name.endsWith('.png')).sort();
-  if (files.length > MAX_PAGES) return null;
+  if (files.length > VLM_DEFAULTS.maxPages) {
+    return null;
+  }
   return files.map((name) => ({ file: join(dir, name), mimeType: 'image/png' }));
 }
 
@@ -141,8 +134,10 @@ export const vlmStep: PipelineStep = {
   name: 'vlm',
   enabled: (doc, config) => doc.ocrRequested && config.vlm !== null && isOcrable(doc.mimeType),
   async run({ doc, storage, config, tmpDir }) {
-    const vlm: VlmConfig | null = config.vlm;
-    if (!vlm) return undefined;
+    const { vlm } = config;
+    if (vlm === null) {
+      return undefined;
+    }
 
     // Its own directory: `ocr` has already written `original`, `archive.pdf` and
     // `content.txt` into the run's tmpDir, and the page glob must not find them.
@@ -151,10 +146,12 @@ export const vlmStep: PipelineStep = {
 
     const pages = await pageImages(storage, doc, dir);
     if (pages === null) {
-      notice(`${doc.id}: more than ${MAX_PAGES} pages, keeping the ocrmypdf text`);
+      notice(`${doc.id}: more than ${VLM_DEFAULTS.maxPages} pages, keeping the ocrmypdf text`);
       return undefined;
     }
-    if (pages.length === 0) return undefined;
+    if (pages.length === 0) {
+      return undefined;
+    }
 
     const transcript: string[] = [];
     for (const [index, page] of pages.entries()) {
@@ -164,7 +161,7 @@ export const vlmStep: PipelineStep = {
         label,
         () =>
           ask(vlm, vlm.model, TRANSCRIBE, pageInput(image, page.mimeType), {
-            maxTokens: PAGE_MAX_TOKENS,
+            maxTokens: VLM_DEFAULTS.pageMaxTokens,
             // Transcription, not generation: the same page twice should read the
             // same way twice.
             temperature: 0,
@@ -182,7 +179,7 @@ export const vlmStep: PipelineStep = {
     // document — and `storeContent` would take the empty string as "no text" and
     // drop the object ocrmypdf's text is in.
     const content = transcript.join('\n\n').trim();
-    if (!content) {
+    if (content === '') {
       notice(`${doc.id}: the model returned nothing for any page, keeping the ocrmypdf text`);
       return undefined;
     }

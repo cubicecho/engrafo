@@ -11,7 +11,8 @@ import type { Plugin } from 'vite';
  * So the harness serves the bucket instead. A story picks its outcome by which path it puts to:
  *
  * - `MOCK_BUCKET_OK` — 204, the upload lands
- * - `MOCK_BUCKET_DENIED` — 403, what an expired signature looks like from the browser
+ * - `MOCK_BUCKET_DENIED` — 403, what an expired signature looks like from the browser, to a PUT
+ *   and to the GET that reads a document's text back
  *
  * Storybook only. The real client never sees these; they exist because the alternative is a
  * component whose failure branch nobody has ever watched render.
@@ -19,18 +20,29 @@ import type { Plugin } from 'vite';
 export const MOCK_BUCKET_OK = '/__mock-bucket/ok';
 export const MOCK_BUCKET_DENIED = '/__mock-bucket/denied';
 
+const HTTP_NO_CONTENT = 204;
+const HTTP_FORBIDDEN = 403;
+
+/**
+ * The Vite plugin that serves the mock bucket's two paths.
+ *
+ * @returns A plugin answering every request under `/__mock-bucket/` and passing everything else on.
+ */
 export function mockBucket(): Plugin {
   return {
     name: 'engrafo:mock-bucket',
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        if (request.method !== 'PUT' || !request.url?.startsWith('/__mock-bucket/')) return next();
+        const isBucketPath = request.url?.startsWith('/__mock-bucket/') ?? false;
+        if (isBucketPath === false) {
+          return next();
+        }
 
         // Drained rather than ignored: leaving the body unread stalls the request, and the
         // panel sits at a progress bar that never finishes.
         request.resume();
         request.on('end', () => {
-          response.statusCode = request.url?.startsWith(MOCK_BUCKET_DENIED) ? 403 : 204;
+          response.statusCode = request.url?.startsWith(MOCK_BUCKET_DENIED) ? HTTP_FORBIDDEN : HTTP_NO_CONTENT;
           response.end();
         });
       });

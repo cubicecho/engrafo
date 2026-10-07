@@ -35,14 +35,10 @@ const config: StorybookConfig = {
   },
 
   typescript: {
-    // The prop tables are the TSDoc already on every prop, put in front of a consumer rather
-    // than only a reader of the source.
-    reactDocgen: 'react-docgen-typescript',
-    reactDocgenTypescriptOptions: {
-      shouldExtractLiteralValuesFromEnum: true,
-      shouldRemoveUndefinedFromOptional: true,
-      propFilter: (prop) => !prop.parent || !/node_modules/.test(prop.parent.fileName),
-    },
+    // The prop tables are the doc comments already on every prop, put in front of a consumer
+    // rather than only a reader of the source. `react-docgen` reads them from the syntax tree;
+    // `react-docgen-typescript` needs the compiler API, which TypeScript 7 no longer ships.
+    reactDocgen: 'react-docgen',
   },
 };
 

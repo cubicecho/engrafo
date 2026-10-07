@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect } from 'storybook/test';
+import { ROUTES } from '@/lib/routes';
 import { SettingsRoute } from './settings';
 
 /**
@@ -12,6 +13,8 @@ import { SettingsRoute } from './settings';
  * hand-written `MockedProvider` response would happily keep serving the old shape forever.
  */
 
+const MAX_UPLOAD_BYTES = 104_857_600;
+
 const RESOLVERS = {
   Query: {
     me: () => ({
@@ -21,7 +24,7 @@ const RESOLVERS = {
     }),
     serverConfig: () => ({
       version: '1.4.2',
-      maxUploadBytes: 100 * 1024 * 1024,
+      maxUploadBytes: MAX_UPLOAD_BYTES,
       acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
       ocrAvailable: true,
       ocrDefault: true,
@@ -44,7 +47,7 @@ const meta = {
   render: () => <Framed />,
   parameters: {
     layout: 'fullscreen',
-    router: { initialEntries: ['/settings'] },
+    router: { initialEntries: [ROUTES.settings] },
     apolloClient: { resolvers: RESOLVERS },
   },
 } satisfies Meta<typeof SettingsRoute>;
@@ -59,6 +62,10 @@ export const Ready: Story = {
     await expect(canvas.getByText('1.4.2')).toBeInTheDocument();
     await expect(canvas.getByText('100.0 MB')).toBeInTheDocument();
     await expect(canvas.getByText('Available, on by default')).toBeInTheDocument();
+    // The one control on this page that is not read-only. It is a device preference, so it has
+    // no mutation behind it and no server state to wait for — it is here because settings is
+    // where someone looks for it, not because the query supplies it.
+    await expect(canvas.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
   },
 };
 
@@ -87,7 +94,7 @@ export const WithoutOcr: Story = {
 export const Loading: Story = {
   parameters: { apolloClient: { resolvers: RESOLVERS, delay: 100_000 } },
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole('status')).toHaveTextContent('Loading');
+    await expect(canvas.getByRole('status')).toHaveAccessibleName('Loading');
     await expect(canvas.queryByText('archivist@example.com')).not.toBeInTheDocument();
   },
 };
@@ -111,7 +118,7 @@ export const Unreachable: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Could not load your settings')).toBeInTheDocument();
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load your settings');
     await expect(canvas.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   },
 };

@@ -19,13 +19,13 @@ jobs:
       # in-memory database.
       DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # Matches the Dockerfile: the server runs its TypeScript sources
-          # directly under --experimental-strip-types, so the runtime major is
+          # directly, with Node stripping the types, so the runtime major is
           # part of the contract, not just a build detail.
-          node-version: 24
+          node-version: 26
           cache: npm
       - run: npm ci
       - run: npm run codegen
@@ -53,8 +53,8 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
 
       # Built but not pushed. The release workflow publishes this same
       # Dockerfile on every version bump, and the README's Quickstart tells
@@ -62,7 +62,7 @@ jobs:
       # builds should fail on the pull request that broke it, not on the push
       # to main that was meant to ship it.
       - name: Build the image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -74,7 +74,7 @@ jobs:
       # runner without them it reports as skipped, and a broken ocrmypdf
       # invocation or a missing Tesseract data package sails through.
       - name: Run the suite with OCR installed
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: test

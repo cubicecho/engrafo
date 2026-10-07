@@ -1,18 +1,28 @@
 import { useApolloClient, useMutation, useQuery } from '@apollo/client/react';
-import { ArrowLeft, Check, Download, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { DocumentFileVariant } from '@/__generated__/graphql';
 import { ActionButton } from '@/components/action-button';
-import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
-import { DocumentStatusBadge, isInProgress, StepStatusBadge } from '@/components/domain/status-badge';
+import { DocumentDetailsCard } from '@/components/domain/document-details-card';
+import { DocumentFileUrl } from '@/components/domain/document-file';
+import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
+import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
+import { DocumentTextCard } from '@/components/domain/document-text-card';
+import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
+import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
+import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
-import { QueryError, RowSkeleton } from '@/components/query-state';
+import { QueryState } from '@/components/query-state';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
+import { POLLING_DEFAULTS } from '@/defaults';
+import { formatBytes, joinStats } from '@/lib/format';
+import { queryLike } from '@/lib/query';
+import { ROUTES } from '@/lib/routes';
+import type { SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
   query DocumentDetail($id: UUID!) {
@@ -43,12 +53,6 @@ const DocumentDetail = graphql(`
   }
 `);
 
-const FileUrl = graphql(`
-  query DocumentFileUrl($id: UUID!, $variant: DocumentFileVariant!, $download: Boolean!) {
-    documentFileUrl(id: $id, variant: $variant, download: $download)
-  }
-`);
-
 const RetryProcessing = graphql(`
   mutation RetryDocumentProcessing($id: UUID!) {
     retryDocumentProcessing(id: $id) {
@@ -74,13 +78,34 @@ const DeleteDocument = graphql(`
   }
 `);
 
-const POLL_MS = 3000;
+/** The one-step trail above every state of this page, so it does not jump as the title lands. */
+function BackToDocuments() {
+  return (
+    <Link className="flex items-center gap-1 text-info text-sm hover:underline" to={ROUTES.documents}>
+      <ArrowLeft className="size-3.5" aria-hidden />
+      Documents
+    </Link>
+  );
+}
 
-// The text is an object in its own bucket, so the page fetches it rather than
-// receiving it with the document. Past this much, showing it in the browser
-// helps nobody — the download link stands in for it.
-const TEXT_PREVIEW_BYTES = 512 * 1024;
+/** The page before there is a document to name it: loading, failed, or not there. */
+function Placeholder({ loading = false, contentSlot }: { loading?: boolean; contentSlot: SlotNode }) {
+  return (
+    <PageLayout
+      width="prose"
+      breadcrumbsSlot={<BackToDocuments />}
+      title="Document"
+      loading={loading}
+      contentSlot={<div className="py-4">{contentSlot}</div>}
+    />
+  );
+}
 
+/**
+ * One document, by the id in the URL: its pipeline, preview, text and details,
+ * and the rename, download, retry and delete that act on it. Polls while the
+ * document is still being processed.
+ */
 export function DocumentRoute() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -89,222 +114,143 @@ export function DocumentRoute() {
   const { data, startPolling, stopPolling } = result;
   const doc = data?.document ?? null;
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [content, setContent] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [retry] = useMutation(RetryProcessing);
+  const [renaming, setRenaming] = useState(false);
+  const [retry, retryState] = useMutation(RetryProcessing);
   const [rename] = useMutation(RenameDocument);
-  const [remove] = useMutation(DeleteDocument);
+  const [remove, removeState] = useMutation(DeleteDocument);
 
   const busy = doc ? isInProgress(doc.status) : false;
   useEffect(() => {
-    if (busy) startPolling(POLL_MS);
-    else stopPolling();
+    if (busy) {
+      startPolling(POLLING_DEFAULTS.intervalMs);
+    } else {
+      stopPolling();
+    }
     return () => stopPolling();
   }, [busy, startPolling, stopPolling]);
 
-  // Presigned and short-lived, so it is fetched when the page settles rather
-  // than cached with the document. The archive is the searchable PDF; before
-  // OCR has run there is only the original.
-  const variant = doc?.archiveKey ? DocumentFileVariant.Archive : DocumentFileVariant.Original;
-  const previewable = doc ? doc.mimeType !== 'text/plain' : false;
-  useEffect(() => {
-    if (!doc || !previewable) return;
-    let current = true;
-    client
-      .query({ query: FileUrl, variables: { id: doc.id, variant, download: false }, fetchPolicy: 'network-only' })
-      .then(({ data }) => {
-        if (current && data) setPreviewUrl(data.documentFileUrl);
-      })
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [client, doc, previewable, variant]);
-
-  const contentKey = doc?.contentKey ?? null;
-  const contentBytes = doc?.contentBytes ?? 0;
-  const contentOversize = contentBytes > TEXT_PREVIEW_BYTES;
-  useEffect(() => {
-    if (!doc || !contentKey || contentOversize) {
-      setContent(null);
+  async function download(variant: DocumentFileVariant = DocumentFileVariant.Original) {
+    if (!doc) {
       return;
     }
-    let current = true;
-    client
-      .query({
-        query: FileUrl,
-        variables: { id: doc.id, variant: DocumentFileVariant.Text, download: false },
-        fetchPolicy: 'network-only',
-      })
-      .then(({ data }) => (data ? fetch(data.documentFileUrl) : null))
-      .then((response) => response?.text())
-      .then((text) => {
-        if (current && text !== undefined) setContent(text);
-      })
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [client, doc, contentKey, contentOversize]);
-
-  async function download(variant = DocumentFileVariant.Original) {
-    if (!doc) return;
     const { data } = await client.query({
-      query: FileUrl,
+      query: DocumentFileUrl,
       variables: { id: doc.id, variant, download: true },
       fetchPolicy: 'network-only',
     });
-    if (data) window.location.assign(data.documentFileUrl);
+    if (data) {
+      window.location.assign(data.documentFileUrl);
+    }
   }
 
-  if (result.error && !doc) {
+  if (!doc) {
+    const query = queryLike(result);
     return (
-      <div className="p-4">
-        <QueryError error={result.error} onRetry={() => void result.refetch()} what="this document" />
-      </div>
+      <Placeholder
+        loading={query.isPending}
+        contentSlot={
+          <QueryState
+            query={query}
+            what="this document"
+            count={0}
+            emptySlot={
+              <EmptyState
+                icon={FileText}
+                title="No such document"
+                description="It may have been deleted, or the link is for someone else's archive."
+                actionSlot={
+                  <Button variant="outline" content="Back to documents" linkSlot={<Link to={ROUTES.documents} />} />
+                }
+              />
+            }
+          />
+        }
+      />
     );
   }
-  if (!doc) return <RowSkeleton className="p-4" />;
 
   return (
     <PageLayout
       width="prose"
-      breadcrumbs={
-        <Link className="flex items-center gap-1 hover:underline" to="/">
-          <ArrowLeft className="size-3.5" aria-hidden />
-          Documents
-        </Link>
-      }
-      title={
-        renaming === null ? (
-          doc.title
-        ) : (
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void rename({ variables: { id: doc.id, title: renaming } });
-              setRenaming(null);
-            }}
-          >
-            <Input value={renaming} onChange={(event) => setRenaming(event.target.value)} autoFocus />
-            <ActionButton type="submit" label="Save title" size="icon" variant="ghost">
-              <Check className="size-4" aria-hidden />
-            </ActionButton>
-          </form>
-        )
-      }
-      description={`${doc.originalFilename} · ${doc.mimeType} · ${formatBytes(doc.sizeBytes)}`}
-      action={
-        <div className="flex items-center gap-1">
+      breadcrumbsSlot={<BackToDocuments />}
+      title={doc.title}
+      description={joinStats(doc.originalFilename, doc.mimeType, formatBytes(doc.sizeBytes))}
+      actionSlot={
+        <>
           <DocumentStatusBadge status={doc.status} />
           <ActionButton
             label="Rename"
-            variant="ghost"
+            variant="outline"
             size="icon"
-            onClick={() => setRenaming(renaming === null ? doc.title : null)}
-          >
-            <Pencil className="size-4" aria-hidden />
-          </ActionButton>
-          <ActionButton label="Download original" variant="ghost" size="icon" onClick={() => void download()}>
-            <Download className="size-4" aria-hidden />
-          </ActionButton>
+            iconSlot={<Pencil />}
+            onClick={() => setRenaming(true)}
+          />
+          <ActionButton
+            label="Download original"
+            variant="outline"
+            size="icon"
+            iconSlot={<Download />}
+            onClick={() => void download()}
+          />
           <ConfirmButton
             label="Delete"
-            variant="ghost"
+            variant="outline"
             size="icon"
+            iconSlot={<Trash2 />}
             title="Delete this document?"
-            description="The file and everything extracted from it are removed from storage. This cannot be undone."
+            description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
             onConfirm={() => {
-              void remove({ variables: { id: doc.id } }).then(() => navigate('/', { replace: true }));
+              // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
+              void remove({ variables: { id: doc.id } }).then(
+                () => navigate(ROUTES.documents, { replace: true }),
+                () => undefined,
+              );
             }}
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </ConfirmButton>
-        </div>
+          />
+        </>
       }
-      content={
+      contentSlot={
         <div className="flex flex-col gap-6 py-4">
+          {renaming ? (
+            <RenameDocumentDialog
+              title={doc.title}
+              onRename={(title) => rename({ variables: { id: doc.id, title } })}
+              onClose={() => setRenaming(false)}
+            />
+          ) : null}
+
+          {removeState.error && (
+            <Alert
+              variant="destructive"
+              title="Could not delete this document"
+              description={removeState.error.message}
+            />
+          )}
+          {retryState.error && (
+            <Alert variant="destructive" title="Could not retry processing" description={retryState.error.message} />
+          )}
+
           {doc.error && (
-            <CardLayout
-              className="border-destructive/50"
+            <Alert
+              variant="destructive"
               title="Processing failed"
               description={doc.error}
-              footerActions={
-                <Button variant="outline" onClick={() => void retry({ variables: { id: doc.id } })}>
-                  <RefreshCw className="size-3.5" aria-hidden />
-                  Retry
-                </Button>
+              actionSlot={
+                <Button
+                  variant="outline"
+                  iconSlot={<RefreshCw />}
+                  content="Retry"
+                  onClick={() => void retry({ variables: { id: doc.id } }).catch(() => undefined)}
+                />
               }
             />
           )}
 
-          <CardLayout
-            title="Pipeline"
-            description={doc.ocrRequested ? 'OCR was requested for this document.' : 'Uploaded without OCR.'}
-            content={
-              <ul className="flex flex-col gap-2 text-sm">
-                {doc.processingSteps.map((step) => (
-                  <li key={step.id} className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{step.step}</span>
-                    <span className="flex items-center gap-2 text-muted-foreground text-xs">
-                      {step.error && <span className="text-destructive">{step.error}</span>}
-                      {step.attempts > 1 && <span>{step.attempts} attempts</span>}
-                      {step.finishedAt && <span>{formatDateTime(step.finishedAt)}</span>}
-                      <StepStatusBadge status={step.status} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            }
-          />
-
-          {previewUrl && (
-            <CardLayout
-              title="Preview"
-              description={variant === 'ARCHIVE' ? 'The searchable PDF produced by OCR.' : 'The uploaded file.'}
-              contentClassName="p-0"
-              content={
-                <iframe title="Document preview" src={previewUrl} className="h-[36rem] w-full rounded-md border" />
-              }
-            />
-          )}
-
-          {doc.contentKey && (
-            <CardLayout
-              title="Text"
-              description={`What the pipeline extracted · ${formatBytes(contentBytes)}`}
-              footerActions={
-                <Button variant="outline" onClick={() => void download(DocumentFileVariant.Text)}>
-                  <Download className="size-3.5" aria-hidden />
-                  Download text
-                </Button>
-              }
-              content={
-                contentOversize ? (
-                  <p className="text-muted-foreground text-sm">Too large to show here.</p>
-                ) : (
-                  <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap font-mono text-xs">
-                    {content ?? 'Loading…'}
-                  </pre>
-                )
-              }
-            />
-          )}
-
-          <CardLayout
-            title="Details"
-            content={
-              <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Added</dt>
-                <dd>{formatDateTime(doc.createdAt)}</dd>
-                <dt className="text-muted-foreground">Checksum</dt>
-                <dd className="truncate font-mono text-xs">{doc.checksumSha256 ?? '—'}</dd>
-              </dl>
-            }
-          />
+          <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
+          <DocumentPreviewCard doc={doc} />
+          <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
+          <DocumentDetailsCard createdAt={doc.createdAt} checksumSha256={doc.checksumSha256} />
         </div>
       }
     />

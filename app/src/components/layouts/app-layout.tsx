@@ -1,135 +1,109 @@
-import { FileText, LogOut, Moon, Settings, Sun } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { LogOut } from 'lucide-react';
+import { useLinkClickHandler, useMatch } from 'react-router';
 import { ActionButton } from '@/components/action-button';
-import { clearToken } from '@/lib/auth';
-import { isDark, setDark } from '@/lib/theme';
-import { cn } from '@/lib/utils';
+import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
+import { SidebarLayout } from '@/components/split-layout';
+import { FileText, type IconProps, Settings } from '@/components/ui/icons';
+import { ThemePicker } from '@/components/ui/theme-picker';
+import { ROUTES } from '@/lib/routes';
+import { useSignOut } from '@/lib/sign-out';
+import type { SlotNode } from '@/lib/utils';
 
-/**
- * The shell around every signed-in page: a sidebar on the left, the page on the
- * right.
- *
- * Hand-rolled rather than shadcn's `sidebar`, which is the sibling apps'
- * choice too. That component brings a provider, a cookie, a rail, a mobile
- * sheet and collapsible icon mode — machinery for a navigation tree, where this
- * is a flat list that fits on the screen twice over. The whole thing here is an
- * `<aside>` and a `<nav>`.
- *
- * This owns what `PageLayout` deliberately does not: the sidebar, the theme
- * toggle and signing out. Pages own their own headers and keep using
- * `PageLayout` inside this.
- */
+type NavItem = {
+  to: string;
+  label: string;
+  icon: React.ComponentType<IconProps>;
+  end: boolean;
+};
 
-const NAV_ITEMS = [
+const NAV_ITEMS: readonly NavItem[] = [
   // `end` so "Documents" is not also marked active on /documents/:id — that
   // route is a document, not the list, and two lit rows read as a bug.
-  { to: '/', label: 'Documents', icon: FileText, end: true },
-  { to: '/settings', label: 'Settings', icon: Settings, end: false },
-] as const;
+  { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true },
+  { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false },
+];
 
-function ThemeToggle() {
-  // Seeded from the class index.html already set, so the icon matches the
-  // screen on the first render rather than after an effect.
-  const [dark, setDarkState] = useState(isDark);
-
-  return (
-    <ActionButton
-      label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => {
-        setDark(!dark);
-        setDarkState(!dark);
-      }}
-    >
-      {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-    </ActionButton>
-  );
+/**
+ * react-router hands out a click handler rather than a link to wrap the row in,
+ * so the row keeps its own `href` and takes the handler beside it.
+ */
+function useNavLink({ to, end }: NavItem) {
+  const onClick = useLinkClickHandler<HTMLButtonElement>(to);
+  const active = useMatch({ path: to, end }) !== null;
+  return { href: to, onClick, active };
 }
 
-function SignOutButton() {
-  const navigate = useNavigate();
-
-  return (
-    <ActionButton
-      label="Sign out"
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => {
-        clearToken();
-        navigate('/login', { replace: true });
-      }}
-    >
-      <LogOut className="size-4" aria-hidden />
-    </ActionButton>
-  );
+function RailLink({ item }: { item: NavItem }) {
+  const Icon = item.icon;
+  return <SidebarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} />;
 }
 
-/** Shared by both navs so the active row is decided in one place. */
-function navLinkClass(compact: boolean) {
-  return ({ isActive }: { isActive: boolean }) =>
-    cn(
-      'flex items-center gap-2 rounded-md text-sm transition-colors',
-      compact ? 'p-2' : 'px-3 py-2',
-      isActive
-        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-    );
+function BarLink({ item }: { item: NavItem }) {
+  const Icon = item.icon;
+  return <BarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} />;
 }
 
-/** Icon-only, in the header, for the widths where the sidebar is hidden. */
-function MobileNav() {
+function Brand() {
   return (
-    <nav className="flex items-center gap-1 md:hidden" aria-label="Main">
-      {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-        <NavLink key={to} to={to} end={end} aria-label={label} className={navLinkClass(true)}>
-          <Icon className="size-4" aria-hidden />
-        </NavLink>
-      ))}
-    </nav>
-  );
-}
-
-export function AppLayout({ children }: { children: ReactNode }) {
-  return (
-    // `h-screen`, not `min-h-screen`: PageLayout is a sticky chassis that
-    // scrolls its own body, and it can only do that if something above it has a
-    // real height to measure against. Every flex ancestor between here and it
-    // needs `min-h-0` too — a flex item's floor is its content, so without it
-    // the body grows instead of scrolling and the header stops being sticky.
-    <div className="flex h-screen">
-      <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto border-sidebar-border border-r bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex items-center gap-2 px-4 py-4 font-semibold">
-          <FileText className="size-5" aria-hidden />
-          Engrafo
-        </div>
-        <nav className="flex flex-col gap-1 px-2" aria-label="Main">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={navLinkClass(false)}>
-              <Icon className="size-4" aria-hidden />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="mt-auto flex items-center justify-end gap-1 px-4 py-3">
-          <SignOutButton />
-          <ThemeToggle />
-        </div>
-      </aside>
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Only earns its height where the sidebar is gone: on a wide screen the
-            controls live in the sidebar and this would be an empty bar. */}
-        <header className="flex h-14 items-center justify-between gap-2 border-b px-4 md:hidden">
-          <MobileNav />
-          <div className="flex items-center gap-1">
-            <SignOutButton />
-            <ThemeToggle />
-          </div>
-        </header>
-        <main className="min-h-0 min-w-0 flex-1">{children}</main>
-      </div>
+    <div className="flex items-center gap-2 px-2 py-1 font-semibold text-foreground">
+      <FileText className="size-5" aria-hidden />
+      <span>Engrafo</span>
     </div>
+  );
+}
+
+interface AppLayoutProps {
+  /** The page to draw beside the sidebar. It is given a real height to scroll within. */
+  contentSlot: SlotNode;
+}
+
+/**
+ * The shell around every signed-in page: cubeui's `Sidebar` on the left, the
+ * page on the right, and under `md` a bar over the page in the sidebar's place.
+ *
+ * This owns what `PageLayout` deliberately does not: the navigation, the theme
+ * control and signing out. Pages own their own headers and keep using
+ * `PageLayout` inside this.
+ */
+export function AppLayout({ contentSlot }: AppLayoutProps) {
+  const signOut = useSignOut();
+
+  return (
+    // `h-svh`, not `min-h-svh`: PageLayout is a sticky chassis that scrolls its
+    // own body, and it can only do that if something above it has a real height
+    // to measure against.
+    <SidebarLayout
+      className="h-svh"
+      sidebarPosition="start"
+      sidebarWidth="auto"
+      sidebarHideBelow="md"
+      divider="none"
+      sidebarSlot={
+        <Sidebar
+          headerSlot={<Brand />}
+          contentSlot={
+            <SidebarSection
+              as="nav"
+              label="Main"
+              contentSlot={NAV_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
+            />
+          }
+          footerSlot={
+            <>
+              <ThemePicker variant="compact" />
+              <SidebarNavItem label="Sign out" iconSlot={<LogOut />} onClick={signOut} />
+            </>
+          }
+        />
+      }
+      navLabel="Main"
+      navSlot={NAV_ITEMS.map((item) => <BarLink key={item.to} item={item} />)}
+      // No theme picker in the bar: the compact one is 130px wide and pushes the bar past a 320px
+      // viewport. On a phone the theme is one tap away, on the Settings screen.
+      actionSlot={
+        <ActionButton label="Sign out" variant="outline" size="icon-sm" iconSlot={<LogOut />} onClick={signOut} />
+      }
+      contentSlot={<main className="flex min-h-0 min-w-0 flex-1 flex-col">{contentSlot}</main>}
+    />
   );
 }

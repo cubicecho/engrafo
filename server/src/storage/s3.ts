@@ -1,6 +1,6 @@
 import { createWriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import type { Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   DeleteObjectsCommand,
@@ -11,7 +11,9 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { S3Config } from '../config.ts';
+import type { S3Config } from '../core/config.ts';
+import { STORAGE_DEFAULTS } from '../core/defaults.ts';
+import { SECONDS_PER_MINUTE } from '../core/wire.ts';
 
 /**
  * Everything the app asks of object storage. An interface rather than the S3
@@ -43,8 +45,8 @@ export interface StorageSet {
   text: Storage;
 }
 
-const PUT_EXPIRY_SECONDS = 15 * 60;
-const GET_EXPIRY_SECONDS = 5 * 60;
+const PUT_EXPIRY_SECONDS = STORAGE_DEFAULTS.uploadUrlTtlMinutes * SECONDS_PER_MINUTE;
+const GET_EXPIRY_SECONDS = STORAGE_DEFAULTS.downloadUrlTtlMinutes * SECONDS_PER_MINUTE;
 
 function createClient(endpoint: string, config: S3Config): S3Client {
   return new S3Client({
@@ -67,6 +69,16 @@ function contentDisposition(filename: string, download: boolean): string {
   return `${download ? 'attachment' : 'inline'}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+/**
+ * Builds the two buckets' storage over one pair of S3 clients.
+ *
+ * @param config - Endpoints, credentials and bucket names.
+ * @returns The `files` and `text` storage.
+ *
+ * @remarks
+ * Presigned URLs are signed by a second client against `publicEndpoint`, because a signature
+ * covers the host and a URL cannot be rewritten after signing.
+ */
 export function createS3Storage(config: S3Config): StorageSet {
   const client = createClient(config.endpoint, config);
   // Signing makes no request, so this client never has to reach its endpoint —
@@ -77,6 +89,20 @@ export function createS3Storage(config: S3Config): StorageSet {
     files: bucketStorage(client, signer, config.bucket),
     text: bucketStorage(client, signer, config.textBucket),
   };
+}
+
+/**
+ * Narrows a GetObject body to the stream it is under Node.
+ *
+ * @param body - `GetObjectCommandOutput.Body`, which the SDK types for every runtime at once.
+ * @returns The body as a Node stream.
+ * @throws When the object came back with no body, or one that is not a Node stream.
+ */
+function bodyStream(body: unknown): Readable {
+  if (body instanceof Readable) {
+    return body;
+  }
+  throw new Error('The bucket returned an object with no readable body.');
 }
 
 /** One bucket's worth of `Storage`. The clients are shared; only the bucket differs. */
@@ -108,19 +134,22 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
         const result = await client.send(new HeadObjectCommand({ Bucket, Key: key }));
         return { size: result.ContentLength ?? 0, contentType: result.ContentType ?? null };
       } catch (error) {
-        if (error instanceof NotFound || (error as { name?: string }).name === 'NotFound') return null;
+        const isMissing = error instanceof NotFound || (error instanceof Error && error.name === 'NotFound');
+        if (isMissing) {
+          return null;
+        }
         throw error;
       }
     },
 
     async getStream(key) {
       const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
-      return result.Body as Readable;
+      return bodyStream(result.Body);
     },
 
     async download(key, path) {
       const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
-      await pipeline(result.Body as Readable, createWriteStream(path));
+      await pipeline(bodyStream(result.Body), createWriteStream(path));
     },
 
     async put(key, body, contentType) {
@@ -135,7 +164,9 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
     },
 
     async delete(keys) {
-      if (keys.length === 0) return;
+      if (keys.length === 0) {
+        return;
+      }
       await client.send(
         new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }),
       );
@@ -143,15 +174,35 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
   };
 }
 
+/**
+ * Names the object an upload is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the files bucket.
+ */
 export function originalKey(userId: string, documentId: string): string {
   return `originals/${userId}/${documentId}`;
 }
 
+/**
+ * Names the object a document's OCR'd PDF/A is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the files bucket.
+ */
 export function archiveKey(userId: string, documentId: string): string {
   return `archive/${userId}/${documentId}.pdf`;
 }
 
-/** In the text bucket, not beside the file it came from. */
+/**
+ * Names the object a document's extracted text is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the text bucket, not beside the file it came from.
+ */
 export function textKey(userId: string, documentId: string): string {
   return `text/${userId}/${documentId}.txt`;
 }

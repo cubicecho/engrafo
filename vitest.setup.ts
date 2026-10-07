@@ -30,7 +30,7 @@ if (!globalThis.ResizeObserver) {
 // Radix's popovers and dialogs ask an element whether it has pointer capture
 // and then scroll it into view. jsdom has neither, and both are no-ops for a
 // test that only asks what is on screen.
-if (!Element.prototype.hasPointerCapture) {
+if (Element.prototype.hasPointerCapture === undefined) {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.setPointerCapture = () => {};
   Element.prototype.releasePointerCapture = () => {};

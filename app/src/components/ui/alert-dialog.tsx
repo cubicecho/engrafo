@@ -2,7 +2,7 @@
 
 import { AlertDialog as AlertDialogPrimitive } from 'radix-ui';
 import type * as React from 'react';
-import { Button } from '@/components/ui/button';
+import { type ButtonProps, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function AlertDialog({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
@@ -22,7 +22,7 @@ function AlertDialogOverlay({ className, ...props }: React.ComponentProps<typeof
     <AlertDialogPrimitive.Overlay
       data-slot="alert-dialog-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
+        'fixed inset-0 z-50 bg-overlay/60 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
         className,
       )}
       {...props}
@@ -99,7 +99,7 @@ function AlertDialogDescription({
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-sm text-foreground/60', className)}
       {...props}
     />
   );
@@ -110,7 +110,7 @@ function AlertDialogMedia({ className, ...props }: React.ComponentProps<'div'>) 
     <div
       data-slot="alert-dialog-media"
       className={cn(
-        "mb-2 inline-flex size-16 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-8",
+        "mb-2 inline-flex size-16 items-center justify-center rounded-md bg-foreground/10 sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-8",
         className,
       )}
       {...props}
@@ -118,17 +118,32 @@ function AlertDialogMedia({ className, ...props }: React.ComponentProps<'div'>) 
   );
 }
 
+/**
+ * The native half's press, under the name the native half gives it. An Expo web app installs the
+ * native registry and gets this file at runtime, so `onPress` is what its call sites pass; left to
+ * the spread it reached radix's `<button>` as an unknown DOM prop and never ran. It is handed to
+ * radix as `onClick`, which runs it before the close and lets `preventDefault` hold the dialog
+ * open. The compiled copy declares this prop as `onClick` (rn2web's rename), so a DOM call site
+ * sees shadcn's `onClick` with shadcn's event, and nothing else.
+ */
+type NativePress = { onClick?: React.MouseEventHandler<HTMLButtonElement> | undefined };
+
 function AlertDialogAction({
   className,
   variant = 'default',
   size = 'default',
+  onClick: onPress,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+}: Omit<React.ComponentProps<typeof AlertDialogPrimitive.Action>, 'onClick'> &
+  Pick<ButtonProps, 'variant' | 'size'> &
+  NativePress) {
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Action data-slot="alert-dialog-action" className={cn(className)} {...props} />
-    </Button>
+    <AlertDialogPrimitive.Action
+      data-slot="alert-dialog-action"
+      className={cn(buttonVariants({ variant, size }), props.disabled && 'opacity-50', className)}
+      {...props}
+      onClick={onPress}
+    />
   );
 }
 
@@ -136,13 +151,18 @@ function AlertDialogCancel({
   className,
   variant = 'outline',
   size = 'default',
+  onClick: onPress,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+}: Omit<React.ComponentProps<typeof AlertDialogPrimitive.Cancel>, 'onClick'> &
+  Pick<ButtonProps, 'variant' | 'size'> &
+  NativePress) {
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Cancel data-slot="alert-dialog-cancel" className={cn(className)} {...props} />
-    </Button>
+    <AlertDialogPrimitive.Cancel
+      data-slot="alert-dialog-cancel"
+      className={cn(buttonVariants({ variant, size }), props.disabled && 'opacity-50', className)}
+      {...props}
+      onClick={onPress}
+    />
   );
 }
 

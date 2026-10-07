@@ -1,8 +1,10 @@
 import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema.ts';
 
-// This config — not the table list — is what drizzle-graphql reads, so a table
-// with no entry here gets no relation fields in the API.
+/**
+ * How the tables relate. drizzle-graphql reads this config, not the table list, so a table
+ * with no entry here gets no relation fields in the API.
+ */
 export const relations = defineRelations(schema, (r) => ({
   users: {
     documents: r.many.documents({ from: r.users.id, to: r.documents.userId }),

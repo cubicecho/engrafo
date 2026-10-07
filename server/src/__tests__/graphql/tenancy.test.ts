@@ -1,0 +1,119 @@
+import * as dbSchema from '@cubicecho/engrafo-db/schema';
+import { getTableName, is, Table } from 'drizzle-orm';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors.ts';
+import { contextValues, scope } from '../../graphql/tenancy.ts';
+import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
+
+// The test that fails when someone adds a table and forgets tenancy. `scope` is
+// what confines every generated read to the caller; a table missing from it is
+// readable across tenants, and nothing else in the codebase would say so.
+
+/** better-auth's tables, which are not exposed through GraphQL. */
+const AUTH_TABLES = new Set<string>(dbSchema.AUTH_TABLES);
+
+const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && AUTH_TABLES.has(key) === false;
+
+const tableKeys = Object.entries(dbSchema)
+  .filter(([key, value]) => isServedTable(key, value))
+  .map(([key]) => key);
+
+describe('tenancy configuration', () => {
+  it('finds the tables', () => {
+    expect(tableKeys.sort()).toEqual(['documents', 'processingSteps', 'users']);
+  });
+
+  it.each(tableKeys)('scopes %s to the caller', (key) => {
+    expect(scope[key]).toBeTypeOf('function');
+  });
+
+  it.each(tableKeys.filter((key) => key !== 'users'))('stamps userId on %s rather than accepting it', (key) => {
+    expect(contextValues[key]?.userId).toBeTypeOf('function');
+  });
+
+  it('names every table by its Drizzle key, not its SQL name', () => {
+    for (const [key, value] of Object.entries(dbSchema)) {
+      const isOtherExport = is(value, Table) === false;
+      if (isOtherExport || AUTH_TABLES.has(key)) {
+        continue;
+      }
+      expect(Object.keys(scope)).toContain(key);
+      expect(getTableName(value)).toBeTypeOf('string');
+    }
+  });
+});
+
+describe('tenancy at runtime', () => {
+  let db: TestDb;
+  let alice: string;
+  let bob: string;
+  let aliceDoc: string;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+    alice = await createUser(db, 'alice@example.com');
+    bob = await createUser(db, 'bob@example.com');
+    const [doc] = await db
+      .insert(dbSchema.documents)
+      .values({
+        userId: alice,
+        title: 'Lease',
+        originalFilename: 'lease.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 10,
+        originalKey: `originals/${alice}/x`,
+        status: 'ready',
+      })
+      .returning();
+    aliceDoc = doc.id;
+    await db
+      .insert(dbSchema.processingSteps)
+      .values({ userId: alice, documentId: aliceDoc, step: 'inspect', position: 0, status: 'succeeded' });
+  });
+
+  it('lists only the caller’s documents', async () => {
+    const asAlice = await createClient(db, alice).expectOk('{ documents { id processingSteps { step } } }');
+    expect(asAlice.documents).toEqual([{ id: aliceDoc, processingSteps: [{ step: 'inspect' }] }]);
+
+    const asBob = await createClient(db, bob).expectOk('{ documents { id } processingSteps { id } }');
+    expect(asBob.documents).toEqual([]);
+    expect(asBob.processingSteps).toEqual([]);
+  });
+
+  it('cannot be widened by a client filter', async () => {
+    const data = await createClient(db, bob).expectOk(
+      'query ($id: UUID!) { documents(where: { id: { eq: $id } }) { id } }',
+      {
+        id: aliceDoc,
+      },
+    );
+    expect(data.documents).toEqual([]);
+  });
+
+  it('hides another user’s document from hand-written resolvers as NOT_FOUND', async () => {
+    const bobClient = createClient(db, bob);
+    const url = await bobClient.expectError('query ($id: UUID!) { documentFileUrl(id: $id) }', { id: aliceDoc });
+    expect(url.code).toBe(ErrorCode.NotFound);
+    const rename = await bobClient.expectError('mutation ($id: UUID!) { renameDocument(id: $id, title: "x") { id } }', {
+      id: aliceDoc,
+    });
+    expect(rename.code).toBe(ErrorCode.NotFound);
+    const del = await bobClient.expectError('mutation ($id: UUID!) { deleteDocument(id: $id) }', { id: aliceDoc });
+    expect(del.code).toBe(ErrorCode.NotFound);
+  });
+
+  it('refuses the unauthenticated', async () => {
+    const error = await createClient(db, null).expectError('{ documents { id } }');
+    expect(error.code).toBe(ErrorCode.Unauthenticated);
+  });
+
+  it.each(['sessions', 'accounts', 'verifications'])('keeps %s out of the schema', async (table) => {
+    const result = await createClient(db, alice).run(`{ ${table} { id } }`);
+    expect(result.errors?.[0]?.message).toMatch(new RegExp(`Cannot query field "${table}"`));
+  });
+
+  it('generates no writes for any table', async () => {
+    const result = await createClient(db, alice).run('mutation { createDocument(values: {}) { id } }');
+    expect(result.errors?.[0]?.message).toMatch(/Cannot query field "createDocument"/);
+  });
+});

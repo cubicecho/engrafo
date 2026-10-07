@@ -2,35 +2,54 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
-import { type Document, documents, processingSteps } from '@cubicecho/engrafo-db/schema';
+import {
+  type Document,
+  DocumentStatus,
+  documents,
+  type NewProcessingStep,
+  processingSteps,
+  StepStatus,
+} from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
+import { errorMessage } from '../core/errors.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep } from './types.ts';
 
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc driver union
-type AnyDb = any;
-
+/** What a pipeline is built from. */
 export interface PipelineOptions {
   db: DB;
   storage: StorageSet;
+  /** Where `document.uploaded` arrives, and where `resume` re-emits it. */
   events: PipelineEvents;
+  /** The steps, in the order they run. */
   steps: PipelineStep[];
   config: PipelineConfig;
+  /** Reports a run whose bookkeeping broke, as opposed to a step that failed. */
   log?: (message: string, error?: unknown) => void;
 }
 
+/** The runner: takes documents through the steps, with at most one run in flight per document. */
 export interface Pipeline {
   /** Runs one document to completion or failure. Resolves either way; failure is recorded, not thrown. */
   run(documentId: string): Promise<void>;
-  /** Re-emits every document a previous process left unfinished. */
+  /**
+   * Re-emits every document a previous process left unfinished.
+   *
+   * @returns How many documents were re-emitted.
+   */
   resume(): Promise<number>;
-  /** Resolves once nothing is queued or running. For tests and graceful shutdown. */
+  /** Resolves once nothing is queued or running. For tests. */
   idle(): Promise<void>;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  /**
+   * Stops taking documents and stops recording failures, for shutdown.
+   *
+   * @remarks
+   * A step cut off by the process ending did not fail, and marking it failed
+   * would leave the document waiting on a person. Left as it is, the next boot's
+   * `resume()` runs it again.
+   */
+  stop(): void;
 }
 
 /**
@@ -41,7 +60,9 @@ function createLimiter(concurrency: number) {
   let active = 0;
   const waiting: Array<() => void> = [];
   return async <T>(task: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) await new Promise<void>((resolve) => waiting.push(resolve));
+    if (active >= concurrency) {
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
     active += 1;
     try {
       return await task();
@@ -52,63 +73,81 @@ function createLimiter(concurrency: number) {
   };
 }
 
+/**
+ * Builds the runner and subscribes it to `document.uploaded`.
+ *
+ * @param options - The database, buckets, emitter, steps and settings a run needs.
+ * @returns The pipeline. Nothing runs until an event arrives or `run` is called.
+ *
+ * @remarks
+ * There is no queue: `processing_steps` is the only state, so a restart resumes from the rows
+ * and steps already done are not run again. A step failure is recorded on the step and the
+ * document, never thrown.
+ */
 export function createPipeline({ db, storage, events, steps, config, log = console.error }: PipelineOptions): Pipeline {
-  const database = db as AnyDb;
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
   const inFlight = new Map<string, Promise<void>>();
+  let isStopping = false;
 
-  async function setStep(documentId: string, step: string, values: Record<string, unknown>) {
-    await database
+  async function setStep(documentId: string, step: string, values: Partial<NewProcessingStep>) {
+    await db
       .update(processingSteps)
       .set(values)
       .where(and(eq(processingSteps.documentId, documentId), eq(processingSteps.step, step)));
   }
 
   async function failDocument(documentId: string, message: string) {
-    await database.update(documents).set({ status: 'failed', error: message }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({ status: DocumentStatus.Failed, error: message })
+      .where(eq(documents.id, documentId));
   }
 
   async function execute(documentId: string): Promise<void> {
-    const [found] = await database.select().from(documents).where(eq(documents.id, documentId));
+    const [found] = await db.select().from(documents).where(eq(documents.id, documentId));
     // Deleted while queued, or still waiting on its upload: nothing to do.
-    if (!found || found.status === 'pending_upload' || found.status === 'ready') return;
+    if (!found || found.status === DocumentStatus.PendingUpload || found.status === DocumentStatus.Ready) {
+      return;
+    }
     let doc: Document = found;
 
     // Rows are normally written by completeDocumentUpload. Inserting any that
     // are missing here is what lets a step added in a later release reach
     // documents that were mid-pipeline when the server upgraded.
     if (steps.length > 0) {
-      await database
+      await db
         .insert(processingSteps)
         .values(steps.map((step, position) => ({ userId: doc.userId, documentId, step: step.name, position })))
         .onConflictDoNothing();
     }
 
-    const rows: Array<{ step: string; status: string; attempts: number }> = await database
-      .select()
-      .from(processingSteps)
-      .where(eq(processingSteps.documentId, documentId));
+    const rows = await db.select().from(processingSteps).where(eq(processingSteps.documentId, documentId));
     const done = new Set(
-      rows.filter((row) => row.status === 'succeeded' || row.status === 'skipped').map((r) => r.step),
+      rows.filter((row) => row.status === StepStatus.Succeeded || row.status === StepStatus.Skipped).map((r) => r.step),
     );
 
-    await database.update(documents).set({ status: 'processing', error: null }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({ status: DocumentStatus.Processing, error: null })
+      .where(eq(documents.id, documentId));
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-'));
     try {
       for (const step of steps) {
-        if (done.has(step.name)) continue;
+        if (done.has(step.name)) {
+          continue;
+        }
 
         if (!step.enabled(doc, config)) {
-          await setStep(documentId, step.name, { status: 'skipped', error: null, finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Skipped, error: null, finishedAt: new Date() });
           continue;
         }
 
         const attempts = (rows.find((row) => row.step === step.name)?.attempts ?? 0) + 1;
         await setStep(documentId, step.name, {
-          status: 'running',
+          status: StepStatus.Running,
           attempts,
           error: null,
           startedAt: new Date(),
@@ -118,35 +157,44 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         try {
           const patch = await step.run({ doc, db, storage, config, tmpDir });
           if (patch && Object.keys(patch).length > 0) {
-            const [updated] = await database
-              .update(documents)
-              .set(patch)
-              .where(eq(documents.id, documentId))
-              .returning();
-            if (!updated) return; // deleted mid-run
+            const [updated] = await db.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
+            if (!updated) {
+              return; // deleted mid-run
+            }
             doc = updated;
           }
-          await setStep(documentId, step.name, { status: 'succeeded', finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Succeeded, finishedAt: new Date() });
         } catch (error) {
+          if (isStopping) {
+            return;
+          }
           const message = errorMessage(error);
-          await setStep(documentId, step.name, { status: 'failed', error: message, finishedAt: new Date() });
+          await setStep(documentId, step.name, { status: StepStatus.Failed, error: message, finishedAt: new Date() });
           await failDocument(documentId, `${step.name}: ${message}`);
           return;
         }
       }
 
-      await database.update(documents).set({ status: 'ready' }).where(eq(documents.id, documentId));
+      await db.update(documents).set({ status: DocumentStatus.Ready }).where(eq(documents.id, documentId));
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
   }
 
   function run(documentId: string): Promise<void> {
+    if (isStopping) {
+      return Promise.resolve();
+    }
     const existing = inFlight.get(documentId);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
 
     const task = limit(() => execute(documentId))
       .catch(async (error) => {
+        if (isStopping) {
+          return;
+        }
         // A step's own failure is recorded inside execute. Reaching here means
         // the bookkeeping itself broke (the database went away); try once to say
         // so on the document, so it does not sit at "processing" forever.
@@ -166,16 +214,24 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
     run,
 
     async resume() {
-      const unfinished: Array<{ id: string }> = await database
+      const unfinished = await db
         .select({ id: documents.id })
         .from(documents)
-        .where(inArray(documents.status, ['uploaded', 'processing']));
-      for (const { id } of unfinished) events.emit('document.uploaded', { documentId: id });
+        .where(inArray(documents.status, [DocumentStatus.Uploaded, DocumentStatus.Processing]));
+      for (const { id } of unfinished) {
+        events.emit('document.uploaded', { documentId: id });
+      }
       return unfinished.length;
     },
 
     async idle() {
-      while (inFlight.size > 0) await Promise.all(inFlight.values());
+      while (inFlight.size > 0) {
+        await Promise.all(inFlight.values());
+      }
+    },
+
+    stop() {
+      isStopping = true;
     },
   };
 }
