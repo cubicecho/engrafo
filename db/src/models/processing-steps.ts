@@ -1,4 +1,4 @@
-import { index, integer, pgEnum, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 import { documents } from './documents.ts';
 import { users } from './users.ts';
@@ -30,9 +30,13 @@ export const processingSteps = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
-    unique('uq_processing_steps_document_step').on(t.documentId, t.step),
+    uniqueIndex('uq_processing_steps_document_step').on(t.documentId, t.step),
     index('idx_processing_steps_user_id').on(t.userId),
     index('idx_processing_steps_document_id').on(t.documentId),
   ],
