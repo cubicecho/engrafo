@@ -12,6 +12,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { S3Config } from '../core/config.ts';
+import { STORAGE_DEFAULTS } from '../core/defaults.ts';
+import { SECONDS_PER_MINUTE } from '../core/wire.ts';
 
 /**
  * Everything the app asks of object storage. An interface rather than the S3
@@ -43,8 +45,8 @@ export interface StorageSet {
   text: Storage;
 }
 
-const PUT_EXPIRY_SECONDS = 15 * 60;
-const GET_EXPIRY_SECONDS = 5 * 60;
+const PUT_EXPIRY_SECONDS = STORAGE_DEFAULTS.uploadUrlTtlMinutes * SECONDS_PER_MINUTE;
+const GET_EXPIRY_SECONDS = STORAGE_DEFAULTS.downloadUrlTtlMinutes * SECONDS_PER_MINUTE;
 
 function createClient(endpoint: string, config: S3Config): S3Client {
   return new S3Client({

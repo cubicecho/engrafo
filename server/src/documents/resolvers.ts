@@ -5,8 +5,10 @@ import { extendSchema, type GraphQLError, type GraphQLObjectType, type GraphQLSc
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
+import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
 import { badInput, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
+import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
 import { STEPS } from '../pipeline/index.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
 import { originalKey } from '../storage/s3.ts';
@@ -85,12 +87,20 @@ function documentNotFound(): GraphQLError {
   return notFound('Document not found');
 }
 
-const titleSchema = z.string().trim().min(1, 'Title cannot be empty.').max(500, 'Title is too long.');
+const titleSchema = z
+  .string()
+  .trim()
+  .min(1, 'Title cannot be empty.')
+  .max(DOCUMENT_DEFAULTS.titleMaxLength, 'Title is too long.');
 
 function createUploadSchema() {
   const max = maxUploadBytes();
   return z.object({
-    filename: z.string().trim().min(1, 'Filename cannot be empty.').max(1000, 'Filename is too long.'),
+    filename: z
+      .string()
+      .trim()
+      .min(1, 'Filename cannot be empty.')
+      .max(DOCUMENT_DEFAULTS.filenameMaxLength, 'Filename is too long.'),
     mimeType: z.string().refine(isAcceptedMimeType, {
       message: `Unsupported file type. Accepted: ${ACCEPTED_MIME_TYPES.join(', ')}.`,
     }),
@@ -98,7 +108,7 @@ function createUploadSchema() {
       .number()
       .int()
       .positive('The file is empty.')
-      .max(max, `The file is larger than the ${Math.floor(max / 1024 / 1024)} MiB limit.`),
+      .max(max, `The file is larger than the ${Math.floor(max / BYTES_PER_MEBIBYTE)} MiB limit.`),
     title: titleSchema.optional().nullable(),
     ocr: z.boolean().optional().nullable(),
   });
@@ -106,7 +116,7 @@ function createUploadSchema() {
 
 function titleFromFilename(filename: string): string {
   const withoutExtension = filename.replace(/\.[^./\\]+$/, '');
-  return (withoutExtension || filename).slice(0, 500);
+  return (withoutExtension || filename).slice(0, DOCUMENT_DEFAULTS.titleMaxLength);
 }
 
 /**

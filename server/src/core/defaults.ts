@@ -2,11 +2,17 @@
 
 /** Settings for the HTTP door. */
 export interface HttpSettings {
+  /** Port the server listens on. `PORT` overrides it. */
+  port: number;
+  /** How long a browser may keep a hashed bundle without asking again. */
+  assetCacheDays: number;
   /** Express `trust proxy`: which hops may set X-Forwarded-For. False trusts none. `TRUST_PROXY` overrides it. */
   trustProxy: boolean | number | string;
 }
 
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
+  port: 3004,
+  assetCacheDays: 365,
   trustProxy: false,
 });
 
@@ -34,10 +40,87 @@ export interface AuthSettings {
   minSecretLength: number;
   /** Where better-auth keeps sessions. `SESSION_STORE` overrides it. */
   sessionStore: 'memory' | 'database';
+  /** Whether the network is trusted, so an address alone signs in. `SECURE_LOCAL_NET` overrides it. */
+  secureLocalNet: boolean;
+  /** Whether signing in means following a link. `AUTH_MAGIC_LINK` overrides it. */
+  magicLink: boolean;
+  /** Whether the link comes back in the API response outside development. `EXPOSE_MAGIC_LINK` overrides it. */
+  exposeMagicLink: boolean;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   magicLinkTtlMinutes: 15,
   minSecretLength: 32,
   sessionStore: 'memory',
+  secureLocalNet: false,
+  magicLink: true,
+  exposeMagicLink: false,
+});
+
+/** What an upload may be and how its row is filled in. */
+export interface DocumentSettings {
+  /** Largest file accepted, in bytes. `MAX_UPLOAD_BYTES` overrides it. */
+  maxUploadBytes: number;
+  /** Longest title, in characters. */
+  titleMaxLength: number;
+  /** Longest original filename kept, in characters. */
+  filenameMaxLength: number;
+}
+
+export const DOCUMENT_DEFAULTS: Readonly<DocumentSettings> = Object.freeze({
+  // 100 MiB.
+  maxUploadBytes: 104_857_600,
+  titleMaxLength: 500,
+  filenameMaxLength: 1000,
+});
+
+/** The ocr step and the pipeline around it. */
+export interface OcrSettings {
+  /** Whether OCR is allowed on this instance. `OCR_ENABLED` overrides it. */
+  enabled: boolean;
+  /** Whether the upload form's toggle starts on. `OCR_DEFAULT` overrides it. */
+  requestedByDefault: boolean;
+  /** Tesseract language codes joined with `+`. `OCR_LANGUAGES` overrides it. */
+  languages: string;
+  /** How many documents are processed at once. `OCR_CONCURRENCY` overrides it. */
+  concurrency: number;
+  /** When a run is given up on as wedged. A long scan on one core takes minutes, so this is not an estimate. */
+  timeoutMinutes: number;
+  /** Resolution assumed for an image, which usually carries none and img2pdf refuses to guess. */
+  imageDpi: number;
+  /** How much of ocrmypdf's output is buffered before the run is abandoned, in bytes. */
+  maxOutputBytes: number;
+  /** How many lines from the end of stderr become the failure message. */
+  errorTailLines: number;
+}
+
+export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
+  enabled: true,
+  requestedByDefault: true,
+  languages: 'eng',
+  concurrency: 1,
+  timeoutMinutes: 30,
+  imageDpi: 300,
+  // 16 MiB.
+  maxOutputBytes: 16_777_216,
+  errorTailLines: 5,
+});
+
+/** The buckets and the URLs signed for them. */
+export interface StorageSettings {
+  /** S3 region. `S3_REGION` overrides it. */
+  region: string;
+  /** What `S3_BUCKET` gains to name the text bucket. `S3_TEXT_BUCKET` overrides the whole name. */
+  textBucketSuffix: string;
+  /** How long a presigned upload URL works. */
+  uploadUrlTtlMinutes: number;
+  /** How long a presigned download URL works. */
+  downloadUrlTtlMinutes: number;
+}
+
+export const STORAGE_DEFAULTS: Readonly<StorageSettings> = Object.freeze({
+  region: 'us-east-1',
+  textBucketSuffix: '-text',
+  uploadUrlTtlMinutes: 15,
+  downloadUrlTtlMinutes: 5,
 });

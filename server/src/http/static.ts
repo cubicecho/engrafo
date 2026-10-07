@@ -1,6 +1,8 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+import { HTTP_DEFAULTS } from '../core/defaults.ts';
+import { HttpStatus, SECONDS_PER_DAY } from '../core/wire.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -17,6 +19,11 @@ const MIME: Record<string, string> = {
   '.ttf': 'font/ttf',
 };
 
+/** Where Vite puts its hashed bundles, whose names change whenever their bytes do. */
+const ASSETS_PREFIX = '/assets/';
+const IMMUTABLE = `public, max-age=${HTTP_DEFAULTS.assetCacheDays * SECONDS_PER_DAY}, immutable`;
+const REVALIDATE = 'no-cache';
+
 /**
  * Serves the built web client next to /graphql, so one container is the whole
  * deployment and a magic link needs no second origin. Unknown paths fall back to
@@ -27,14 +34,14 @@ export function createStaticHandler(root: string) {
   const rootDir = resolve(root);
   return (req: IncomingMessage, res: ServerResponse): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405, { allow: 'GET, HEAD' }).end();
+      res.writeHead(HttpStatus.MethodNotAllowed, { allow: 'GET, HEAD' }).end();
       return;
     }
     let pathname: string;
     try {
       pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://host').pathname);
     } catch {
-      res.writeHead(400).end();
+      res.writeHead(HttpStatus.BadRequest).end();
       return;
     }
     let filePath = resolve(join(rootDir, normalize(pathname)));
@@ -42,19 +49,19 @@ export function createStaticHandler(root: string) {
     // path has been decoded — compare the resolved path instead.
     const isOutsideRoot = filePath !== rootDir && filePath.startsWith(rootDir + sep) === false;
     if (isOutsideRoot) {
-      res.writeHead(403).end();
+      res.writeHead(HttpStatus.Forbidden).end();
       return;
     }
     if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
       filePath = join(rootDir, 'index.html');
       if (!existsSync(filePath)) {
-        res.writeHead(404).end();
+        res.writeHead(HttpStatus.NotFound).end();
         return;
       }
     }
-    res.writeHead(200, {
+    res.writeHead(HttpStatus.Ok, {
       'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
-      'cache-control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+      'cache-control': pathname.startsWith(ASSETS_PREFIX) ? IMMUTABLE : REVALIDATE,
     });
     if (req.method === 'HEAD') {
       res.end();

@@ -1,6 +1,23 @@
 /** Name endings that never resolve off a private network: a router's domain, mDNS, and the reserved ones. */
 const PRIVATE_SUFFIXES = ['.localhost', '.lan', '.local', '.internal', '.home.arpa'];
 
+/** The largest value one part of a dotted address takes. */
+const OCTET_MAX = 255;
+
+/** IPv4 blocks that do not route off a private network, by their first two parts. */
+const PRIVATE_IPV4_RANGES = [
+  // Loopback, 127/8.
+  { first: 127, secondFrom: 0, secondTo: OCTET_MAX },
+  // 10/8.
+  { first: 10, secondFrom: 0, secondTo: OCTET_MAX },
+  // 172.16/12.
+  { first: 172, secondFrom: 16, secondTo: 31 },
+  // 192.168/16.
+  { first: 192, secondFrom: 168, secondTo: 168 },
+  // Link-local, 169.254/16.
+  { first: 169, secondFrom: 254, secondTo: 254 },
+];
+
 /**
  * Whether to insist on TLS for a connection string.
  *
@@ -39,23 +56,11 @@ export function requiresSsl(url: string): boolean {
 
   const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
   if (ipv4) {
-    const [a, b] = ipv4.slice(1).map(Number);
-    if (a === 127) {
-      return false; // loopback
-    }
-    if (a === 10) {
-      return false; // 10/8
-    }
-    if (a === 172 && b >= 16 && b <= 31) {
-      return false; // 172.16/12
-    }
-    if (a === 192 && b === 168) {
-      return false; // 192.168/16
-    }
-    if (a === 169 && b === 254) {
-      return false; // link-local
-    }
-    return true;
+    const [first = 0, second = 0] = ipv4.slice(1).map(Number);
+    const isPrivate = PRIVATE_IPV4_RANGES.some(
+      (range) => first === range.first && second >= range.secondFrom && second <= range.secondTo,
+    );
+    return isPrivate === false;
   }
 
   if (hostname.includes(':')) {

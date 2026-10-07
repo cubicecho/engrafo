@@ -2,7 +2,14 @@
 // environment.
 
 import { createRequire } from 'node:module';
-import { AUTH_DEFAULTS, type AuthSettings, HTTP_DEFAULTS } from './defaults.ts';
+import {
+  AUTH_DEFAULTS,
+  type AuthSettings,
+  DOCUMENT_DEFAULTS,
+  HTTP_DEFAULTS,
+  OCR_DEFAULTS,
+  STORAGE_DEFAULTS,
+} from './defaults.ts';
 
 /** Signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production-0123456789';
@@ -16,6 +23,8 @@ const TRUST_PROXY_OFF = 'false';
 const TRUST_PROXY_ON = 'true';
 /** A whole number of proxy hops. */
 const HOP_COUNT = /^\d+$/;
+/** What `NODE_ENV` is on a deployed instance. */
+const PRODUCTION = 'production';
 
 // The exception to "read at call time": this is stamped into the build, not
 // configured. The root package.json is the one semantic-release bumps, and the
@@ -44,9 +53,33 @@ function envDisabled(value: string | undefined): boolean {
   return ['0', 'false', 'no'].includes((value ?? '').trim().toLowerCase());
 }
 
+/**
+ * Reads a switch that has a default.
+ *
+ * @param value - The variable as set, if it is.
+ * @param fallback - What the switch is when the variable says neither yes nor no.
+ * @returns Whether the switch is on.
+ */
+function envSwitch(value: string | undefined, fallback: boolean): boolean {
+  if (envFlag(value)) {
+    return true;
+  }
+  return envDisabled(value) ? false : fallback;
+}
+
 function envNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/** Whether this is a deployed instance rather than a development or test one. */
+export function isProduction(): boolean {
+  return process.env.NODE_ENV === PRODUCTION;
+}
+
+/** The Postgres connection string. Preflight has already refused to boot without one. */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL ?? '';
 }
 
 /** What better-auth signs sessions and hashes magic-link tokens with. */
@@ -93,7 +126,7 @@ export function trustProxy(): boolean | number | string {
  * Here that means sign-in needs no link.
  */
 export function secureLocalNet(): boolean {
-  return envFlag(process.env.SECURE_LOCAL_NET);
+  return envSwitch(process.env.SECURE_LOCAL_NET, AUTH_DEFAULTS.secureLocalNet);
 }
 
 /**
@@ -106,16 +139,17 @@ export function secureLocalNet(): boolean {
  * entire credential.
  */
 export function magicLinkRequired(): boolean {
-  return !secureLocalNet() && !envDisabled(process.env.AUTH_MAGIC_LINK);
+  const isLinkSwitchedOn = envSwitch(process.env.AUTH_MAGIC_LINK, AUTH_DEFAULTS.magicLink);
+  return secureLocalNet() === false && isLinkSwitchedOn;
 }
 
 /** Whether the magic link is returned in the API response rather than only logged. */
 export function magicLinkExposed(): boolean {
-  return process.env.NODE_ENV !== 'production' || envFlag(process.env.EXPOSE_MAGIC_LINK);
+  return isProduction() === false || envSwitch(process.env.EXPOSE_MAGIC_LINK, AUTH_DEFAULTS.exposeMagicLink);
 }
 
 export function port(): number {
-  return envNumber(process.env.PORT, 3004);
+  return envNumber(process.env.PORT, HTTP_DEFAULTS.port);
 }
 
 /**
@@ -131,27 +165,27 @@ export function appUrl(): string {
 
 /** Default 100 MiB. The browser uploads straight to S3, so this is enforced by the signature, not a body parser. */
 export function maxUploadBytes(): number {
-  return envNumber(process.env.MAX_UPLOAD_BYTES, 100 * 1024 * 1024);
+  return envNumber(process.env.MAX_UPLOAD_BYTES, DOCUMENT_DEFAULTS.maxUploadBytes);
 }
 
 /** Whether OCR is allowed on this instance. Whether it can actually run is `detectOcr`'s question. */
 export function ocrEnabled(): boolean {
-  return !envDisabled(process.env.OCR_ENABLED);
+  return envSwitch(process.env.OCR_ENABLED, OCR_DEFAULTS.enabled);
 }
 
 /** Whether the upload form's OCR toggle starts on. */
 export function ocrDefault(): boolean {
-  return !envDisabled(process.env.OCR_DEFAULT);
+  return envSwitch(process.env.OCR_DEFAULT, OCR_DEFAULTS.requestedByDefault);
 }
 
 /** Tesseract language codes joined with `+`, as ocrmypdf's `-l` takes them. */
 export function ocrLanguages(): string {
-  return process.env.OCR_LANGUAGES?.trim() || 'eng';
+  return process.env.OCR_LANGUAGES?.trim() || OCR_DEFAULTS.languages;
 }
 
 /** How many documents are processed at once. OCR is CPU-bound; one is the safe default. */
 export function pipelineConcurrency(): number {
-  return envNumber(process.env.OCR_CONCURRENCY, 1);
+  return envNumber(process.env.OCR_CONCURRENCY, OCR_DEFAULTS.concurrency);
 }
 
 export interface S3Config {
@@ -178,9 +212,9 @@ export function s3Config(): S3Config {
   return {
     endpoint,
     publicEndpoint: process.env.S3_PUBLIC_ENDPOINT || endpoint,
-    region: process.env.S3_REGION || 'us-east-1',
+    region: process.env.S3_REGION || STORAGE_DEFAULTS.region,
     bucket,
-    textBucket: process.env.S3_TEXT_BUCKET || `${bucket}-text`,
+    textBucket: process.env.S3_TEXT_BUCKET || `${bucket}${STORAGE_DEFAULTS.textBucketSuffix}`,
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
   };

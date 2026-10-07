@@ -10,6 +10,7 @@ import { createAuth } from './auth/better-auth.ts';
 import { createRateLimiter } from './auth/rate-limit.ts';
 import {
   appUrl,
+  databaseUrl,
   magicLinkExposed,
   magicLinkRequired,
   ocrEnabled,
@@ -39,7 +40,7 @@ try {
 } catch (error) {
   const cause = (error as { cause?: NodeJS.ErrnoException })?.cause;
   if (cause && (cause.code === 'ECONNREFUSED' || cause.code === 'ENOTFOUND' || cause.code === 'ETIMEDOUT')) {
-    const { hostname, port } = new URL(process.env.DATABASE_URL ?? '');
+    const { hostname, port } = new URL(databaseUrl());
     console.error(`✖ Cannot reach Postgres at ${hostname}:${port || 5432} (${cause.code}).`);
     console.error('  Check DATABASE_URL in .env, and that the database is up and reachable from here.');
     console.error('  If your Docker daemon is remote (`docker context ls`), a container published on');

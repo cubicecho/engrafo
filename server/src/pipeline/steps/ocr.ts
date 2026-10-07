@@ -2,7 +2,9 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { OCR_DEFAULTS } from '../../core/defaults.ts';
 import { errorMessage } from '../../core/errors.ts';
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 import { archiveKey } from '../../storage/s3.ts';
 import { storeContent } from '../content.ts';
 import { isImage, isOcrable } from '../mime.ts';
@@ -10,9 +12,7 @@ import type { PipelineStep } from '../types.ts';
 
 const exec = promisify(execFile);
 
-// A long scanned PDF on one core takes minutes, not seconds. This is the bound
-// on a wedged process, not an estimate of a slow one.
-const OCR_TIMEOUT_MS = 30 * 60 * 1000;
+const OCR_TIMEOUT_MS = OCR_DEFAULTS.timeoutMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 /**
  * Whether ocrmypdf is on the PATH. Asked once at boot: the Docker image ships
@@ -50,8 +50,7 @@ export function ocrArgs(options: {
     options.sidecar,
     '-l',
     options.languages,
-    // Images often carry no DPI metadata, and img2pdf refuses to guess.
-    ...(options.image ? ['--image-dpi', '300'] : []),
+    ...(options.image ? ['--image-dpi', String(OCR_DEFAULTS.imageDpi)] : []),
     options.input,
     options.output,
   ];
@@ -74,13 +73,13 @@ export const ocrStep: PipelineStep = {
       await exec(
         'ocrmypdf',
         ocrArgs({ input, output, sidecar, languages: config.ocrLanguages, image: isImage(doc.mimeType) }),
-        { timeout: OCR_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+        { timeout: OCR_TIMEOUT_MS, maxBuffer: OCR_DEFAULTS.maxOutputBytes },
       );
     } catch (error) {
       // ocrmypdf explains itself on stderr; the exec error's own message is just
       // the command line.
       const stderr = (error as { stderr?: string }).stderr?.trim();
-      throw new Error(stderr ? stderr.split('\n').slice(-5).join('\n') : errorMessage(error));
+      throw new Error(stderr ? stderr.split('\n').slice(-OCR_DEFAULTS.errorTailLines).join('\n') : errorMessage(error));
     }
 
     const key = archiveKey(doc.userId, doc.id);
