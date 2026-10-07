@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# ── Stage 1: build ────────────────────────────────────────────────────────────
+# Stage 1: build.
 FROM node:26-slim AS builder
 
 WORKDIR /app
@@ -16,7 +16,7 @@ RUN npm ci
 ENV DATABASE_URL=postgres://build:build@127.0.0.1:5432/build
 RUN npm run codegen && npm run build:app
 
-# ── Stage 2: test ─────────────────────────────────────────────────────────────
+# Stage 2: test.
 # `docker build --target test -t engrafo-test . && docker run --rm engrafo-test`.
 # This is the only place the OCR integration test actually runs: it needs
 # ocrmypdf, which a dev host usually lacks, and ImageMagick to draw the page of
@@ -37,7 +37,7 @@ RUN apt-get update \
 # this image does not carry. The stories run in CI's `check` job.
 CMD ["npx", "vitest", "run", "--project", "node", "--project", "dom"]
 
-# ── Stage 3: runtime ──────────────────────────────────────────────────────────
+# Stage 3: runtime.
 FROM node:26-slim AS runtime
 
 WORKDIR /app

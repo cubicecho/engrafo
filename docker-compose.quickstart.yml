@@ -4,7 +4,7 @@
 #
 # It pulls a published image — nothing to clone and nothing to build.
 #
-# ── Set these five variables ─────────────────────────────────────────────────
+# Set these five variables.
 # In Portainer they go in the stack's "Environment variables" box; with the
 # docker CLI, in a `.env` file beside this one. The stack refuses to start until
 # the three secrets are set, which is deliberate.
@@ -27,7 +27,7 @@
 # so if this says "localhost" while you are browsing from another machine,
 # uploads fail with a signature error rather than a DNS one.
 #
-# ── After it starts ──────────────────────────────────────────────────────────
+# After it starts.
 # Open http://ENGRAFO_HOST:3004 and sign in with any email address. Engrafo
 # sends no mail: the sign-in link is written to the container log, and that is
 # how you get it.
