@@ -192,3 +192,37 @@ export const Missing: Story = {
     await expect(canvas.getByRole('link', { name: 'Back to documents' })).toBeInTheDocument();
   },
 };
+
+/** Before the answer lands: a skeleton under a header that is already the right height. */
+export const Loading: Story = {
+  parameters: { apolloClient: { resolvers: { Query: { document: () => document({}) } }, delay: 100_000 } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('heading', { name: 'Lease agreement' })).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * The server answered with an error. That is not the same as the document being gone, and the
+ * page must not say "No such document" to someone whose server is down.
+ */
+export const Unreachable: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => {
+            throw new Error('Connection terminated unexpectedly');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const alert = await canvas.findByRole('alert');
+    await expect(alert).toHaveTextContent('Could not load this document');
+    await expect(alert).toHaveTextContent('Connection terminated unexpectedly');
+    await expect(within(alert).getByRole('button', { name: /try again/i })).toBeInTheDocument();
+    await expect(canvas.queryByText('No such document')).not.toBeInTheDocument();
+  },
+};
