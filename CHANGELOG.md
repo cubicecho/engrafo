@@ -1,3 +1,36 @@
+# [2.0.0](https://github.com/cubicecho/engrafo/compare/v1.5.0...v2.0.0) (2026-10-07)
+
+
+* build!: run on Node 26 and the Debian slim image ([d25512b](https://github.com/cubicecho/engrafo/commit/d25512bd5b8d6eb31c5bbe0493763b0e781d831e))
+* feat(auth)!: sign in through better-auth ([7ce13ec](https://github.com/cubicecho/engrafo/commit/7ce13ecb02418f25eda139dac2c14856ff3d6cf0))
+
+
+### Bug Fixes
+
+* **app:** say when a document's text is empty instead of "too large" ([15370c2](https://github.com/cubicecho/engrafo/commit/15370c250b0d1fafa2322325303e12e2d350ff8a))
+* **compose:** pass SECURE_LOCAL_NET rather than the variable it replaced ([39894f8](https://github.com/cubicecho/engrafo/commit/39894f83ab6643bb530762c9188051228c5722e1))
+* **db:** do not force TLS on .lan, .local, .internal and .home.arpa hosts ([f28e57a](https://github.com/cubicecho/engrafo/commit/f28e57aab5f96e3667dbeef17dc21036c4c9c546))
+* **server:** stop answering CORS for every origin ([e50b74c](https://github.com/cubicecho/engrafo/commit/e50b74cf983175c3a5560e65ddb93fe2f5f7f691))
+
+
+### Features
+
+* **db:** name the unique indexes and stamp step rows when they change ([524df55](https://github.com/cubicecho/engrafo/commit/524df55a468fc8d459d90c1c62dc20a38b7fdbd1))
+* **server:** /healthz reports the database and the version ([f6999f2](https://github.com/cubicecho/engrafo/commit/f6999f2797e244597f6bbccfc604ff6af211a35e))
+* wait for Postgres at boot and shut down cleanly ([b3a898e](https://github.com/cubicecho/engrafo/commit/b3a898e4a579dee0de7e344b7e84e5f25dbaaebb))
+
+
+### BREAKING CHANGES
+
+* JWT_SECRET is no longer read. Set BETTER_AUTH_SECRET
+to at least 32 characters; the server refuses to start in production
+without it. Everyone is signed out once by the upgrade. Sessions are
+held in memory by default, so a restart signs everyone out unless
+SESSION_STORE=database. Behind a reverse proxy set TRUST_PROXY, or all
+visitors share one sign-in budget. In the API, requestMagicLink is now
+requestSignIn and returns the session under `session`.
+* running from source needs Node 26 or newer.
+
 # [1.5.0](https://github.com/cubicecho/engrafo/compare/v1.4.0...v1.5.0) (2026-10-06)
 
 
