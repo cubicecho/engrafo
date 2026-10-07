@@ -23,9 +23,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           # Matches the Dockerfile: the server runs its TypeScript sources
-          # directly under --experimental-strip-types, so the runtime major is
+          # directly, with Node stripping the types, so the runtime major is
           # part of the contract, not just a build detail.
-          node-version: 24
+          node-version: 26
           cache: npm
       - run: npm ci
       - run: npm run codegen

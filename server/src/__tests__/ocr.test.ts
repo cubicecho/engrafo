@@ -55,13 +55,21 @@ describe('ocr step', () => {
 // ocrmypdf and ImageMagick installed. Everywhere else it reports as skipped.
 const hasOcr = (await detectOcr()) !== null;
 
+/** The font the image installs for this test. Its digits are unambiguous to Tesseract. */
+const PREFERRED_FONT = 'DejaVu-Sans';
+
 /**
- * A font ImageMagick will actually load. Alpine's build has no default one, so
+ * A font ImageMagick will actually load. A slim image has no default one, so
  * `-annotate` fails with "unable to read font ''" unless the name is given —
  * and which names exist differs per host, so it asks rather than assuming.
+ * The first one listed is not good enough on Debian: that is AvantGarde, whose
+ * "1" is a bare stroke Tesseract reads as "]".
  */
 const font = await exec('magick', ['-list', 'font']).then(
-  ({ stdout }) => stdout.match(/^\s*Font:\s*(\S+)/m)?.[1] ?? null,
+  ({ stdout }) => {
+    const names = [...stdout.matchAll(/^\s*Font:\s*(\S+)/gm)].map(([, name]) => name);
+    return names.find((name) => name === PREFERRED_FONT) ?? names[0] ?? null;
+  },
   () => null,
 );
 

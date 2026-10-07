@@ -24,7 +24,7 @@ what Paperless is for.
 | OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to; optionally a vision model over `@cubicecho/agent-core` |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
-| Runtime  | Node.js 24+, ESM (`"type": "module"` throughout)              |
+| Runtime  | Node.js 26, ESM (`"type": "module"` throughout)               |
 
 ## Project Structure
 
@@ -68,7 +68,7 @@ engrafo/
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       └── index.ts         # DB singleton + re-exports
 ├── .agents/mvp-plan.md      # The plan this repo was built from
-├── Dockerfile               # node:24-alpine + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
+├── Dockerfile               # node:26-slim + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
 ├── docker-compose.dev.yml   # Postgres + MinIO for development
 ├── docker-compose.yml       # The whole stack, built from this checkout
 └── docker-compose.quickstart.yml  # The whole stack, pulled — what self-hosters paste
@@ -172,10 +172,10 @@ actually `failed`.
 **The OCR integration test only really runs in the image.** `ocr.test.ts` skips
 itself without ocrmypdf and ImageMagick, which a dev host usually lacks — so the
 Dockerfile's `test` stage installs both and CI runs the suite there. That stage
-is what caught `tesseract-ocr-data-osd` missing from the runtime image:
-`--rotate-pages` and `--deskew` load the orientation model, Alpine packages it
-apart from the languages, and without it every OCR run fails with "Tesseract
-couldn't load any languages". Any new `apk` dependency belongs in both stages.
+is what caught the orientation model (`tesseract-ocr-osd`) missing from the
+runtime image: `--rotate-pages` and `--deskew` load it, it is packaged apart
+from the languages, and without it every OCR run fails with "Tesseract couldn't
+load any languages". Any new `apt` dependency belongs in both stages.
 
 **OCR being *enabled* and OCR being *available* are different questions.**
 `ocrEnabled()` reads the env var; `detectOcr()` asks whether `ocrmypdf` is on the
@@ -347,8 +347,10 @@ through and the run dies with "browser connection was closed".
 - Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check` applies the safe fixes; CI runs `npx biome ci .`, which writes nothing.
 - `biome.json` is parsed as strict JSON here — **no comments in it**, or Biome
   reports a confusing "nested root configuration" error.
-- `server/` and `db/` run under `--experimental-strip-types` with no build step,
-  so **relative imports there carry an explicit `.ts` extension**. `app/` is
+- `server/` and `db/` have no build step: Node 26 strips the types as it loads
+  each file, with no flag. So **relative imports there carry an explicit `.ts`
+  extension**, and the same Node major runs in dev, CI and the image
+  (`node:26-slim`). `app/` is
   bundled by Vite and omits it.
 - **Never add `--preserve-symlinks`.** It resolves `@cubicecho/engrafo-db` to its
   path inside `node_modules`, and Node refuses to strip types from anything

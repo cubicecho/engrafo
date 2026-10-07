@@ -10,7 +10,7 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "node --experimental-strip-types --env-file-if-exists=../.env src/migrate.ts",
+    "migrate": "node --env-file-if-exists=../.env src/migrate.ts",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio"
   },
