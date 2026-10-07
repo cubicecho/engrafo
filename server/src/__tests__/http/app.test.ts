@@ -75,6 +75,18 @@ describe('createApp', () => {
     expect(body.errors[0].extensions.code).toBe(ErrorCode.Unauthenticated);
   });
 
+  it('invites no other origin to read its answers', async () => {
+    // The client is served from this origin, so nothing legitimate needs CORS,
+    // and a wildcard would let any page a signed-in user visits read the API.
+    const response = await fetch(`${origin}/graphql`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://elsewhere.example' },
+      body: JSON.stringify({ query: '{ authConfig { magicLink } }' }),
+    });
+
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   it('answers the liveness probe', async () => {
     const response = await fetch(`${origin}${HEALTH_PATH}`);
 

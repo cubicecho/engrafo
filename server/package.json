@@ -15,7 +15,6 @@
     "@cubicecho/engrafo-db": "*",
     "@vantreeseba/drizzle-graphql": "^13.0.0",
     "better-auth": "^1.7.7",
-    "cors": "^2.8.6",
     "drizzle-orm": "1.0.0-rc.4",
     "express": "^5.2.1",
     "file-type": "^22.1.0",
@@ -24,7 +23,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6"
   }
 }

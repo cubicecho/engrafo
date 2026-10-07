@@ -31,6 +31,9 @@ export function createGraphQLHandler({ db, auth, limiter, storage, events, ocrAv
     schema,
     graphqlEndpoint: '/graphql',
     graphiql: isProduction() === false,
+    // Yoga answers CORS for every origin unless told not to. The client is served
+    // from this origin, and in development Vite proxies /graphql to it.
+    cors: false,
     context: async ({ request, req }): Promise<Context> => {
       const session = await auth.api.getSession({ headers: request.headers });
       return {

@@ -1,5 +1,4 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import cors from 'cors';
 import express, { type Express } from 'express';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
@@ -37,7 +36,6 @@ export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
   app.set('trust proxy', trustProxy());
   const graphql = createGraphQLHandler(graphqlDeps);
 
-  app.use(cors());
   // `all` rather than `use`: a mounted `use` strips the path from req.url, and
   // Yoga matches the request against `graphqlEndpoint` itself.
   app.all(graphql.graphqlEndpoint, (req, res) => graphql(req, res));
