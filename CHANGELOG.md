@@ -1,3 +1,17 @@
+# [3.0.0](https://github.com/cubicecho/engrafo/compare/v2.0.1...v3.0.0) (2026-10-17)
+
+
+* feat!: store files in RustFS instead of MinIO ([4fafc76](https://github.com/cubicecho/engrafo/commit/4fafc7690ada38492457872af928500808ba97e4))
+
+
+### BREAKING CHANGES
+
+* the quickstart's MINIO_PASSWORD, MINIO_PORT and
+MINIO_CONSOLE_PORT are now RUSTFS_PASSWORD, RUSTFS_PORT and
+RUSTFS_CONSOLE_PORT, and files live in a new engrafo_rustfs volume. RustFS
+cannot read a MinIO data directory; the README's "Coming from a MinIO
+install" section copies the old volume across.
+
 ## [2.0.1](https://github.com/cubicecho/engrafo/compare/v2.0.0...v2.0.1) (2026-10-07)
 
 
