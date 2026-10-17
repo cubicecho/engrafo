@@ -54,6 +54,14 @@ export interface AuthSettings {
   magicLink: boolean;
   /** Whether the link comes back in the API response outside development. `EXPOSE_MAGIC_LINK` overrides it. */
   exposeMagicLink: boolean;
+  /** How long the token an OIDC callback hands the app works: the hop from the callback to `/auth/sso`. */
+  oneTimeTokenTtlMinutes: number;
+  /** What the login page's OIDC button calls the provider. `OIDC_NAME` overrides it. */
+  oidcName: string;
+  /** How a confidential OIDC client sends its secret. `OIDC_CLIENT_AUTH` overrides it. */
+  oidcClientAuth: 'client_secret_basic' | 'client_secret_post';
+  /** How long pairing waits on the provider before calling it unreachable. */
+  oidcPairingTimeoutMs: number;
 }
 
 /** The shipped values of `AuthSettings`. */
@@ -64,6 +72,11 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   secureLocalNet: false,
   magicLink: true,
   exposeMagicLink: false,
+  oneTimeTokenTtlMinutes: 3,
+  oidcName: 'SSO',
+  // heautou's default, and the one the OIDC spec names as the default.
+  oidcClientAuth: 'client_secret_basic',
+  oidcPairingTimeoutMs: 10_000,
 });
 
 /** What an upload may be and how its row is filled in. */

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { closeDatabase, db } from '@cubicecho/engrafo-db';
 import { waitForDatabase } from '@cubicecho/engrafo-db/wait';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { createAuth } from './auth/better-auth.ts';
+import { createAuthHost } from './auth/auth-host.ts';
 import { createRateLimiter } from './auth/rate-limit.ts';
 import {
   appUrl,
@@ -15,6 +15,7 @@ import {
   magicLinkRequired,
   ocrEnabled,
   ocrLanguages,
+  oidcRedirectUri,
   pipelineConcurrency,
   port,
   s3Config,
@@ -76,9 +77,11 @@ const pipeline = createPipeline({
   config: { ocrAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
 });
 
+// After migrate: the provider may be a pairing, which lives in the database.
+const authHost = await createAuthHost(db);
 const app = createApp({
   db,
-  auth: createAuth(db),
+  authHost,
   limiter: createRateLimiter(),
   storage,
   events,
@@ -93,6 +96,11 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
   console.log(`[server] ready at ${appUrl()}`);
   console.log(`[server] GraphQL at ${appUrl()}/graphql`);
   console.log(`[ocr] ${ocrAvailable ? `on (${ocrLanguages()})` : 'off'}`);
+  const oidc = authHost.oidc();
+  if (oidc !== null) {
+    // The redirect URI is the one thing the operator has to copy into the provider, exactly.
+    console.log(`[auth] sign-in with ${oidc.name} (${oidc.issuer}); redirect URI ${oidcRedirectUri()}`);
+  }
   if (!magicLinkRequired()) {
     // Name the variable that did it: on an instance with both set, "turn it
     // back on" is useless advice if it points at the wrong switch.

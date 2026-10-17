@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { SsoSettings } from '@/components/domain/sso-pairing';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { SettingRow } from '@/components/setting-row';
@@ -19,6 +20,7 @@ const SettingsPage = graphql(`
       id
       email
       createdAt
+      isAdmin
     }
     serverConfig {
       version
@@ -31,8 +33,9 @@ const SettingsPage = graphql(`
 `);
 
 /**
- * The account, the theme, and what the server is configured to accept. Only the
- * theme can be changed here: the rest is read from the server's environment.
+ * The account, the theme, and what the server is configured to accept. The
+ * theme can be changed here, and the admin can pair a sign-in provider; the rest
+ * is read from the server's environment.
  */
 export function SettingsRoute() {
   const signOut = useSignOut();
@@ -83,6 +86,9 @@ export function SettingsRoute() {
                   />
                 }
               />
+
+              {/* How people sign in is the instance's, so only the admin sees it. */}
+              {data.me.isAdmin ? <SsoSettings /> : null}
 
               <CardLayout
                 level={2}

@@ -67,7 +67,8 @@ engrafo/
 │       │   ├── schema.ts    # The schema bound to the real db
 │       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
 │       │   └── write-schema.ts # Prints the SDL for codegen
-│       ├── auth/            # Who the caller is and how they sign in: better-auth, session-store, rate-limit, resolvers
+│       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
+│       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -108,7 +109,7 @@ Docker Hub is the primary registry: every compose file and the README name
 ## Commands
 
 ```bash
-npm run dev              # server (3004) + Vite dev server (3000, proxies /graphql)
+npm run dev              # server (3004) + Vite dev server (3000, proxies /graphql and the OIDC routes)
 npm run db:up            # Postgres on ${DEV_BIND:-127.0.0.1}:5436, RustFS on 9000/9001
 npm run db:generate      # new migration from a schema change
 npm run db:migrate       # apply migrations
@@ -172,7 +173,6 @@ presigned URLs are signed against `S3_PUBLIC_ENDPOINT` by a second client. A
 signature covers the host, so a URL cannot be rewritten after signing — pointing
 the browser at the wrong one fails as a signature mismatch, not a DNS error.
 
-**The pipeline is an in-process event, and that is deliberate.** There is no
 **The bucket has to answer CORS, and RustFS does not unless told to.** The page
 is on one port and the bucket on another, so the presigned PUT and the text
 fetch are cross-origin. Every compose file sets `RUSTFS_CORS_ALLOWED_ORIGINS:
@@ -182,6 +182,7 @@ works, which is why no test here notices. The same files empty
 `RUSTFS_OBS_LOG_DIRECTORY`, which is what puts RustFS's log on stdout instead of
 in a file inside the container.
 
+**The pipeline is an in-process event, and that is deliberate.** There is no
 queue: `completeDocumentUpload` emits `document.uploaded` and returns.
 `createPipeline` holds an in-flight map keyed by document id, so the same
 document emitted twice runs once, and a counting limiter (`OCR_CONCURRENCY`)
@@ -226,7 +227,8 @@ because they usually carry no DPI metadata and img2pdf refuses to guess.
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
 `loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
-a UUID, too.
+a UUID, too. `FORBIDDEN` exists for one thing only: an instance-level setting the
+caller may not change (`pairSso`, `unpairSso`), where there is no row to hide.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
 means sign-in needs no link: `requestSignIn` returns a live session for
@@ -236,9 +238,11 @@ whatever address it is handed, and the login page uses it (`if (result.session)`
 names whichever one is responsible. Both make an email address the entire
 credential, so neither belongs on a reachable instance.
 
-**Auth is better-auth, reached only through GraphQL.** `createAuth(db, opts)` in
+**Auth is better-auth, reached through GraphQL.** `createAuth(db, opts)` in
 `auth/better-auth.ts` builds the instance and it travels on the context
-(`ctx.auth`); no REST routes are mounted and no module imports a global. Sessions
+(`ctx.auth`); no module imports a global, and the only REST routes are the two
+legs of an OIDC sign-in, which cannot be GraphQL because the browser has to be
+sent somewhere. Sessions
 are opaque bearer tokens, held in memory unless `SESSION_STORE=database`, so a
 restart signs everyone out by default. better-auth's own rate limiter never runs
 for `auth.api.*` calls, so the sign-in mutations call `throttle` first, which
@@ -246,6 +250,42 @@ counts by client address (`TRUST_PROXY`) and by email. The `sessions`, `accounts
 and `verifications` tables are excluded from the GraphQL schema in
 `graphql/build-schema.ts`. Passwords are off: with no mail provider there is no
 way to prove an address before a password is set on it.
+
+**OIDC sign-in ends in a one-time token, not a cookie.** With `OIDC_ISSUER` and
+`OIDC_CLIENT_ID` set, `genericOAuth` is added and `http/sso.ts` mounts
+`/sso/oidc` (sends the browser to the provider) and `/api/auth/callback/oidc`
+(better-auth's callback, at its default path — that is the redirect URI to
+register). The callback drops the session cookie better-auth would set, mints a
+one-time token for the session, and redirects to `/auth/sso?token=…`; the app
+swaps it for a bearer session with `verifyOneTimeToken`. Both routes are mounted
+before the static handler, or the SPA fallback answers them. A failure lands on
+`/login?error=<code>`, which the login page reads. `authConfig.sso` is what tells
+the login page to show the button.
+
+**The provider can also be paired from the app, and then the auth instance
+changes while the server runs.** An admin pastes a setup URL
+(`<issuer>#setup=<token>&name=<name>`); `sso/pairing.ts` checks the issuer's
+discovery document names itself, registers Engrafo at its
+`registration_endpoint` with the token (RFC 7591), and keeps the client in the
+`oidc_settings` row. Unpairing deletes the client at the provider (RFC 7592) and
+forgets the row even when the provider cannot be reached. The token is never
+logged or stored. `OIDC_ISSUER` in the environment wins over a pairing
+(`effectiveOidc` in `sso/settings.ts`), and then `pairSso` answers `FORBIDDEN`.
+
+better-auth fixes its plugins when it is created, so a pairing means a new
+instance: `AuthHost` (`auth/auth-host.ts`) holds the current one and `rebuild()`
+replaces it. **Never hold an `Auth` from boot** — the GraphQL context takes
+`authHost.current()` per request, and the SSO routes are always mounted and ask
+the host each time, redirecting to `/login?error=sso_off` while there is no
+provider. `oidc_settings` holds client secrets, so it is in `SERVER_TABLES` and
+excluded from the GraphQL schema next to better-auth's tables.
+
+**The first account is the admin.** `users.is_admin` is set by better-auth's
+`user.create.after` hook through `claimFirstAdmin`, which only succeeds while no
+admin exists; the migration made the oldest existing account the admin. The admin
+pairs and disconnects in Settings. While there are no accounts at all, anyone may
+pair from the login page's "Set up sign-in" tab, so whoever installs Engrafo can
+set sign-in up before there is an admin to ask.
 
 **The app is built in one place and booted in another.** `createApp(deps)` in
 `http/app.ts` returns the Express app with everything it needs handed to it and

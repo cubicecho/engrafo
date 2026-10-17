@@ -64,4 +64,31 @@ describe('preflight', () => {
   it('accepts any secret outside production', () => {
     expect(runPreflight({ NODE_ENV: 'development', BETTER_AUTH_SECRET: '' }).status).toBe(0);
   });
+
+  it('passes a complete OIDC provider', () => {
+    const oidc = { OIDC_ISSUER: 'https://id.example.com/oidc', OIDC_CLIENT_ID: 'engrafo' };
+    expect(runPreflight({ ...oidc, OIDC_CLIENT_AUTH: 'client_secret_post' })).toEqual({ status: 0, stderr: '' });
+  });
+
+  it.each([
+    ['an issuer without a client id', { OIDC_ISSUER: 'https://id.example.com/oidc' }],
+    ['a client id without an issuer', { OIDC_CLIENT_ID: 'engrafo' }],
+  ])('refuses %s', (_label, env) => {
+    const { status, stderr } = runPreflight(env);
+    expect(status).toBe(1);
+    expect(stderr).toContain('OIDC_ISSUER and OIDC_CLIENT_ID go together');
+  });
+
+  it('refuses an issuer that is not a URL', () => {
+    const { status, stderr } = runPreflight({ OIDC_ISSUER: 'id.example.com', OIDC_CLIENT_ID: 'engrafo' });
+    expect(status).toBe(1);
+    expect(stderr).toContain('OIDC_ISSUER is not a URL');
+  });
+
+  it('refuses a client auth method it does not know', () => {
+    const env = { OIDC_ISSUER: 'https://id.example.com/oidc', OIDC_CLIENT_ID: 'engrafo', OIDC_CLIENT_AUTH: 'jwt' };
+    const { status, stderr } = runPreflight(env);
+    expect(status).toBe(1);
+    expect(stderr).toContain('OIDC_CLIENT_AUTH must be one of');
+  });
 });

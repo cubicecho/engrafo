@@ -15,6 +15,8 @@ export const ROUTES = Object.freeze({
   login: '/login',
   /** Where a magic link lands, carrying its token in the query string. */
   verify: '/auth/verify',
+  /** Where an OIDC sign-in lands, carrying a one-time token the server's callback minted. */
+  sso: '/auth/sso',
 });
 
 /**

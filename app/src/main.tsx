@@ -13,6 +13,7 @@ import { DocumentRoute } from '@/routes/document';
 import { DocumentsRoute } from '@/routes/documents';
 import { LoginPage } from '@/routes/login';
 import { SettingsRoute } from '@/routes/settings';
+import { SsoPage } from '@/routes/sso';
 import { VerifyPage } from '@/routes/verify';
 import './index.css';
 
@@ -51,6 +52,7 @@ createRoot(root).render(
           <Routes>
             <Route path={ROUTES.login} element={<LoginPage />} />
             <Route path={ROUTES.verify} element={<VerifyPage />} />
+            <Route path={ROUTES.sso} element={<SsoPage />} />
             <Route path={ROUTES.documents} element={<RequireAuth contentSlot={<DocumentsRoute />} />} />
             <Route path={ROUTES.document} element={<RequireAuth contentSlot={<DocumentRoute />} />} />
             <Route path={ROUTES.settings} element={<RequireAuth contentSlot={<SettingsRoute />} />} />

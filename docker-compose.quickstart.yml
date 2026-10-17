@@ -37,6 +37,15 @@
 # On a home network that is tedious. SECURE_LOCAL_NET=true skips the link
 # entirely — an address alone signs you in. Read the warning beside it below.
 #
+# Or sign in through an OpenID Connect provider such as heautou. The easy way:
+# make a setup URL for Engrafo in heautou and paste it into the login page's
+# "Set up sign-in" tab before anyone has an account (or, later, Settings ->
+# Sign-in, as the first account created). No variables needed. To pin the
+# provider instead, register a client there whose redirect URI is
+# http://ENGRAFO_HOST:3004/api/auth/callback/oidc, then set OIDC_ISSUER,
+# OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and, for the button, OIDC_NAME. The login
+# page then shows "Sign in with <OIDC_NAME>".
+#
 # Registration is open to anyone who can reach the page, so keep this on a
 # network you trust, or put a reverse proxy with real auth in front of it.
 # Read the "Before you expose it" section of the README before giving it a
@@ -79,6 +88,11 @@ services:
       SESSION_STORE: ${SESSION_STORE:-memory}
       # Behind a reverse proxy, the number of proxies in front (usually 1).
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Sign-in through an OIDC provider. Empty leaves it off.
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_NAME: ${OIDC_NAME:-SSO}
       # OCR is on. It is CPU-bound: raise OCR_CONCURRENCY only if this machine
       # has cores to spare. Extra languages need their Tesseract data in the
       # image, so `eng` is what this one can do.
