@@ -27,7 +27,7 @@ Paperless is for.
 
 ## Quickstart
 
-Four containers: Engrafo, Postgres, MinIO, and a one-shot job that creates the
+Four containers: Engrafo, Postgres, [RustFS](https://rustfs.com), and a one-shot job that creates the
 two buckets. The app and the API are served from the same origin; the bucket is
 its own, because browsers upload to it directly.
 
@@ -41,7 +41,7 @@ mkdir engrafo && cd engrafo
 curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
 
 # The three secrets it refuses to start without, plus the address you reach it at.
-printf 'ENGRAFO_HOST=%s\nBETTER_AUTH_SECRET=%s\nPOSTGRES_PASSWORD=%s\nMINIO_PASSWORD=%s\n' \
+printf 'ENGRAFO_HOST=%s\nBETTER_AUTH_SECRET=%s\nPOSTGRES_PASSWORD=%s\nRUSTFS_PASSWORD=%s\n' \
   "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" > .env
 
 docker compose -f docker-compose.quickstart.yml up -d
@@ -54,12 +54,12 @@ the stack's environment-variables box.
 
 `ENGRAFO_HOST` is the one to get right: your NAS's hostname or LAN IP, no scheme,
 e.g. `truenas.local` or `192.168.1.50`. Your browser uploads files straight to
-MinIO over a URL Engrafo signs, and **the signature covers the hostname** — so
+RustFS over a URL Engrafo signs, and **the signature covers the hostname** — so
 `localhost` here fails as a signature mismatch the moment you browse from any
 other machine, not as an error that names the real problem.
 
 If something on that machine already owns the ports — 9000 is popular — set
-`ENGRAFO_PORT`, `MINIO_PORT` or `MINIO_CONSOLE_PORT` rather than editing the
+`ENGRAFO_PORT`, `RUSTFS_PORT` or `RUSTFS_CONSOLE_PORT` rather than editing the
 file. The signature covers the port too, so the addresses Engrafo signs are
 built from these.
 
@@ -74,13 +74,50 @@ docker logs -f engrafo          # or the Logs tab in Portainer
 ```
 
 Keep that `.env`. `BETTER_AUTH_SECRET` signs sessions, so changing it signs everyone out.
-Your documents and their extracted text live in the `engrafo_minio` volume and
+Your documents and their extracted text live in the `engrafo_rustfs` volume and
 their metadata in `engrafo_pgdata`; both survive `docker compose down`, and a
 backup needs both, because one without the other is not a working archive.
 Upgrade with `docker compose -f docker-compose.quickstart.yml pull && docker
 compose -f docker-compose.quickstart.yml up -d`.
 
 Read [**Before you expose it**](#before-you-expose-it) before putting this on a
+### Coming from a MinIO install
+
+Earlier versions of this file ran MinIO. RustFS cannot read a MinIO data
+directory, so the new stack starts on an empty `engrafo_rustfs` volume and
+leaves `engrafo_minio` untouched beside it — your files are not lost, but
+Engrafo will list documents it cannot open until they are copied across.
+
+```bash
+docker compose -f docker-compose.quickstart.yml down      # the old file; volumes stay
+curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
+sed -i 's/^MINIO_/RUSTFS_/' .env                          # same password, same ports, new names
+
+# RustFS and its buckets only, so nobody uploads halfway through the copy.
+docker compose -f docker-compose.quickstart.yml up -d rustfs rustfs-init
+
+# The old MinIO, read from its volume, on the stack's network.
+set -a && . ./.env && set +a
+docker run -d --name engrafo-minio-old --network engrafo_default \
+  -v engrafo_engrafo_minio:/data \
+  -e MINIO_ROOT_USER=engrafo -e MINIO_ROOT_PASSWORD="$RUSTFS_PASSWORD" \
+  quay.io/minio/minio:latest server /data
+
+docker run --rm --network engrafo_default -e PW="$RUSTFS_PASSWORD" --entrypoint sh quay.io/minio/mc:latest -c '
+  mc alias set old http://engrafo-minio-old:9000 engrafo "$PW" &&
+  mc alias set new http://rustfs:9000 engrafo "$PW" &&
+  mc mirror old/engrafo new/engrafo &&
+  mc mirror old/engrafo-text new/engrafo-text'
+
+docker rm -f engrafo-minio-old
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+The volume and network names assume the stack is called `engrafo`, which is what
+the file names it; `docker volume ls` and `docker network ls` show yours if a
+platform renamed it. Remove `engrafo_engrafo_minio` only once you have opened a
+few documents from the new stack.
+
 domain.
 
 ## Configuration
@@ -93,8 +130,8 @@ domain.
 | `S3_BUCKET` | — | **Required.** Bucket for uploaded files and OCR archives. Engrafo does not create it. |
 | `S3_TEXT_BUCKET` | `$S3_BUCKET-text` | Bucket for extracted text. Must exist too. |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | — | **Required.** Bucket credentials. |
-| `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | Where the *browser* reaches the bucket. Presigned URLs are signed for this host. |
-| `S3_REGION` | `us-east-1` | MinIO ignores it; AWS does not. |
+| `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | Where the *browser* reaches the bucket. Presigned URLs are signed for this host, and the bucket has to answer CORS for the page's origin. |
+| `S3_REGION` | `us-east-1` | RustFS ignores it; AWS does not. |
 | `APP_URL` | `http://localhost:$PORT` | Public URL; magic-link URLs are built from it. |
 | `PORT` | `3004` | Port the server listens on. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
@@ -128,7 +165,7 @@ for an instance on the public internet. Before putting Engrafo on a domain:
   to the number of proxies in front, or every visitor counts as the proxy and
   shares one budget.
 - **The bucket is reachable too.** Browsers upload and download directly, so
-  MinIO's port is published. Terminate TLS in front of it and set
+  RustFS's port is published. Terminate TLS in front of it and set
   `S3_PUBLIC_ENDPOINT` to that address — objects are only ever reached through
   short-lived presigned URLs, but those URLs travel over whatever you give them.
 - **Never set `SECURE_LOCAL_NET=true` (or `AUTH_MAGIC_LINK=false`) on a reachable
@@ -150,7 +187,7 @@ cp .env.example .env
 sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$(openssl rand -hex 32)/" .env
 
 npm install
-npm run db:up          # Postgres on 127.0.0.1:5436, MinIO on 9000 (console 9001)
+npm run db:up          # Postgres on 127.0.0.1:5436, RustFS on 9000 (console 9001)
 npm run db:migrate
 npm run codegen
 npm run dev            # API on 3004, Vite dev server on 3000
@@ -184,7 +221,7 @@ docker context ls
 ```
 
 A remote endpoint (`ssh://…`, `tcp://…`) means `npm run db:up` published Postgres
-and MinIO on *that* host's `127.0.0.1`, where nothing else can reach them. Set
+and RustFS on *that* host's `127.0.0.1`, where nothing else can reach them. Set
 `DEV_BIND=0.0.0.0` in `.env`, point `DATABASE_URL` and `S3_ENDPOINT` at the
 daemon's hostname, and re-run `npm run db:up`. Only on a network you trust — the
 dev database and bucket have throwaway passwords and no TLS.
@@ -195,7 +232,7 @@ The repo ships its own `docker-compose.yml`, which builds the image rather than
 pulling it:
 
 ```bash
-export BETTER_AUTH_SECRET=$(openssl rand -hex 32) MINIO_PASSWORD=$(openssl rand -hex 24)
+export BETTER_AUTH_SECRET=$(openssl rand -hex 32) RUSTFS_PASSWORD=$(openssl rand -hex 24)
 docker compose up --build
 ```
 

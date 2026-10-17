@@ -18,7 +18,7 @@ if (!process.env.DATABASE_URL) {
 // fail there, which reads as a bug in the upload form rather than a missing env var.
 for (const name of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
   if (!process.env[name]) {
-    fatal(`${name} is required. Copy .env.example to .env, then run \`npm run db:up\` for a local MinIO.`);
+    fatal(`${name} is required. Copy .env.example to .env, then run \`npm run db:up\` for a local RustFS.`);
   }
 }
 

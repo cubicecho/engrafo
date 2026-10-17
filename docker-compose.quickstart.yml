@@ -13,17 +13,17 @@
 #                     hostname or LAN IP, no scheme. e.g. truenas.local, 192.168.1.50
 #   BETTER_AUTH_SECRET openssl rand -hex 32
 #   POSTGRES_PASSWORD openssl rand -hex 24
-#   MINIO_PASSWORD    openssl rand -hex 24  (at least 8 characters)
+#   RUSTFS_PASSWORD   openssl rand -hex 24
 #   TZ                optional, e.g. America/Chicago
 #
 # Optional, if something on this machine already owns those ports — 9000 in
 # particular is popular. Change them here rather than editing the file, because
 # the addresses Engrafo signs its upload URLs with are built from them:
 #
-#   ENGRAFO_PORT=3004  MINIO_PORT=9000  MINIO_CONSOLE_PORT=9001
+#   ENGRAFO_PORT=3004  RUSTFS_PORT=9000  RUSTFS_CONSOLE_PORT=9001
 #
 # ENGRAFO_HOST is the one people get wrong. Your browser uploads files straight
-# to MinIO using a link Engrafo signs, and the signature covers the hostname —
+# to RustFS using a link Engrafo signs, and the signature covers the hostname —
 # so if this says "localhost" while you are browsing from another machine,
 # uploads fail with a signature error rather than a DNS one.
 #
@@ -52,24 +52,24 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio-init:
+      rustfs-init:
         condition: service_completed_successfully
     environment:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET — openssl rand -hex 32}
       DATABASE_URL: postgres://engrafo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/engrafo
       # The address sign-in links are built from.
       APP_URL: http://${ENGRAFO_HOST:?set ENGRAFO_HOST to this machine's hostname or LAN IP}:${ENGRAFO_PORT:-3004}
-      # How the server reaches MinIO: over the stack's own network, where the
+      # How the server reaches RustFS: over the stack's own network, where the
       # published port does not apply.
-      S3_ENDPOINT: http://minio:9000
-      # How your browser reaches MinIO. Signed into every upload and download
+      S3_ENDPOINT: http://rustfs:9000
+      # How your browser reaches RustFS. Signed into every upload and download
       # link, so it must be an address your browser can actually resolve —
       # host and port both, because the signature covers them.
-      S3_PUBLIC_ENDPOINT: http://${ENGRAFO_HOST}:${MINIO_PORT:-9000}
+      S3_PUBLIC_ENDPOINT: http://${ENGRAFO_HOST}:${RUSTFS_PORT:-9000}
       S3_BUCKET: engrafo
       S3_TEXT_BUCKET: engrafo-text
       S3_ACCESS_KEY_ID: engrafo
-      S3_SECRET_ACCESS_KEY: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      S3_SECRET_ACCESS_KEY: ${RUSTFS_PASSWORD:?set RUSTFS_PASSWORD — openssl rand -hex 24}
       # On a LAN you control, set SECURE_LOCAL_NET=true and entering an address
       # signs you in — no link to dig out of the log. It makes that address the
       # entire credential, so it is wrong the moment this port is reachable from
@@ -109,26 +109,31 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
-    image: quay.io/minio/minio:latest
-    container_name: engrafo-minio
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: engrafo-rustfs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: engrafo
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      RUSTFS_ACCESS_KEY: engrafo
+      RUSTFS_SECRET_KEY: ${RUSTFS_PASSWORD:?set RUSTFS_PASSWORD — openssl rand -hex 24}
+      RUSTFS_CONSOLE_ENABLE: "true"
+      # Lets the Engrafo page, on one port, upload to RustFS, on another. A
+      # signed link is the credential, so it does not matter which page uses it.
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+      # Empty means the container log, where `docker logs` and Portainer look.
+      RUSTFS_OBS_LOG_DIRECTORY: ""
       TZ: ${TZ:-UTC}
     ports:
       # This one has to be reachable from your browser: uploads and downloads
       # go straight here, not through Engrafo.
-      - "${MINIO_PORT:-9000}:9000"
-      # MinIO's own admin console — handy for seeing your files, and it takes
+      - "${RUSTFS_PORT:-9000}:9000"
+      # RustFS's own admin console — handy for seeing your files, and it takes
       # the root password, so drop this line if you do not want it exposed.
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - engrafo_minio:/data
+      - engrafo_rustfs:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -136,22 +141,23 @@ services:
   # Creates the two buckets and exits: one for the files you upload, one for the
   # text Engrafo extracts from them. Runs again on every `up`, and does nothing
   # when they already exist.
-  minio-init:
-    image: quay.io/minio/mc:latest
-    container_name: engrafo-minio-init
+  rustfs-init:
+    image: rustfs/rc:latest
+    container_name: engrafo-rustfs-init
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     environment:
-      MINIO_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD — at least 8 characters}
+      RUSTFS_PASSWORD: ${RUSTFS_PASSWORD:?set RUSTFS_PASSWORD — openssl rand -hex 24}
     entrypoint: >
-      sh -c "mc alias set local http://minio:9000 engrafo \"$$MINIO_PASSWORD\" &&
-             mc mb --ignore-existing local/engrafo local/engrafo-text"
+      sh -c "rc alias set local http://rustfs:9000 engrafo \"$$RUSTFS_PASSWORD\" &&
+             rc bucket create --ignore-existing local/engrafo &&
+             rc bucket create --ignore-existing local/engrafo-text"
     restart: "no"
 
-# Your documents live in engrafo_minio and their metadata in engrafo_pgdata.
+# Your documents live in engrafo_rustfs and their metadata in engrafo_pgdata.
 # Both survive `docker compose down` and stack restarts — back up both together,
 # because one without the other is not a working archive.
 volumes:
   engrafo_pgdata:
-  engrafo_minio:
+  engrafo_rustfs:

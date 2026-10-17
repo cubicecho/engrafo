@@ -308,7 +308,7 @@ export interface S3Config {
  *
  * @remarks
  * Two endpoints because two parties talk to the bucket. The server reaches it however the
- * deployment wires it (`http://minio:9000` on a compose network); the browser needs an address
+ * deployment wires it (`http://rustfs:9000` on a compose network); the browser needs an address
  * it can resolve, and a presigned URL's signature covers the host, so it has to be signed
  * against that public address, not rewritten afterwards.
  */

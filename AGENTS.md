@@ -20,7 +20,7 @@ what Paperless is for.
 | UI       | Tailwind CSS v4, cubeui (shadcn registry), TanStack Form      |
 | API      | graphql-yoga 5 on Express 5, GraphQL                          |
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)                      |
-| Storage  | `@aws-sdk/client-s3` against MinIO or any S3-compatible bucket |
+| Storage  | `@aws-sdk/client-s3` against RustFS or any S3-compatible bucket |
 | OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to; optionally a vision model over `@cubicecho/agent-core` |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
@@ -90,7 +90,7 @@ engrafo/
 │       └── index.ts         # The DB type, the singleton, closeDatabase
 ├── .agents/mvp-plan.md      # The plan this repo was built from
 ├── Dockerfile               # node:26-slim + ocrmypdf/tesseract/ghostscript; `test` stage runs the suite
-├── docker-compose.dev.yml   # Postgres + MinIO for development
+├── docker-compose.dev.yml   # Postgres + RustFS for development
 ├── docker-compose.yml       # The whole stack, built from this checkout
 └── docker-compose.quickstart.yml  # The whole stack, pulled — what self-hosters paste
 ```
@@ -109,7 +109,7 @@ Docker Hub is the primary registry: every compose file and the README name
 
 ```bash
 npm run dev              # server (3004) + Vite dev server (3000, proxies /graphql)
-npm run db:up            # Postgres on ${DEV_BIND:-127.0.0.1}:5436, MinIO on 9000/9001
+npm run db:up            # Postgres on ${DEV_BIND:-127.0.0.1}:5436, RustFS on 9000/9001
 npm run db:generate      # new migration from a schema change
 npm run db:migrate       # apply migrations
 npm run codegen          # GraphQL types for both server and app
@@ -173,6 +173,15 @@ signature covers the host, so a URL cannot be rewritten after signing — pointi
 the browser at the wrong one fails as a signature mismatch, not a DNS error.
 
 **The pipeline is an in-process event, and that is deliberate.** There is no
+**The bucket has to answer CORS, and RustFS does not unless told to.** The page
+is on one port and the bucket on another, so the presigned PUT and the text
+fetch are cross-origin. Every compose file sets `RUSTFS_CORS_ALLOWED_ORIGINS:
+"*"` — the signed URL is the credential, and neither request carries cookies —
+and without it uploads fail in the browser while every server-side call still
+works, which is why no test here notices. The same files empty
+`RUSTFS_OBS_LOG_DIRECTORY`, which is what puts RustFS's log on stdout instead of
+in a file inside the container.
+
 queue: `completeDocumentUpload` emits `document.uploaded` and returns.
 `createPipeline` holds an in-flight map keyed by document id, so the same
 document emitted twice runs once, and a counting limiter (`OCR_CONCURRENCY`)
