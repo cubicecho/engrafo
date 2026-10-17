@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/cubicecho/engrafo/compare/v3.0.0...v3.1.0) (2026-10-17)
+
+
+### Features
+
+* sign in through an OIDC provider, set in the environment or paired from a setup URL ([2d8d541](https://github.com/cubicecho/engrafo/commit/2d8d541a4ce98aaa2e0ce67b8782d79e7aa7431d))
+
 # [3.0.0](https://github.com/cubicecho/engrafo/compare/v2.0.1...v3.0.0) (2026-10-17)
 
 
