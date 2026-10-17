@@ -46,14 +46,14 @@ layout: base.njk
   <h2>Get started</h2>
   <div class="prose">
     <p>
-      Four containers from a published image: Engrafo, Postgres, MinIO and a
+      Four containers from a published image: Engrafo, Postgres, RustFS and a
       one-shot job that creates the buckets. Nothing to clone or build.
     </p>
     <pre class="code"><code>mkdir engrafo &amp;&amp; cd engrafo
 curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
 
 # The three secrets it refuses to start without, plus the address you reach it at.
-printf 'ENGRAFO_HOST=%s\nJWT_SECRET=%s\nPOSTGRES_PASSWORD=%s\nMINIO_PASSWORD=%s\n' \
+printf 'ENGRAFO_HOST=%s\nJWT_SECRET=%s\nPOSTGRES_PASSWORD=%s\nRUSTFS_PASSWORD=%s\n' \
   "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" &gt; .env
 
 docker compose -f docker-compose.quickstart.yml up -d</code></pre>

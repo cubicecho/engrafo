@@ -1,7 +1,7 @@
-# Postgres and MinIO, for running the app from source. `npm run db:up`.
+# Postgres and RustFS, for running the app from source. `npm run db:up`.
 #
 # Its own project name, so it never collides with the containers
-# docker-compose.yml creates — both files define `postgres` and `minio`.
+# docker-compose.yml creates — both files define `postgres` and `rustfs`.
 name: engrafo-dev
 
 services:
@@ -26,39 +26,46 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
-    image: quay.io/minio/minio:latest
+  rustfs:
+    image: rustfs/rustfs:latest
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: engrafo
-      MINIO_ROOT_PASSWORD: engrafo-dev-secret
+      RUSTFS_ACCESS_KEY: engrafo
+      RUSTFS_SECRET_KEY: engrafo-dev-secret
+      RUSTFS_CONSOLE_ENABLE: "true"
+      # RustFS sends no CORS headers unless told to, and a presigned browser PUT
+      # is cross-origin by construction: the page is on one port, the bucket on
+      # another. The signed URL is the credential, so any origin may use one.
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+      # Empty means stdout. The image's default is a file inside the container,
+      # where `docker logs` shows nothing and nothing rotates it.
+      RUSTFS_OBS_LOG_DIRECTORY: ""
     ports:
       # The browser PUTs uploads straight here, so unlike Postgres this port has
       # to be reachable from wherever the app is opened. Same DEV_BIND rule.
-      - "${DEV_BIND:-127.0.0.1}:${MINIO_PORT:-9000}:9000"
-      - "${DEV_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${DEV_BIND:-127.0.0.1}:${RUSTFS_PORT:-9000}:9000"
+      - "${DEV_BIND:-127.0.0.1}:${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - engrafo_dev_minio:/data
+      - engrafo_dev_rustfs:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   # Creates both buckets, then exits — files in one, extracted text in the
-  # other. MinIO answers CORS for every origin by default, which is what a
-  # presigned browser PUT needs.
-  minio-init:
-    image: quay.io/minio/mc:latest
+  # other.
+  rustfs-init:
+    image: rustfs/rc:latest
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     entrypoint: >
-      sh -c "mc alias set local http://minio:9000 engrafo engrafo-dev-secret &&
-             mc mb --ignore-existing local/engrafo local/engrafo-text"
+      sh -c "rc alias set local http://rustfs:9000 engrafo engrafo-dev-secret &&
+             rc bucket create --ignore-existing local/engrafo &&
+             rc bucket create --ignore-existing local/engrafo-text"
     restart: "no"
 
 volumes:
   engrafo_dev_pgdata:
-  engrafo_dev_minio:
+  engrafo_dev_rustfs:
