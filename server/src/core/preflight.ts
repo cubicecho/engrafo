@@ -2,7 +2,7 @@
 // token. Imported for its side effects as the very first import of index.ts, so
 // a misconfigured instance fails with a sentence rather than a stack trace.
 
-import { DEV_SECRET, PLACEHOLDER_SECRET } from './config.ts';
+import { DEV_SECRET, OIDC_CLIENT_AUTH_METHODS, PLACEHOLDER_SECRET } from './config.ts';
 import { AUTH_DEFAULTS } from './defaults.ts';
 
 function fatal(message: string): never {
@@ -34,4 +34,21 @@ if (process.env.NODE_ENV === 'production') {
       `BETTER_AUTH_SECRET must be a random value of at least ${AUTH_DEFAULTS.minSecretLength} characters in production. Generate one with \`openssl rand -hex 32\`.${renamed}`,
     );
   }
+}
+
+// Half an OIDC setup leaves the login page without its button and no clue why,
+// and a typo in the issuer would only show up at the first sign-in.
+const oidcIssuer = process.env.OIDC_ISSUER?.trim() ?? '';
+const oidcClientId = process.env.OIDC_CLIENT_ID?.trim() ?? '';
+if ((oidcIssuer === '') !== (oidcClientId === '')) {
+  fatal('OIDC_ISSUER and OIDC_CLIENT_ID go together: set both to sign in with an OIDC provider, or neither.');
+}
+const isIssuerUrl = URL.canParse(oidcIssuer);
+if (oidcIssuer !== '' && isIssuerUrl === false) {
+  fatal(`OIDC_ISSUER is not a URL: ${oidcIssuer}`);
+}
+const oidcClientAuth = process.env.OIDC_CLIENT_AUTH?.trim() ?? '';
+const isKnownClientAuth = (OIDC_CLIENT_AUTH_METHODS as readonly string[]).includes(oidcClientAuth);
+if (oidcClientAuth !== '' && isKnownClientAuth === false) {
+  fatal(`OIDC_CLIENT_AUTH must be one of ${OIDC_CLIENT_AUTH_METHODS.join(', ')}.`);
 }

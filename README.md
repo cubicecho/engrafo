@@ -20,7 +20,8 @@ whole product.
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
   the original otherwise.
-- **Sign-in by magic link**, or no link at all on a private instance.
+- **Sign-in by magic link**, through an OpenID Connect provider such as
+  heautou, or with no link at all on a private instance.
 
 No search, no tags, no correspondents, no mail ingestion. Those are what
 Paperless is for.
@@ -80,7 +81,6 @@ backup needs both, because one without the other is not a working archive.
 Upgrade with `docker compose -f docker-compose.quickstart.yml pull && docker
 compose -f docker-compose.quickstart.yml up -d`.
 
-Read [**Before you expose it**](#before-you-expose-it) before putting this on a
 ### Coming from a MinIO install
 
 Earlier versions of this file ran MinIO. RustFS cannot read a MinIO data
@@ -118,6 +118,7 @@ the file names it; `docker volume ls` and `docker network ls` show yours if a
 platform renamed it. Remove `engrafo_engrafo_minio` only once you have opened a
 few documents from the new stack.
 
+Read [**Before you expose it**](#before-you-expose-it) before putting this on a
 domain.
 
 ## Configuration
@@ -132,7 +133,7 @@ domain.
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | — | **Required.** Bucket credentials. |
 | `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | Where the *browser* reaches the bucket. Presigned URLs are signed for this host, and the bucket has to answer CORS for the page's origin. |
 | `S3_REGION` | `us-east-1` | RustFS ignores it; AWS does not. |
-| `APP_URL` | `http://localhost:$PORT` | Public URL; magic-link URLs are built from it. |
+| `APP_URL` | `http://localhost:$PORT` | Public URL; magic-link URLs and the OIDC redirect URI are built from it. |
 | `PORT` | `3004` | Port the server listens on. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
 | `MAX_UPLOAD_BYTES` | `104857600` | Largest accepted upload, 100 MiB by default. |
@@ -143,6 +144,11 @@ domain.
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
+| `OIDC_ISSUER` | — | Turns on sign-in through an OpenID Connect provider, with `OIDC_CLIENT_ID`. The issuer URL; for heautou it ends in `/oidc`. |
+| `OIDC_CLIENT_ID` | — | The client ID registered with the provider. |
+| `OIDC_CLIENT_SECRET` | — | The client's secret. Leave it unset for a public client. |
+| `OIDC_CLIENT_AUTH` | `client_secret_basic` | How the secret is sent: `client_secret_basic` (heautou's default) or `client_secret_post`. |
+| `OIDC_NAME` | `SSO` | The provider's name on the login button ("Sign in with …"). |
 | `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
 | `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
 
@@ -152,6 +158,40 @@ do something with.
 Engrafo ships no mail provider. With magic links on, the link is written to the
 server log, and that is the delivery channel — pipe the log somewhere you can
 read, or run with `SECURE_LOCAL_NET=true`.
+
+### Signing in with an OIDC provider
+
+Engrafo can sign people in through any OpenID Connect provider, next to magic
+links.
+
+**Pairing (the easy way).** With a provider that supports Dynamic Client
+Registration, such as heautou:
+
+1. In heautou, make a setup URL for Engrafo. It looks like
+   `https://<heautou>/oidc#setup=…&name=heautou`, and works once, for a short while.
+2. Paste it into Engrafo. On a new instance, with no accounts yet, that is the
+   login page's **Set up sign-in** tab; after that it is **Settings → Sign-in**,
+   which only the admin sees. The first account ever created is the admin.
+3. The login page shows "Sign in with heautou" straight away, with no restart.
+
+Disconnecting in Settings removes the button and deletes Engrafo's client at the
+provider. Accounts stay, and can still sign in with an emailed link.
+
+**From the environment.** For a provider without registration, or to pin the
+provider so it cannot be changed from the app:
+
+1. In heautou, add a client whose redirect URI is exactly
+   `<APP_URL>/api/auth/callback/oidc`. Its `allowedGroups` decide who may
+   sign in.
+2. Set `OIDC_ISSUER=https://<heautou>/oidc`, `OIDC_CLIENT_ID`,
+   `OIDC_CLIENT_SECRET` and, for the button, `OIDC_NAME=heautou`.
+3. Restart. The login page shows "Sign in with heautou", and the server logs
+   the redirect URI it expects.
+
+Someone signing in this way gets the account with the email address the
+provider vouches for, or a new one if there is none. Setting only one of
+`OIDC_ISSUER` and `OIDC_CLIENT_ID` stops the server at boot. `OIDC_ISSUER` wins
+over a pairing, and Settings then shows the provider read-only.
 
 ## Before you expose it
 

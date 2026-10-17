@@ -21,6 +21,14 @@ const RESOLVERS = {
       id: '9c1f0a6e-5d33-4f1b-8e27-0a9b8c7d6e5f',
       email: 'archivist@example.com',
       createdAt: '2026-01-14T09:30:00.000Z',
+      isAdmin: false,
+    }),
+    ssoSetup: () => ({
+      source: 'NONE',
+      issuer: null,
+      name: null,
+      canPair: true,
+      redirectUri: 'http://localhost:3004/sso/oidc/callback',
     }),
     serverConfig: () => ({
       version: '1.4.2',
@@ -66,6 +74,23 @@ export const Ready: Story = {
     // no mutation behind it and no server state to wait for — it is here because settings is
     // where someone looks for it, not because the query supplies it.
     await expect(canvas.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
+    // How people sign in is the instance's, so an account that is not the admin is not shown it.
+    await expect(canvas.queryByText('Sign-in')).not.toBeInTheDocument();
+  },
+};
+
+/** The admin also gets the sign-in card, here with nothing paired yet, so it offers the form. */
+export const Admin: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: { ...RESOLVERS.Query, me: () => ({ ...RESOLVERS.Query.me(), isAdmin: true }) },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Sign-in')).toBeInTheDocument();
+    await expect(canvas.getByRole('textbox', { name: /setup url/i })).toBeInTheDocument();
   },
 };
 

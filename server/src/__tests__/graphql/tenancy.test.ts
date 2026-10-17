@@ -9,10 +9,10 @@ import { createClient, createTestDb, createUser, type TestDb } from '../helpers.
 // what confines every generated read to the caller; a table missing from it is
 // readable across tenants, and nothing else in the codebase would say so.
 
-/** better-auth's tables, which are not exposed through GraphQL. */
-const AUTH_TABLES = new Set<string>(dbSchema.AUTH_TABLES);
+/** better-auth's tables and the server's own, which are not exposed through GraphQL. */
+const UNSERVED_TABLES = new Set<string>([...dbSchema.AUTH_TABLES, ...dbSchema.SERVER_TABLES]);
 
-const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && AUTH_TABLES.has(key) === false;
+const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && UNSERVED_TABLES.has(key) === false;
 
 const tableKeys = Object.entries(dbSchema)
   .filter(([key, value]) => isServedTable(key, value))
@@ -34,7 +34,7 @@ describe('tenancy configuration', () => {
   it('names every table by its Drizzle key, not its SQL name', () => {
     for (const [key, value] of Object.entries(dbSchema)) {
       const isOtherExport = is(value, Table) === false;
-      if (isOtherExport || AUTH_TABLES.has(key)) {
+      if (isOtherExport || UNSERVED_TABLES.has(key)) {
         continue;
       }
       expect(Object.keys(scope)).toContain(key);

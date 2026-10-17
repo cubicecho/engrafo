@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fixedAuthHost } from '../../auth/auth-host.ts';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
 import { version } from '../../core/config.ts';
 import { ErrorCode } from '../../core/errors.ts';
@@ -42,7 +43,7 @@ describe('createApp', () => {
     const db = await createTestDb();
     const app = createApp({
       db,
-      auth: createTestAuth(db).auth,
+      authHost: fixedAuthHost(createTestAuth(db).auth),
       limiter: createRateLimiter(),
       storage: createFakeStorage(),
       events: createPipelineEvents(),

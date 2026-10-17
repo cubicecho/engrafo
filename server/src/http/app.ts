@@ -1,6 +1,6 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import express, { type Express } from 'express';
-import type { Auth } from '../auth/better-auth.ts';
+import type { AuthHost } from '../auth/auth-host.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import { trustProxy } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
@@ -8,6 +8,7 @@ import { createGraphQLHandler } from '../graphql/handler.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { checkHealth } from './health.ts';
+import { mountSso } from './sso.ts';
 import { createStaticHandler } from './static.ts';
 
 /** Where the liveness probe answers. */
@@ -16,7 +17,8 @@ export const HEALTH_PATH = '/healthz';
 /** Everything the app is built from. Nothing is reached for globally, so a test hands in its own. */
 export interface AppDeps {
   db: DB;
-  auth: Auth;
+  /** Hands out the current auth instance. Pairing a provider rebuilds it while the server runs. */
+  authHost: AuthHost;
   limiter: RateLimiter;
   storage: StorageSet;
   events: PipelineEvents;
@@ -47,6 +49,9 @@ export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
     const status = health.ok ? HttpStatus.Ok : HttpStatus.ServiceUnavailable;
     res.status(status).json(health);
   });
+  // Before the static handler too: its SPA fallback would answer both paths with the app.
+  // Always mounted, because a provider can be paired while the server runs.
+  mountSso(app, graphqlDeps.authHost);
   if (staticDir !== undefined) {
     const serveStatic = createStaticHandler(staticDir);
     app.use((req, res) => serveStatic(req, res));

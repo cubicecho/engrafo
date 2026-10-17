@@ -9,8 +9,10 @@ import { PGlite } from '@electric-sql/pglite';
 import { pushSchema } from 'drizzle-kit/api-postgres';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, graphql } from 'graphql';
+import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
 import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
+import type { OidcConfig } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
 import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
@@ -48,11 +50,17 @@ export interface TestAuth {
   links: MagicLink[];
 }
 
-/** better-auth over the test db, with magic links captured instead of logged. */
-export function createTestAuth(db: TestDb): TestAuth {
+/**
+ * better-auth over the test db, with magic links captured instead of logged.
+ *
+ * @param db - The test database.
+ * @param [oidc] - An OIDC provider to sign in with. None by default, whatever the environment says.
+ */
+export function createTestAuth(db: TestDb, oidc: OidcConfig | null = null): TestAuth {
   const links: MagicLink[] = [];
   const auth = createAuth(db, {
     secret: TEST_SECRET,
+    oidc,
     sendMagicLink: async (link) => {
       links.push(link);
     },
@@ -129,6 +137,8 @@ export interface TestClient {
 export interface ClientOptions {
   /** Pass one to share sessions and captured magic links across clients. Defaults to a fresh `createTestAuth(db).auth`. */
   auth?: Auth;
+  /** Pass one to see pairing rebuild it. Defaults to a host that always hands out `auth`. */
+  authHost?: AuthHost;
   /** Pass a small one to reach the budget. Defaults to `createRateLimiter()`. */
   limiter?: RateLimiter;
   /** Client address the limiter keys on. Defaults to `TEST_IP`. */
@@ -144,13 +154,16 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
   const { schema } = createSchema(db);
   const storage = options.storage ?? createFakeStorage();
   const events = options.events ?? createPipelineEvents();
-  const { auth = createTestAuth(db).auth, limiter = createRateLimiter(), ip = TEST_IP, token } = options;
+  const { limiter = createRateLimiter(), ip = TEST_IP, token } = options;
+  const authHost = options.authHost ?? fixedAuthHost(options.auth ?? createTestAuth(db).auth);
 
   const run = async (query: string, variables?: Record<string, unknown>) => {
     const headers = new Headers(token === undefined ? {} : { authorization: `Bearer ${token}` });
     const contextValue: Context = {
       db,
-      auth,
+      // Per run, as the handler does per request: a pairing may have rebuilt it since the last one.
+      auth: authHost.current(),
+      authHost,
       limiter,
       ip,
       userId,

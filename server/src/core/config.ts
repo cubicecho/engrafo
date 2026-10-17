@@ -209,6 +209,57 @@ export function magicLinkExposed(): boolean {
   return isProduction() === false || envSwitch(process.env.EXPOSE_MAGIC_LINK, AUTH_DEFAULTS.exposeMagicLink);
 }
 
+/** The id the OIDC provider is registered under in better-auth, and so the last part of its callback path. */
+export const OIDC_PROVIDER_ID = 'oidc';
+/** The `OIDC_CLIENT_AUTH` values a provider can expect. */
+export const OIDC_CLIENT_AUTH_METHODS = ['client_secret_basic', 'client_secret_post'] as const;
+
+/** An OpenID Connect provider to sign in with: heautou, Keycloak, Authentik, … */
+export interface OidcConfig {
+  /** The issuer URL, no trailing slash. Its discovery document is `/.well-known/openid-configuration` under it. */
+  issuer: string;
+  clientId: string;
+  /** Unset for a public client, which proves itself with PKCE alone. */
+  clientSecret: string | undefined;
+  /** How a confidential client sends its secret. The provider must expect the same. */
+  clientAuth: AuthSettings['oidcClientAuth'];
+  /** What the login page's button calls the provider. */
+  name: string;
+}
+
+/**
+ * Reads the OIDC provider to sign in with.
+ *
+ * @returns The provider when `OIDC_ISSUER` and `OIDC_CLIENT_ID` are both set, otherwise null.
+ *
+ * @remarks
+ * preflight.ts refuses one without the other, and a value of `OIDC_CLIENT_AUTH` it does not know.
+ */
+export function oidcConfig(): OidcConfig | null {
+  const issuer = process.env.OIDC_ISSUER?.trim();
+  const clientId = process.env.OIDC_CLIENT_ID?.trim();
+  if (!issuer || !clientId) {
+    return null;
+  }
+  const clientAuth = process.env.OIDC_CLIENT_AUTH?.trim();
+  return {
+    issuer: issuer.replace(/\/+$/, ''),
+    clientId,
+    clientSecret: process.env.OIDC_CLIENT_SECRET?.trim() || undefined,
+    clientAuth: clientAuth === 'client_secret_post' ? clientAuth : AUTH_DEFAULTS.oidcClientAuth,
+    name: process.env.OIDC_NAME?.trim() || AUTH_DEFAULTS.oidcName,
+  };
+}
+
+/**
+ * Names the address to register with the OIDC provider as this client's redirect URI.
+ *
+ * @returns better-auth's callback for the provider, under `APP_URL`.
+ */
+export function oidcRedirectUri(): string {
+  return `${appUrl()}/api/auth/callback/${OIDC_PROVIDER_ID}`;
+}
+
 /**
  * Reads the port the server listens on.
  *

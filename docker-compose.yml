@@ -31,6 +31,12 @@ services:
       EXPOSE_MAGIC_LINK: ${EXPOSE_MAGIC_LINK:-false}
       SESSION_STORE: ${SESSION_STORE:-memory}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Sign-in through an OIDC provider; empty leaves it off. The redirect URI
+      # to register is APP_URL/api/auth/callback/oidc.
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_NAME: ${OIDC_NAME:-SSO}
       NODE_ENV: production
       PORT: 3004
     ports:

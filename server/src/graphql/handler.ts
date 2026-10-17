@@ -1,7 +1,7 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import type { Request } from 'express';
 import { createYoga, type YogaServerInstance } from 'graphql-yoga';
-import type { Auth } from '../auth/better-auth.ts';
+import type { AuthHost } from '../auth/auth-host.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import { isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
@@ -18,8 +18,8 @@ interface ServerContext {
 /** What the GraphQL handler is built from, and hands every resolver on the context. */
 export interface GraphQLOptions {
   db: DB;
-  /** Resolves the session, and is passed on to resolvers. */
-  auth: Auth;
+  /** Hands out the current auth instance, which resolves the session and is passed on to resolvers. */
+  authHost: AuthHost;
   limiter: RateLimiter;
   storage: StorageSet;
   events: PipelineEvents;
@@ -34,7 +34,7 @@ export interface GraphQLOptions {
  */
 export function createGraphQLHandler({
   db,
-  auth,
+  authHost,
   limiter,
   storage,
   events,
@@ -49,10 +49,13 @@ export function createGraphQLHandler({
     // from this origin, and in development Vite proxies /graphql to it.
     cors: false,
     context: async ({ request, req }): Promise<Context> => {
+      // Asked per request: pairing a provider swaps the instance while the server runs.
+      const auth = authHost.current();
       const session = await auth.api.getSession({ headers: request.headers });
       return {
         db,
         auth,
+        authHost,
         limiter,
         // Express's view of the client address, which honors `trust proxy`.
         ip: req?.ip ?? UNKNOWN_IP,

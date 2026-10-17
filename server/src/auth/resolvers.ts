@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { badInput, requireAuth, unauthenticated } from '../core/errors.ts';
+import { SSO_START_PATH } from '../http/sso.ts';
+import { effectiveOidc } from '../sso/settings.ts';
 import { requestMagicLink } from './better-auth.ts';
 
 const AUTH_SDL = parse(`
@@ -14,6 +16,16 @@ const AUTH_SDL = parse(`
     secureLocalNet: Boolean!
     "Whether signing in means following a link."
     magicLink: Boolean!
+    "The OIDC provider to sign in with (OIDC_ISSUER, or the paired one), or null when there is none."
+    sso: SsoProvider
+  }
+
+  "An OpenID Connect provider the login page offers."
+  type SsoProvider {
+    "What the button calls it (OIDC_NAME, or the name in the setup URL)."
+    name: String!
+    "Where the button sends the browser, on this origin."
+    signInPath: String!
   }
 
   type AuthSession {
@@ -43,6 +55,8 @@ const AUTH_SDL = parse(`
     "Sends a sign-in link, or where none is required signs straight in and returns a session."
     requestSignIn(email: String!): SignInResult!
     verifyMagicLink(token: String!): AuthSession!
+    "The last leg of an OIDC sign-in: the one-time token the callback put on /auth/sso, for a session."
+    verifyOneTimeToken(token: String!): AuthSession!
     "Ends the caller's session. False when there was none."
     signOut: Boolean!
   }
@@ -52,6 +66,7 @@ const AUTH_SDL = parse(`
 export const AuthFlow = {
   RequestSignIn: 'requestSignIn',
   VerifyMagicLink: 'verifyMagicLink',
+  VerifyOneTimeToken: 'verifyOneTimeToken',
 } as const;
 /** One of the flows in `AuthFlow`. */
 export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
@@ -112,14 +127,15 @@ async function signInDirectly(ctx: Context, email: string): Promise<{ token: str
 }
 
 /**
- * Adds the sign-in fields to the schema: `me`, `authConfig`, `requestSignIn`, `verifyMagicLink` and `signOut`.
+ * Adds the sign-in fields to the schema: `me`, `authConfig`, `requestSignIn`, `verifyMagicLink`,
+ * `verifyOneTimeToken` and `signOut`.
  *
  * @param schema - The generated schema, which must already have a Mutation type.
  * @returns The extended schema.
  *
  * @remarks
- * These fields are the only way to reach better-auth, since none of its REST routes is mounted.
- * The two sign-in mutations are throttled first, because better-auth's own limiter never runs
+ * These fields are the only way to reach better-auth apart from the two OIDC redirects in
+ * http/sso.ts. The sign-in mutations are throttled first, because better-auth's own limiter never runs
  * for `auth.api` calls.
  */
 export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
@@ -129,10 +145,14 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
 
   queries.me.resolve = (_parent: unknown, _args: unknown, context: Context) => loadUser(context, requireAuth(context));
 
-  queries.authConfig.resolve = () => ({
-    secureLocalNet: magicLinkRequired() === false,
-    magicLink: magicLinkRequired(),
-  });
+  queries.authConfig.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
+    const { config: oidc } = await effectiveOidc(context.db);
+    return {
+      secureLocalNet: magicLinkRequired() === false,
+      magicLink: magicLinkRequired(),
+      sso: oidc === null ? null : { name: oidc.name, signInPath: SSO_START_PATH },
+    };
+  };
 
   fields.requestSignIn.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
     throttle(context, AuthFlow.RequestSignIn, args.email);
@@ -163,6 +183,19 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
       throw badInput('Invalid or expired magic link');
     }
     return { token: result.token, user: await loadUser(context, result.user.id) };
+  };
+
+  fields.verifyOneTimeToken.resolve = async (_parent: unknown, args: { token: string }, context: Context) => {
+    throttle(context, AuthFlow.VerifyOneTimeToken);
+    // Spent, expired and made-up tokens all throw, and all mean the same thing:
+    // this sign-in has to be started again. None of them is an expired session.
+    const result = await context.auth.api
+      .verifyOneTimeToken({ body: { token: args.token }, headers: new Headers() })
+      .catch(() => null);
+    if (result === null) {
+      throw badInput('Invalid or expired sign-in');
+    }
+    return { token: result.session.token, user: await loadUser(context, result.user.id) };
   };
 
   fields.signOut.resolve = async (_parent: unknown, _args: unknown, context: Context) => {

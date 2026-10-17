@@ -1,9 +1,10 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import { AUTH_TABLES } from '@cubicecho/engrafo-db/schema';
+import { AUTH_TABLES, SERVER_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
+import { applySsoExtension } from '../sso/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
 // Reads are generated from the Drizzle schema; every write is hand-written (see
@@ -39,8 +40,9 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
     // Table keys are plural (`documents`); derive singular names for the type
     // and single-row fields (Document, document).
     typeNameMapper: 'singularize',
-    // Sessions and magic-link tokens are only ever touched through better-auth.
-    exclude: { tables: [...AUTH_TABLES] },
+    // Sessions and magic-link tokens are only ever touched through better-auth,
+    // and the OIDC pairing holds credentials only the server reads.
+    exclude: { tables: [...AUTH_TABLES, ...SERVER_TABLES] },
     scope,
     contextValues,
     features,
@@ -49,6 +51,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   let schema = withMutationRoot(drizzleSchema);
   schema = applyAuthExtension(schema);
   schema = applyDocumentsExtension(schema);
+  schema = applySsoExtension(schema);
 
   return { schema, entities };
 }

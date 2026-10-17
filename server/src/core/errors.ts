@@ -7,6 +7,8 @@ export const ErrorCode = {
   NotFound: 'NOT_FOUND',
   BadUserInput: 'BAD_USER_INPUT',
   TooManyRequests: 'TOO_MANY_REQUESTS',
+  Forbidden: 'FORBIDDEN',
+  Conflict: 'CONFLICT',
 } as const;
 /** One of the codes in `ErrorCode`. */
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -41,6 +43,27 @@ export function badInput(message: string): GraphQLError {
  */
 export function notFound(message: string): GraphQLError {
   return withCode(message, ErrorCode.NotFound);
+}
+
+/**
+ * The caller may not change something about the instance itself, such as how it signs people in.
+ * Never for a row: a row the caller may not touch is NOT_FOUND, so its existence is not confirmed.
+ *
+ * @param message - Why not, and where it can be changed instead.
+ * @returns A FORBIDDEN error.
+ */
+export function forbidden(message: string): GraphQLError {
+  return withCode(message, ErrorCode.Forbidden);
+}
+
+/**
+ * The request is fine, but the instance is in a state that refuses it, such as pairing twice.
+ *
+ * @param message - What has to happen first.
+ * @returns A CONFLICT error.
+ */
+export function conflict(message: string): GraphQLError {
+  return withCode(message, ErrorCode.Conflict);
 }
 
 /**

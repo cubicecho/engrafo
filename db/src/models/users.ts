@@ -13,6 +13,9 @@ export const users = pgTable(
     // better-auth's. Following a magic link is what proves the address.
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
+    // Who may change how this instance signs people in. The first account to be created claims it
+    // (server/src/auth/admin.ts); the migration that added it gave it to the oldest account.
+    isAdmin: boolean('is_admin').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()

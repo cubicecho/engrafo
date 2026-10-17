@@ -1,4 +1,5 @@
 import type { DB } from '@cubicecho/engrafo-db';
+import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
@@ -14,8 +15,10 @@ export const UNKNOWN_IP = 'unknown';
  */
 export interface Context {
   db: DB;
-  /** better-auth instance; the auth resolvers call `ctx.auth.api.*`. */
+  /** better-auth instance for this request; the auth resolvers call `ctx.auth.api.*`. */
   auth: Auth;
+  /** Where `auth` came from. Pairing a provider rebuilds it, so later requests get the new one. */
+  authHost: AuthHost;
   /** Sign-in throttle; the auth mutations call it. */
   limiter: RateLimiter;
   /** Client address, for rate-limit keys. Never an identity. */
