@@ -69,6 +69,28 @@ export const SettingsRoute: Story = {
   },
 };
 
+/** Settings sits at the foot of the sidebar with sign-out, as in the other cubeui apps, not among the places. */
+export const SettingsAtTheFoot: Story = {
+  args: { contentSlot: <Page title="Documents" /> },
+  parameters: { router: { initialEntries: [ROUTES.documents] } },
+  play: async ({ canvasElement }) => {
+    const sidebar = within(within(canvasElement).getByRole('complementary'));
+    const places = within(sidebar.getByRole('navigation', { name: 'Main' }));
+    await expect(places.getByRole('link', { name: 'Documents' })).toBeVisible();
+    await expect(places.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+
+    const settings = sidebar.getByRole('link', { name: 'Settings' });
+    const signOut = sidebar.getByRole('button', { name: 'Sign out' });
+    await expect(settings).toBeVisible();
+    // Below the places, beside sign-out.
+    await expect(
+      places.getByRole('link', { name: 'Documents' }).compareDocumentPosition(settings) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await expect(settings.compareDocumentPosition(signOut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  },
+};
+
 /**
  * A document, not the list. Nothing is marked current — which is the intended answer, and the
  * reason `Documents` is declared `end`: without it both this and the list would light up, and

@@ -254,10 +254,11 @@ export function oidcConfig(): OidcConfig | null {
 /**
  * Names the address to register with the OIDC provider as this client's redirect URI.
  *
- * @returns better-auth's callback for the provider, under `APP_URL`.
+ * @param [origin] - Where the instance is reached. A request passes the origin it came in on.
+ * @returns better-auth's callback for the provider, under that origin.
  */
-export function oidcRedirectUri(): string {
-  return `${appUrl()}/api/auth/callback/${OIDC_PROVIDER_ID}`;
+export function oidcRedirectUri(origin: string = appUrl()): string {
+  return `${origin}/api/auth/callback/${OIDC_PROVIDER_ID}`;
 }
 
 /**
@@ -280,7 +281,21 @@ export function port(): number {
  * type: magic links are built from it, and a link to `localhost` is useless in an inbox.
  */
 export function appUrl(): string {
-  return process.env.APP_URL ?? `http://localhost:${port()}`;
+  return configuredAppUrl() ?? `http://localhost:${port()}`;
+}
+
+/**
+ * Reads `APP_URL` alone, with no fallback.
+ *
+ * @returns `APP_URL` without a trailing slash, or null when it is unset or empty.
+ *
+ * @remarks
+ * Unset, a request is answered with the origin it came in on (http/origin.ts), which is what
+ * the OIDC redirect URI has to be: the provider sends the browser back to exactly that address.
+ */
+export function configuredAppUrl(): string | null {
+  const value = process.env.APP_URL?.trim().replace(/\/+$/, '');
+  return value ? value : null;
 }
 
 /**

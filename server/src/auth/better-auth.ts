@@ -7,6 +7,7 @@ import { bearer, genericOAuth, magicLink, oneTimeToken } from 'better-auth/plugi
 import {
   appUrl,
   authSecret,
+  configuredAppUrl,
   OIDC_PROVIDER_ID,
   type OidcConfig,
   oidcConfig,
@@ -57,6 +58,8 @@ export interface AuthOptions {
 /** Where `requestMagicLink` waits for the link its own call produced. */
 interface LinkCapture {
   link: MagicLink | null;
+  /** Where the caller reached the instance, so the link goes back there. */
+  origin: string;
 }
 
 // `signInMagicLink` awaits `sendMagicLink` inline and returns nothing about the
@@ -89,6 +92,7 @@ export function createAuth(
   { secret = authSecret(), sendMagicLink = logMagicLink, oidc = oidcConfig() }: AuthOptions = {},
 ) {
   const usesMemorySessions = sessionStore() === SESSION_STORE_MEMORY;
+  const dynamicBaseUrl = configuredAppUrl() === null;
   const sessionStorage = usesMemorySessions ? { secondaryStorage: memoryStorage() } : {};
 
   return betterAuth({
@@ -98,9 +102,20 @@ export function createAuth(
       schema: { user: users, session: sessions, account: accounts, verification: verifications },
     }),
     secret,
-    baseURL: appUrl(),
-    // Every id column is a uuid, and existing users keep theirs.
-    advanced: { database: { generateId: 'uuid' } },
+    // With no APP_URL, better-auth takes its base URL from each request, so the
+    // OIDC redirect URI is the address the browser used rather than localhost.
+    // Any host is allowed: the provider only sends the browser back to a
+    // redirect URI registered with it. Calls with no request (a magic link) get
+    // the fallback, and build their own URL from the caller's origin anyway.
+    baseURL: dynamicBaseUrl ? { allowedHosts: ['*'], protocol: 'auto', fallback: appUrl() } : appUrl(),
+    advanced: {
+      // Every id column is a uuid, and existing users keep theirs.
+      database: { generateId: 'uuid' },
+      // Only http/sso.ts's calls depend on the base URL, and it writes these two
+      // headers itself from what Express resolved under `trust proxy`, after
+      // dropping whatever the client sent.
+      trustedProxyHeaders: dynamicBaseUrl,
+    },
     ...sessionStorage,
     // Every way an account is made (a link, SECURE_LOCAL_NET, OIDC) goes through
     // better-auth's adapter, so this is the one place the first one becomes the admin.
@@ -134,8 +149,9 @@ export function createAuth(
         storeToken: 'hashed',
         // Links go to the app's verify screen, which calls verifyMagicLink. The REST verify route isn't mounted.
         sendMagicLink: async ({ email, token }) => {
-          const link = { email, token, url: `${appUrl()}/auth/verify?token=${encodeURIComponent(token)}` };
           const capture = linkCapture.getStore();
+          const origin = capture?.origin ?? appUrl();
+          const link = { email, token, url: `${origin}/auth/verify?token=${encodeURIComponent(token)}` };
           if (capture !== undefined) {
             capture.link = link;
           }
@@ -195,13 +211,14 @@ function stringClaim(value: unknown): string | undefined {
  *
  * @param auth - The auth instance.
  * @param email - Normalized address.
+ * @param [origin] - Where the caller reached the instance; the link points there.
  * @returns The link that was delivered, or null when none was. The caller decides whether it may be shown.
  *
  * @remarks
  * Registration is open: the first verified link for an address creates its account.
  */
-export async function requestMagicLink(auth: Auth, email: string): Promise<MagicLink | null> {
-  const capture: LinkCapture = { link: null };
+export async function requestMagicLink(auth: Auth, email: string, origin = appUrl()): Promise<MagicLink | null> {
+  const capture: LinkCapture = { link: null, origin };
   await linkCapture.run(capture, () => auth.api.signInMagicLink({ body: { email }, headers: new Headers() }));
   return capture.link;
 }

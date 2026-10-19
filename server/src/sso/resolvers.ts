@@ -87,7 +87,7 @@ async function ssoSetup(ctx: Context) {
     issuer: canPair ? (config?.issuer ?? null) : null,
     name: config?.name ?? null,
     canPair,
-    redirectUri: oidcRedirectUri(),
+    redirectUri: oidcRedirectUri(ctx.origin),
   };
 }
 
@@ -142,7 +142,7 @@ export function applySsoExtension(schema: GraphQLSchema): GraphQLSchema {
       throw badInput('Paste the setup URL your provider gave you.');
     }
     try {
-      await pair(context.db, args.setupUrl);
+      await pair(context.db, args.setupUrl, oidcRedirectUri(context.origin));
     } catch (error) {
       throw pairingError(error);
     }

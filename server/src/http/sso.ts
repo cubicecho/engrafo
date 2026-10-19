@@ -1,8 +1,9 @@
 import type { Express, Request, Response } from 'express';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
-import { appUrl, OIDC_PROVIDER_ID } from '../core/config.ts';
+import { OIDC_PROVIDER_ID } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
+import { publicOrigin } from './origin.ts';
 
 // The two legs of an OIDC sign-in that cannot be GraphQL, because the browser
 // has to be sent somewhere: out to the provider, and back from it. Both are
@@ -13,6 +14,10 @@ import { HttpStatus } from '../core/wire.ts';
 // its session as a bearer token in the app instead, so the cookie is dropped
 // and the browser lands on /auth/sso with a one-time token, which the app swaps
 // for the session over GraphQL (`verifyOneTimeToken`).
+//
+// Every URL here is built from `publicOrigin(req)`, and better-auth is handed a
+// request at that origin, so with no APP_URL the redirect URI is the address
+// the browser came in on and not the server's own localhost.
 
 /** Where the login page's button sends the browser. */
 export const SSO_START_PATH = `/sso/${OIDC_PROVIDER_ID}`;
@@ -43,31 +48,41 @@ type SsoError = (typeof SsoError)[keyof typeof SsoError];
 export function mountSso(app: Express, host: AuthHost): void {
   app.get(SSO_START_PATH, (req, res) => {
     if (host.oidc() === null) {
-      off(res);
+      off(req, res);
       return;
     }
-    start(host.current(), req, res).catch((error: unknown) => fail(res, SsoError.SignInFailed, error));
+    start(host.current(), req, res).catch((error: unknown) => fail(req, res, SsoError.SignInFailed, error));
   });
   app.get(SSO_CALLBACK_PATH, (req, res) => {
     if (host.oidc() === null) {
-      off(res);
+      off(req, res);
       return;
     }
-    callback(host.current(), req, res).catch((error: unknown) => fail(res, SsoError.CallbackFailed, error));
+    callback(host.current(), req, res).catch((error: unknown) => fail(req, res, SsoError.CallbackFailed, error));
   });
 }
 
-/** Express's headers as fetch `Headers`, which better-auth reads cookies from. */
-function toHeaders(raw: Request['headers']): Headers {
+/**
+ * Express's headers as fetch `Headers`, which better-auth reads cookies from and, with no
+ * APP_URL, its base URL.
+ *
+ * @remarks
+ * The forwarded host and scheme are rewritten to the origin Express resolved: whether a hop may
+ * name them is `trust proxy`'s decision, made once, and the client's own copies are dropped.
+ */
+function toHeaders(req: Request): Headers {
+  const origin = new URL(publicOrigin(req));
   const headers = new Headers();
-  for (const [name, value] of Object.entries(raw)) {
-    if (value === undefined) {
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined || name.startsWith('x-forwarded-')) {
       continue;
     }
     for (const one of Array.isArray(value) ? value : [value]) {
       headers.append(name, one);
     }
   }
+  headers.set('x-forwarded-host', origin.host);
+  headers.set('x-forwarded-proto', origin.protocol.slice(0, -1));
   return headers;
 }
 
@@ -76,14 +91,15 @@ function toHeaders(raw: Request['headers']): Headers {
  * browser), the PKCE verifier and the nonce, and says where the provider's authorize page is.
  */
 async function start(auth: Auth, req: Request, res: Response): Promise<void> {
+  const origin = publicOrigin(req);
   const { headers, response } = await auth.api.signInSocial({
     body: {
       provider: OIDC_PROVIDER_ID,
-      callbackURL: `${appUrl()}${SIGNED_IN_PATH}`,
-      errorCallbackURL: `${appUrl()}${FAILED_PATH}`,
+      callbackURL: `${origin}${SIGNED_IN_PATH}`,
+      errorCallbackURL: `${origin}${FAILED_PATH}`,
       disableRedirect: true,
     },
-    headers: toHeaders(req.headers),
+    headers: toHeaders(req),
     returnHeaders: true,
   });
   const url = response && 'url' in response ? response.url : undefined;
@@ -102,10 +118,8 @@ async function start(auth: Auth, req: Request, res: Response): Promise<void> {
  * token on the app's URL.
  */
 async function callback(auth: Auth, req: Request, res: Response): Promise<void> {
-  const request = new Request(new URL(req.originalUrl, appUrl()), {
-    method: 'GET',
-    headers: toHeaders(req.headers),
-  });
+  const origin = publicOrigin(req);
+  const request = new globalThis.Request(new URL(req.originalUrl, origin), { method: 'GET', headers: toHeaders(req) });
   const response = await auth.handler(request);
   const ctx = await auth.$context;
   const sessionCookies = new Set([ctx.authCookies.sessionToken.name, ctx.authCookies.sessionData.name]);
@@ -121,6 +135,7 @@ async function callback(auth: Auth, req: Request, res: Response): Promise<void> 
   const location = response.headers.get('location');
   if (!location) {
     fail(
+      req,
       res,
       SsoError.CallbackFailed,
       new Error(`better-auth's callback answered ${response.status} with no redirect`),
@@ -128,31 +143,36 @@ async function callback(auth: Auth, req: Request, res: Response): Promise<void> 
     return;
   }
 
+  // Every page better-auth sends the browser to from here is one of the app's, so
+  // only its path is kept. The origin is the one this request came in on: with
+  // no state to read, better-auth falls back to its own, which is APP_URL's default.
+  const landing = new URL(location, origin);
+  const target = new URL(`${landing.pathname}${landing.search}`, origin);
+
   // The bearer plugin sets this whenever a session cookie is: the new session.
   const session = response.headers.get('set-auth-token');
   if (!session) {
     // A refusal: better-auth is sending the browser to the login page with its error code.
-    res.redirect(HttpStatus.Found, location);
+    res.redirect(HttpStatus.Found, target.toString());
     return;
   }
   const { token } = await auth.api.generateOneTimeToken({
     headers: new Headers({ authorization: `Bearer ${session}` }),
   });
-  const target = new URL(location, appUrl());
   target.searchParams.set('token', token);
   res.redirect(HttpStatus.Found, target.toString());
 }
 
 /** Back to the login page, which says there is no provider to sign in with. Not an error worth logging. */
-function off(res: Response): void {
-  res.redirect(HttpStatus.Found, `${appUrl()}${FAILED_PATH}?error=${SsoError.Off}`);
+function off(req: Request, res: Response): void {
+  res.redirect(HttpStatus.Found, `${publicOrigin(req)}${FAILED_PATH}?error=${SsoError.Off}`);
 }
 
 /** Back to the login page, which says that signing in failed. */
-function fail(res: Response, code: SsoError, error: unknown): void {
+function fail(req: Request, res: Response, code: SsoError, error: unknown): void {
   console.error(`[auth] OIDC ${code}:`, error);
   if (res.headersSent) {
     return;
   }
-  res.redirect(HttpStatus.Found, `${appUrl()}${FAILED_PATH}?error=${encodeURIComponent(code)}`);
+  res.redirect(HttpStatus.Found, `${publicOrigin(req)}${FAILED_PATH}?error=${encodeURIComponent(code)}`);
 }

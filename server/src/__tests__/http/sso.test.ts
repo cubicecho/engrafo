@@ -150,13 +150,21 @@ beforeEach(async () => {
   provider = await startProvider();
   // Logged refusals are expected here; keep them out of the run's output.
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  await startEngrafo({ setAppUrl: true });
+});
 
+/**
+ * Starts the app, signing in with the stand-in provider.
+ *
+ * @param setAppUrl - Whether APP_URL names the app. Unset, every URL has to come from the request.
+ */
+async function startEngrafo({ setAppUrl }: { setAppUrl: boolean }): Promise<void> {
   // createApp builds the routes before it is listening, and APP_URL has to name
   // the port it ends up on, so the app is mounted into an outer one.
   const outer = express();
   ({ server: engrafo, origin: appUrl } = await listen(outer));
   // better-auth builds its callback URL from this, and http/sso.ts the app's.
-  vi.stubEnv('APP_URL', appUrl);
+  vi.stubEnv('APP_URL', setAppUrl ? appUrl : '');
 
   const oidc: OidcConfig = {
     issuer: provider.issuer,
@@ -181,7 +189,7 @@ beforeEach(async () => {
       staticDir,
     }),
   );
-});
+}
 
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -239,6 +247,18 @@ describe('OIDC sign-in', () => {
     // Spent, and a spent token is bad input, not a signed-out session.
     const again = await createClient(db, null, { auth }).expectError(VERIFY, { token });
     expect(again.code).toBe(ErrorCode.BadUserInput);
+  });
+
+  it('builds the redirect URI from the address the browser used when APP_URL is unset', async () => {
+    await close(engrafo);
+    await startEngrafo({ setAppUrl: false });
+    // signIn checks the authorize URL's redirect_uri is under appUrl — here the
+    // listener's own 127.0.0.1 port, not the localhost:3004 default — and the
+    // provider refuses the code unless the token exchange sends the same one.
+    const { location } = await signIn();
+    expect(location.origin + location.pathname).toBe(`${appUrl}/auth/sso`);
+    const result = await verify(location.searchParams.get('token') ?? '');
+    expect(result.errors).toBeUndefined();
   });
 
   it('signs an existing account in by the address the provider vouches for', async () => {

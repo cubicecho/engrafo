@@ -1,5 +1,4 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import { oidcRedirectUri } from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { clearPairedOidc, type PairedOidc, readPairedOidc, savePairedOidc } from './settings.ts';
@@ -137,10 +136,10 @@ async function discover(issuer: string): Promise<string> {
 }
 
 /** What Engrafo asks to be registered as. */
-function clientMetadata() {
+function clientMetadata(redirectUri: string) {
   return {
     client_name: CLIENT_NAME,
-    redirect_uris: [oidcRedirectUri()],
+    redirect_uris: [redirectUri],
     token_endpoint_auth_method: 'client_secret_basic',
     grant_types: ['authorization_code'],
     response_types: ['code'],
@@ -180,10 +179,11 @@ async function refusal(response: Response): Promise<PairingError> {
  *
  * @param db - The database.
  * @param setupUrl - What the admin pasted.
+ * @param redirectUri - The callback to register: under the origin the admin reached Engrafo at.
  * @returns The pairing as saved. The caller rebuilds the auth instance (auth/auth-host.ts) to use it.
  * @throws A `PairingError` saying why, when nothing was paired.
  */
-export async function pair(db: DB, setupUrl: string): Promise<PairedOidc> {
+export async function pair(db: DB, setupUrl: string, redirectUri: string): Promise<PairedOidc> {
   const setup = parseSetupUrl(setupUrl);
   const endpoint = await discover(setup.issuer);
   const response = await call(endpoint, {
@@ -193,7 +193,7 @@ export async function pair(db: DB, setupUrl: string): Promise<PairedOidc> {
       'content-type': 'application/json',
       accept: 'application/json',
     },
-    body: JSON.stringify(clientMetadata()),
+    body: JSON.stringify(clientMetadata(redirectUri)),
   });
   if (response.ok === false) {
     throw await refusal(response);

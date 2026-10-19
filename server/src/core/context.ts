@@ -25,6 +25,11 @@ export interface Context {
   ip: string;
   /** Signed-in user, or null. Resolvers call requireAuth(ctx) rather than reading this. */
   userId: string | null;
+  /**
+   * Where the caller reached this instance: `APP_URL`, or the request's own scheme and host.
+   * Links and redirect URIs handed back to the caller are built from it.
+   */
+  origin: string;
   /** Request headers; sign-out needs them to find the session. */
   headers: Headers;
   storage: StorageSet;

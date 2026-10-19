@@ -12,7 +12,7 @@ import { type ExecutionResult, graphql } from 'graphql';
 import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
 import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
-import type { OidcConfig } from '../core/config.ts';
+import { appUrl, type OidcConfig } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
 import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
@@ -148,6 +148,8 @@ export interface ClientOptions {
   storage?: StorageSet;
   events?: PipelineEvents;
   ocrAvailable?: boolean;
+  /** Where the caller reached the instance. Defaults to `appUrl()`. */
+  origin?: string;
 }
 
 export function createClient(db: TestDb, userId: string | null, options: ClientOptions = {}): TestClient {
@@ -167,6 +169,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       limiter,
       ip,
       userId,
+      origin: options.origin ?? appUrl(),
       headers,
       storage,
       events,
