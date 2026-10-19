@@ -14,14 +14,19 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<IconProps>;
   end: boolean;
+  /** Where the sidebar draws it: with the places, or at the foot with sign-out, as cubeui apps put Settings. */
+  placement: 'main' | 'footer';
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
   // `end` so "Documents" is not also marked active on /documents/:id — that
   // route is a document, not the list, and two lit rows read as a bug.
-  { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true },
-  { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false },
+  { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true, placement: 'main' },
+  { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false, placement: 'footer' },
 ];
+
+const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.placement === 'main');
+const FOOTER_ITEMS = NAV_ITEMS.filter((item) => item.placement === 'footer');
 
 /**
  * react-router hands out a click handler rather than a link to wrap the row in,
@@ -85,11 +90,14 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
             <SidebarSection
               as="nav"
               label="Main"
-              contentSlot={NAV_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
+              contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
             />
           }
           footerSlot={
             <>
+              {FOOTER_ITEMS.map((item) => (
+                <RailLink key={item.to} item={item} />
+              ))}
               <ThemePicker variant="compact" />
               <SidebarNavItem label="Sign out" iconSlot={<LogOut />} onClick={signOut} />
             </>
@@ -97,6 +105,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
         />
       }
       navLabel="Main"
+      // The bar has no foot, so every place is an icon in it, Settings included.
       navSlot={NAV_ITEMS.map((item) => <BarLink key={item.to} item={item} />)}
       // No theme picker in the bar: the compact one is 130px wide and pushes the bar past a 320px
       // viewport. On a phone the theme is one tap away, on the Settings screen.
