@@ -1,3 +1,11 @@
+## [3.1.1](https://github.com/cubicecho/engrafo/compare/v3.1.0...v3.1.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **app:** put Settings at the foot of the sidebar ([bbefc52](https://github.com/cubicecho/engrafo/commit/bbefc52c2cdceafdc912cf0c621a44786b075252))
+* **auth:** build the OIDC redirect URI from the request, not localhost ([6a57639](https://github.com/cubicecho/engrafo/commit/6a57639fb3ac684f706eb698db57a7aa5a821342))
+
 # [3.1.0](https://github.com/cubicecho/engrafo/compare/v3.0.0...v3.1.0) (2026-10-17)
 
 
