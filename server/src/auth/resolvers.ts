@@ -167,7 +167,7 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
       return { sent: false, session: { token, user: await loadUser(context, userId) }, magicLink: null };
     }
 
-    const link = await requestMagicLink(context.auth, email);
+    const link = await requestMagicLink(context.auth, email, context.origin);
     return { sent: true, session: null, magicLink: magicLinkExposed() ? (link?.url ?? null) : null };
   };
 

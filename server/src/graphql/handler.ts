@@ -3,8 +3,9 @@ import type { Request } from 'express';
 import { createYoga, type YogaServerInstance } from 'graphql-yoga';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
-import { isProduction } from '../core/config.ts';
+import { appUrl, isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
+import { publicOrigin } from '../http/origin.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { createSchema } from './build-schema.ts';
@@ -60,6 +61,7 @@ export function createGraphQLHandler({
         // Express's view of the client address, which honors `trust proxy`.
         ip: req?.ip ?? UNKNOWN_IP,
         userId: session?.user.id ?? null,
+        origin: req === undefined ? appUrl() : publicOrigin(req),
         headers: request.headers,
         storage,
         events,

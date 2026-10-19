@@ -16,7 +16,8 @@ services:
       # Required — generate with: openssl rand -hex 32
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required — generate one with `openssl rand -hex 32`}
       DATABASE_URL: postgres://engrafo:${POSTGRES_PASSWORD:-engrafo}@postgres:5432/engrafo
-      APP_URL: ${APP_URL:-http://localhost:3004}
+      # Empty: links and the OIDC redirect URI use the address the browser came in on.
+      APP_URL: ${APP_URL:-}
       S3_ENDPOINT: http://rustfs:9000
       # What the browser uploads to and downloads from. Presigned URLs are signed
       # for this host, so it must be the address users actually reach RustFS at.
@@ -32,7 +33,7 @@ services:
       SESSION_STORE: ${SESSION_STORE:-memory}
       TRUST_PROXY: ${TRUST_PROXY:-false}
       # Sign-in through an OIDC provider; empty leaves it off. The redirect URI
-      # to register is APP_URL/api/auth/callback/oidc.
+      # to register is <the address you open Engrafo at>/api/auth/callback/oidc.
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
