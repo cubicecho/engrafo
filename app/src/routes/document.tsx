@@ -2,7 +2,7 @@ import { useApolloClient, useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
-import { DocumentFileVariant } from '@/__generated__/graphql';
+import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
 import { ActionButton } from '@/components/action-button';
 import { ConfirmButton } from '@/components/confirm-button';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
@@ -11,6 +11,7 @@ import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card
 import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
+import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
 import { EmptyState } from '@/components/page';
 import { PageLayout } from '@/components/page-layout';
@@ -63,6 +64,30 @@ const RetryProcessing = graphql(`
   }
 `);
 
+const ReprocessDocument = graphql(`
+  mutation ReprocessDocument($id: UUID!, $ocr: Boolean) {
+    reprocessDocument(id: $id, ocr: $ocr) {
+      id
+      status
+      error
+      ocrRequested
+      archiveKey
+      contentKey
+      contentBytes
+    }
+  }
+`);
+
+// Its own query, asked only while the re-run dialog is open, so the page's own
+// query does not change shape for one switch.
+const ServerOcr = graphql(`
+  query ServerOcr {
+    serverConfig {
+      ocrAvailable
+    }
+  }
+`);
+
 const RenameDocument = graphql(`
   mutation RenameDocument($id: UUID!, $title: String!) {
     renameDocument(id: $id, title: $title) {
@@ -103,7 +128,7 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
 
 /**
  * One document, by the id in the URL: its pipeline, preview, text and details,
- * and the rename, download, retry and delete that act on it. Polls while the
+ * and the rename, download, retry, re-run and delete that act on it. Polls while the
  * document is still being processed.
  */
 export function DocumentRoute() {
@@ -115,7 +140,13 @@ export function DocumentRoute() {
   const doc = data?.document ?? null;
 
   const [renaming, setRenaming] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
   const [retry, retryState] = useMutation(RetryProcessing);
+  // Refetched so the timeline shows every step queued again, not the last run's.
+  const [reprocess, reprocessState] = useMutation(ReprocessDocument, {
+    refetchQueries: [DocumentDetail],
+  });
+  const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
   const [rename] = useMutation(RenameDocument);
   const [remove, removeState] = useMutation(DeleteDocument);
 
@@ -186,6 +217,15 @@ export function DocumentRoute() {
             onClick={() => setRenaming(true)}
           />
           <ActionButton
+            label="Re-run processing"
+            hint={busy ? 'Already processing' : undefined}
+            variant="outline"
+            size="icon"
+            iconSlot={<RefreshCw />}
+            disabled={busy || doc.status === DocumentStatus.PendingUpload}
+            onClick={() => setReprocessing(true)}
+          />
+          <ActionButton
             label="Download original"
             variant="outline"
             size="icon"
@@ -219,12 +259,28 @@ export function DocumentRoute() {
               onClose={() => setRenaming(false)}
             />
           ) : null}
+          {reprocessing ? (
+            <ReprocessDocumentDialog
+              ocrRequested={doc.ocrRequested}
+              ocrAvailable={serverOcr.data?.serverConfig.ocrAvailable}
+              // A refusal closes the dialog too, so the alert drawn from `reprocessState` is not behind it.
+              onReprocess={(ocr) => reprocess({ variables: { id: doc.id, ocr } }).catch(() => undefined)}
+              onClose={() => setReprocessing(false)}
+            />
+          ) : null}
 
           {removeState.error && (
             <Alert
               variant="destructive"
               title="Could not delete this document"
               description={removeState.error.message}
+            />
+          )}
+          {reprocessState.error && (
+            <Alert
+              variant="destructive"
+              title="Could not re-run processing"
+              description={reprocessState.error.message}
             />
           )}
           {retryState.error && (
