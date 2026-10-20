@@ -1,3 +1,10 @@
+# [3.2.0](https://github.com/cubicecho/engrafo/compare/v3.1.4...v3.2.0) (2026-10-20)
+
+
+### Features
+
+* **documents:** re-run processing on a finished or failed document ([a8b7887](https://github.com/cubicecho/engrafo/commit/a8b78870764f0eda3b80f9d898ac04c9b01aca3e))
+
 ## [3.1.4](https://github.com/cubicecho/engrafo/compare/v3.1.3...v3.1.4) (2026-10-20)
 
 
