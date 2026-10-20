@@ -1,3 +1,10 @@
+## [3.1.3](https://github.com/cubicecho/engrafo/compare/v3.1.2...v3.1.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ocr:** convert unusual colour spaces instead of failing PDF/A ([d40206c](https://github.com/cubicecho/engrafo/commit/d40206cabc5569fd965a3c6eedd66b7a8056db96))
+
 ## [3.1.2](https://github.com/cubicecho/engrafo/compare/v3.1.1...v3.1.2) (2026-10-20)
 
 
