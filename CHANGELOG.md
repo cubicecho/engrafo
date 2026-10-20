@@ -1,3 +1,10 @@
+## [3.1.2](https://github.com/cubicecho/engrafo/compare/v3.1.1...v3.1.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **auth:** keep the OIDC state cookie on plain http ([bc7ac28](https://github.com/cubicecho/engrafo/commit/bc7ac287c1f2b689eeacb0af70362bf3602aeb87))
+
 ## [3.1.1](https://github.com/cubicecho/engrafo/compare/v3.1.0...v3.1.1) (2026-10-19)
 
 
