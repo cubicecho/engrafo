@@ -5,6 +5,8 @@ import type { StorageSet } from '../storage/s3.ts';
 export interface PipelineConfig {
   /** OCR allowed by config and ocrmypdf present. */
   ocrAvailable: boolean;
+  /** pdftotext present, so a PDF's own text layer can be read. */
+  pdfTextAvailable: boolean;
   /** Tesseract language codes joined with `+`. */
   ocrLanguages: string;
   /** How many documents run at once. */

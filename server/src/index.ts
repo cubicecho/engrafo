@@ -25,6 +25,7 @@ import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
 import { createPipelineEvents } from './pipeline/events.ts';
+import { detectPdfText } from './pipeline/pdf-text.ts';
 import { createPipeline } from './pipeline/runner.ts';
 import { STEPS } from './pipeline/step-list.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
@@ -67,6 +68,11 @@ if (ocrEnabled()) {
   }
 }
 
+const pdfTextAvailable = await detectPdfText();
+if (!pdfTextAvailable) {
+  console.warn('[pipeline] pdftotext was not found on PATH. A PDF keeps no text unless OCR reads it.');
+}
+
 const storage = createS3Storage(s3Config());
 const events = createPipelineEvents();
 const pipeline = createPipeline({
@@ -74,7 +80,7 @@ const pipeline = createPipeline({
   storage,
   events,
   steps: STEPS,
-  config: { ocrAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
+  config: { ocrAvailable, pdfTextAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
 });
 
 // After migrate: the provider may be a pairing, which lives in the database.

@@ -136,6 +136,21 @@ export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   errorTailLines: 5,
 });
 
+/** Reading the text layer a PDF already has, with pdftotext. */
+export interface PdfTextSettings {
+  /** When pdftotext is given up on. It reads a text layer and renders nothing, so this is generous. */
+  timeoutMinutes: number;
+  /** How much text is buffered before the run is abandoned, in bytes. */
+  maxOutputBytes: number;
+}
+
+/** The shipped values of `PdfTextSettings`. */
+export const PDF_TEXT_DEFAULTS: Readonly<PdfTextSettings> = Object.freeze({
+  timeoutMinutes: 5,
+  // 64 MiB.
+  maxOutputBytes: 67_108_864,
+});
+
 /** The buckets and the URLs signed for them. */
 export interface StorageSettings {
   /** S3 region. `S3_REGION` overrides it. */

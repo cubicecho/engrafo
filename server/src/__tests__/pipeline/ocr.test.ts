@@ -7,11 +7,11 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { detectOcr, ocrArgs, ocrStep } from '../../pipeline/steps/ocr.ts';
 import type { PipelineConfig } from '../../pipeline/types.ts';
-import { createFakeStorage, createTestDb } from '../helpers.ts';
+import { bornDigitalPdf, createFakeStorage, createTestDb } from '../helpers.ts';
 
 const exec = promisify(execFile);
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
 
 function doc(values: Partial<Document> = {}): Document {
   return {
@@ -110,6 +110,28 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
       expect(text?.body.toString()).toMatch(/Invoice\s+4821/);
       const archive = storage.files.objects.get(patch?.archiveKey ?? '');
       expect(archive?.body.subarray(0, 5).toString()).toBe('%PDF-');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // ocrmypdf skips a page that already has text, and its sidecar says only that
+  // it did. The text has to come from the archive's text layer instead.
+  it('keeps the text of a PDF that already had some', { timeout: 120_000 }, async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-ocr-test-'));
+    try {
+      const storage = createFakeStorage();
+      const document = doc({ mimeType: 'application/pdf', originalFilename: 'invoice.pdf' });
+      storage.files.objects.set(document.originalKey, {
+        body: bornDigitalPdf('Born digital invoice 4711'),
+        contentType: 'application/pdf',
+      });
+
+      const patch = await ocrStep.run({ doc: document, db: await createTestDb(), storage, config: CONFIG, tmpDir });
+
+      const text = storage.text.objects.get(patch?.contentKey ?? '')?.body.toString();
+      expect(text).toMatch(/Born digital invoice 4711/);
+      expect(text).not.toMatch(/OCR skipped/);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

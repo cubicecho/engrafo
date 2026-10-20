@@ -77,7 +77,8 @@ engrafo/
 │       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle, stop }
 │       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
-│       │   └── steps/       # inspect, text, ocr
+│       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
+│       │   └── steps/       # inspect, text, ocr, pdf-text
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -225,6 +226,17 @@ own text layer), `--rotate-pages`, `--deskew`, `--output-type pdfa`,
 it ocrmypdf fails the run with ColorConversionNeededError), plus a `--sidecar`
 for the plain text. Images additionally get `--image-dpi 300`,
 because they usually carry no DPI metadata and img2pdf refuses to guess.
+
+**A PDF that already has text keeps it, through pdftotext.** `--skip-text`
+leaves those pages alone, and the sidecar holds only `[OCR skipped on
+page(s) N]` for them, so taken alone it gives a born-digital PDF no text at
+all. When the sidecar has that marker the ocr step reads the archive with
+`pdftotext` instead, which has every page's text layer, the PDF's own and the
+recognised one. When OCR does not run (not asked for, or unavailable), the
+`pdf-text` step reads the original the same way. It is last in `STEPS` so a
+document mid-pipeline at upgrade gets it at a new position. `pdftotext` is
+`poppler-utils`, in both Docker stages, and `detectPdfText()` asks for it at
+boot like `detectOcr()`.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
