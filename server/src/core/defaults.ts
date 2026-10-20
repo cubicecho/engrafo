@@ -111,6 +111,11 @@ export interface OcrSettings {
   timeoutMinutes: number;
   /** Resolution assumed for an image, which usually carries none and img2pdf refuses to guess. */
   imageDpi: number;
+  /**
+   * What ocrmypdf converts an unusual colour space to, so the PDF/A conversion does not refuse
+   * the file with ColorConversionNeededError. Paperless-ngx's default.
+   */
+  colorConversionStrategy: 'RGB';
   /** How much of ocrmypdf's output is buffered before the run is abandoned, in bytes. */
   maxOutputBytes: number;
   /** How many lines from the end of stderr become the failure message. */
@@ -125,6 +130,7 @@ export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   concurrency: 1,
   timeoutMinutes: 30,
   imageDpi: 300,
+  colorConversionStrategy: 'RGB',
   // 16 MiB.
   maxOutputBytes: 16_777_216,
   errorTailLines: 5,

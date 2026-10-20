@@ -46,7 +46,8 @@ export async function detectOcr(): Promise<string | null> {
  *
  * @remarks
  * Pages that already carry a text layer are skipped, so a born-digital PDF keeps its text
- * untouched; scans are straightened and rotated.
+ * untouched; scans are straightened and rotated, and an unusual colour space is converted to
+ * RGB so the PDF/A conversion accepts it.
  */
 export function ocrArgs(options: {
   input: string;
@@ -61,6 +62,10 @@ export function ocrArgs(options: {
     '--deskew',
     '--output-type',
     'pdfa',
+    // PDF/A forbids some colour spaces (a CMYK or ICC-less scan, say), and without
+    // this ocrmypdf fails the whole run rather than convert them.
+    '--color-conversion-strategy',
+    OCR_DEFAULTS.colorConversionStrategy,
     '--sidecar',
     options.sidecar,
     '-l',
