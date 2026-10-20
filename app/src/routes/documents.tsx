@@ -56,6 +56,7 @@ export function DocumentsRoute() {
 
   return (
     <PageLayout
+      width="full"
       iconSlot={<FileText />}
       title="Documents"
       description="Everything you have uploaded."

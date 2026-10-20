@@ -117,7 +117,7 @@ function BackToDocuments() {
 function Placeholder({ loading = false, contentSlot }: { loading?: boolean; contentSlot: SlotNode }) {
   return (
     <PageLayout
-      width="prose"
+      width="full"
       breadcrumbsSlot={<BackToDocuments />}
       title="Document"
       loading={loading}
@@ -202,7 +202,7 @@ export function DocumentRoute() {
 
   return (
     <PageLayout
-      width="prose"
+      width="full"
       breadcrumbsSlot={<BackToDocuments />}
       title={doc.title}
       description={joinStats(doc.originalFilename, doc.mimeType, formatBytes(doc.sizeBytes))}

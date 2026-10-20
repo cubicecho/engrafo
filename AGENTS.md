@@ -376,8 +376,9 @@ files. Load the `cubeui` skill before adding or updating a registry item.
 (`app/src/components/layouts/app-layout.tsx`) wraps everything inside
 `RequireAuth`, so "signed in" and "has the sidebar" cannot drift apart — and
 `/login` and `/auth/verify`, which have nothing to navigate to, are a
-`CenteredLayout` each. Pages keep using `PageLayout` inside it; a
-settings-shaped page takes `width="prose"`. Adding a screen means a route in
+`CenteredLayout` each. Pages keep using `PageLayout` inside it, at
+`width="full"`: every page fills the space beside the sidebar rather than
+sitting in a capped column. Adding a screen means a route in
 `main.tsx` and an entry in `NAV_ITEMS`.
 
 Three things about that shell that are easy to break:
