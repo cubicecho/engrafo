@@ -47,7 +47,7 @@ export function SettingsRoute() {
       iconSlot={<Settings />}
       title="Settings"
       description="Your account and what this instance is configured to do."
-      width="prose"
+      width="full"
       contentSlot={
         <div className="flex flex-col gap-6 py-4">
           <QueryState query={queryLike(result)} what="your settings" count={data ? 1 : 0} />
