@@ -1,3 +1,10 @@
+## [3.1.4](https://github.com/cubicecho/engrafo/compare/v3.1.3...v3.1.4) (2026-10-20)
+
+
+### Bug Fixes
+
+* **pipeline:** keep the text of a PDF that already has some ([5735667](https://github.com/cubicecho/engrafo/commit/573566700464b51ee763423ba8333b5e256fed2c))
+
 ## [3.1.3](https://github.com/cubicecho/engrafo/compare/v3.1.2...v3.1.3) (2026-10-20)
 
 
