@@ -220,8 +220,10 @@ failing. The Docker image ships the binary; a dev server on a bare host usually
 does not.
 
 **The OCR flags are Paperless's.** `--skip-text` (a born-digital PDF keeps its
-own text layer), `--rotate-pages`, `--deskew`, `--output-type pdfa`, plus a
-`--sidecar` for the plain text. Images additionally get `--image-dpi 300`,
+own text layer), `--rotate-pages`, `--deskew`, `--output-type pdfa`,
+`--color-conversion-strategy RGB` (PDF/A refuses some colour spaces, and without
+it ocrmypdf fails the run with ColorConversionNeededError), plus a `--sidecar`
+for the plain text. Images additionally get `--image-dpi 300`,
 because they usually carry no DPI metadata and img2pdf refuses to guess.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
