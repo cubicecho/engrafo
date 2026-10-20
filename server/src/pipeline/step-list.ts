@@ -1,3 +1,4 @@
+import { indexStep } from './steps/index.ts';
 import { inspectStep } from './steps/inspect.ts';
 import { ocrStep } from './steps/ocr.ts';
 import { pdfTextStep } from './steps/pdf-text.ts';
@@ -12,4 +13,5 @@ import type { PipelineStep } from './types.ts';
 // pdf-text is last, not beside text: a document mid-pipeline when this release
 // lands already has rows at positions 0-2, and a new step takes the next one.
 // It runs only when ocr does not, so the order between the two decides nothing.
-export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep];
+// index is after every step that can produce text, and new for the same reason.
+export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, indexStep];

@@ -9,8 +9,9 @@ One monorepo (npm workspaces) with three packages — `app/` (frontend), `server
 (GraphQL API and the pipeline), `db/` (schema and connection) — and one container
 serves all of it.
 
-There is no search, no tagging, no correspondents, no mail ingestion. Those are
-what Paperless is for.
+Search is hybrid and local: an embedding model on the CPU and Postgres full-text
+search, over passages of each document's text. There is no tagging, no
+correspondents, no mail ingestion. Those are what Paperless is for.
 
 ## Tech Stack
 
@@ -22,6 +23,7 @@ what Paperless is for.
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)                      |
 | Storage  | `@aws-sdk/client-s3` against RustFS or any S3-compatible bucket |
 | OCR      | `ocrmypdf` (Tesseract + Ghostscript), shelled out to; optionally a vision model over `@cubicecho/agent-core` |
+| Search   | pgvector + Postgres full-text, `@huggingface/transformers` running granite-embedding-small (ONNX, CPU) |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture, Storybook + Playwright |
 | Linting  | Biome (formatter + linter)                                    |
 | Runtime  | Node.js 26, ESM (`"type": "module"` throughout)               |
@@ -70,6 +72,7 @@ engrafo/
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
+│       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -78,12 +81,12 @@ engrafo/
 │       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
-│       │   └── steps/       # inspect, text, ocr, pdf-text
+│       │   └── steps/       # inspect, text, ocr, pdf-text, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, processing-steps, auth (better-auth's tables)
+│       ├── models/          # users, documents, processing-steps, document-chunks, auth (better-auth's tables)
 │       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       ├── defaults.ts      # DATABASE_DEFAULTS
@@ -169,6 +172,25 @@ sharing one pair of clients; `storeContent()` in `pipeline/content.ts` is the
 only writer, and empty text stores no object at all. The detail page fetches the
 text over a presigned `TEXT` URL, and `deleteDocument` deletes from both buckets.
 
+**Search is the one place document text sits in Postgres, and it is an index.**
+The `index` step, last in `STEPS`, cuts the text into passages (paragraphs packed
+to 1,500 characters; OCR output has no headings to split on), embeds each with
+the document's title in front, and swaps the document's `document_chunks` rows
+in one transaction. `documents` still holds no text. `searchDocuments` runs three
+reads for the caller only, all filtered by `user_id` in `search/search.ts`: the
+nearest passages by cosine (an exact scan; a vector index filtered by user can
+drop the rows asked for), passages matching `websearch_to_tsquery('simple', …)`,
+and titles matching it. Reciprocal rank fusion (k = 60) merges them, a passage
+found only by meaning must clear a cosine of 0.8 (the model's unrelated prompts
+top out at 0.75), and a document ranks by its best passage. The numbers are
+mcp-ragdown's, measured on its benchmark. `document_chunks` is excluded from the
+GraphQL schema (`SEARCH_TABLES`), so `tenancy.ts` never scopes it: anything new
+that reads it filters by the caller itself. Its word index is an expression
+index, because drizzle-graphql has no type for a `tsvector` column, so a query
+must use the same `to_tsvector('simple', content)` to hit it. The model loads on
+first use, not at boot; tests use `createFakeEmbedder()`, and `model.test.ts`
+runs the real one only where `MODELS_DIR` holds it (the Docker test stage).
+
 **Two S3 endpoints, on purpose.** The server reaches the bucket at `S3_ENDPOINT`;
 presigned URLs are signed against `S3_PUBLIC_ENDPOINT` by a second client. A
 signature covers the host, so a URL cannot be rewritten after signing — pointing
@@ -196,8 +218,12 @@ survivable.** At boot `pipeline.resume()` re-emits every document still in
 `uploaded` or `processing`; steps already `succeeded` or `skipped` are not re-run.
 The runner also inserts any step rows that are missing (`onConflictDoNothing`),
 which is what lets a step added in a later release reach documents that were
-mid-pipeline when the server upgraded. Adding a step is one file plus one entry
-in `STEPS`.
+mid-pipeline when the server upgraded. Documents that had already *finished*
+are reached by `pipeline.catchUp()` at boot: a `ready` document missing a row for
+any current step is put back to `uploaded` and emitted, and only the missing
+steps run. That is how an existing archive gets indexed for search. Adding a step
+is one file plus one entry in `STEPS`, at the end, so existing rows keep their
+positions.
 
 **A step failure is recorded, never thrown.** `pipeline.run()` resolves either
 way: the step and the document are marked `failed` with the message, and the run

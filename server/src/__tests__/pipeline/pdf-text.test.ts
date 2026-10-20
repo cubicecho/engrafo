@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { detectPdfText } from '../../pipeline/pdf-text.ts';
 import { pdfTextStep } from '../../pipeline/steps/pdf-text.ts';
 import type { PipelineConfig } from '../../pipeline/types.ts';
-import { bornDigitalPdf, createFakeStorage, createTestDb } from '../helpers.ts';
+import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } from '../helpers.ts';
 
 const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
 
@@ -58,7 +58,14 @@ describe.skipIf((await detectPdfText()) === false)('pdftotext integration', () =
         contentType: 'application/pdf',
       });
 
-      const patch = await pdfTextStep.run({ doc: document, db: await createTestDb(), storage, config: CONFIG, tmpDir });
+      const patch = await pdfTextStep.run({
+        doc: document,
+        db: await createTestDb(),
+        storage,
+        config: CONFIG,
+        embedder: createFakeEmbedder(),
+        tmpDir,
+      });
 
       expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe('Born digital invoice 4711');
     } finally {

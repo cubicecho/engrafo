@@ -1,9 +1,10 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import { AUTH_TABLES, SERVER_TABLES } from '@cubicecho/engrafo-db/schema';
+import { AUTH_TABLES, SEARCH_TABLES, SERVER_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
+import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
@@ -42,7 +43,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
     typeNameMapper: 'singularize',
     // Sessions and magic-link tokens are only ever touched through better-auth,
     // and the OIDC pairing holds credentials only the server reads.
-    exclude: { tables: [...AUTH_TABLES, ...SERVER_TABLES] },
+    exclude: { tables: [...AUTH_TABLES, ...SERVER_TABLES, ...SEARCH_TABLES] },
     scope,
     contextValues,
     features,
@@ -51,6 +52,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   let schema = withMutationRoot(drizzleSchema);
   schema = applyAuthExtension(schema);
   schema = applyDocumentsExtension(schema);
+  schema = applySearchExtension(schema);
   schema = applySsoExtension(schema);
 
   return { schema, entities };

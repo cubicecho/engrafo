@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { type Document, DocumentStatus, documents, processingSteps, StepStatus } from '@cubicecho/engrafo-db/schema';
+import {
+  type Document,
+  DocumentStatus,
+  documentChunks,
+  documents,
+  processingSteps,
+  StepStatus,
+} from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
@@ -350,6 +357,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
         .update(processingSteps)
         .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
         .where(eq(processingSteps.documentId, doc.id));
+      // Out of search until the index step puts the new text back.
+      await tx.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
       return claimed;
     });
     if (updated === null) {

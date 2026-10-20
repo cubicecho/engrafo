@@ -13,6 +13,7 @@ import {
   dbConnectTimeoutMs,
   magicLinkExposed,
   magicLinkRequired,
+  modelsDir,
   ocrEnabled,
   ocrLanguages,
   oidcRedirectUri,
@@ -21,7 +22,8 @@ import {
   s3Config,
   secureLocalNet,
 } from './core/config.ts';
-import { errorMessage } from './core/errors.ts';
+import { SEARCH_DEFAULTS } from './core/defaults.ts';
+import { errorChainMessage, errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
 import { createPipelineEvents } from './pipeline/events.ts';
@@ -29,6 +31,7 @@ import { detectPdfText } from './pipeline/pdf-text.ts';
 import { createPipeline } from './pipeline/runner.ts';
 import { STEPS } from './pipeline/step-list.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
+import { createLocalEmbedder } from './search/embedder.ts';
 import { createS3Storage } from './storage/s3.ts';
 
 export type { Context } from './core/context.ts';
@@ -57,7 +60,21 @@ try {
 
 // Migrations run at boot so `docker compose up` on a fresh volume is the whole
 // install. They are idempotent; a container restart is a no-op.
-await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
+try {
+  await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
+} catch (error) {
+  // The one migration an existing install can fail through no fault of its
+  // own: the search index needs pgvector, which plain postgres images lack.
+  // What Postgres said is the cause of drizzle's "Failed query" error.
+  if (/extension "vector"|vector\.control/.test(errorChainMessage(error))) {
+    console.error('[db] Postgres has no pgvector, which document search needs.');
+    console.error('[db] In docker compose, change the postgres image to pgvector/pgvector:pg17 (same data, same');
+    console.error('[db] volume). On a Postgres you run yourself, install pgvector and run');
+    console.error('[db] `CREATE EXTENSION vector;` as a superuser.');
+    process.exit(1);
+  }
+  throw error;
+}
 
 let ocrAvailable = false;
 if (ocrEnabled()) {
@@ -75,12 +92,15 @@ if (!pdfTextAvailable) {
 
 const storage = createS3Storage(s3Config());
 const events = createPipelineEvents();
+// One model for the process: the pipeline indexes with it and search embeds queries with it.
+const embedder = createLocalEmbedder({ modelsDir: modelsDir(), batchSize: SEARCH_DEFAULTS.embedBatchSize });
 const pipeline = createPipeline({
   db,
   storage,
   events,
   steps: STEPS,
   config: { ocrAvailable, pdfTextAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
+  embedder,
 });
 
 // After migrate: the provider may be a pairing, which lives in the database.
@@ -92,6 +112,7 @@ const app = createApp({
   storage,
   events,
   ocrAvailable,
+  embedder,
   staticDir,
 });
 
@@ -120,6 +141,11 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
   const resumed = await pipeline.resume();
   if (resumed > 0) {
     console.log(`[pipeline] resuming ${resumed} unfinished document(s)`);
+  }
+  // Steps added since a document finished, such as the search index, reach it here.
+  const caughtUp = await pipeline.catchUp();
+  if (caughtUp > 0) {
+    console.log(`[pipeline] running new steps on ${caughtUp} finished document(s)`);
   }
 });
 // The pipeline first: a run the exit cuts off is not a failure, and the next boot resumes it.

@@ -7,7 +7,7 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { detectOcr, ocrArgs, ocrStep } from '../../pipeline/steps/ocr.ts';
 import type { PipelineConfig } from '../../pipeline/types.ts';
-import { bornDigitalPdf, createFakeStorage, createTestDb } from '../helpers.ts';
+import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } from '../helpers.ts';
 
 const exec = promisify(execFile);
 
@@ -104,7 +104,14 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
       const document = doc();
       storage.files.objects.set(document.originalKey, { body: await readFile(image), contentType: 'image/png' });
 
-      const patch = await ocrStep.run({ doc: document, db: await createTestDb(), storage, config: CONFIG, tmpDir });
+      const patch = await ocrStep.run({
+        doc: document,
+        db: await createTestDb(),
+        storage,
+        config: CONFIG,
+        embedder: createFakeEmbedder(),
+        tmpDir,
+      });
 
       const text = storage.text.objects.get(patch?.contentKey ?? '');
       expect(text?.body.toString()).toMatch(/Invoice\s+4821/);
@@ -127,7 +134,14 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
         contentType: 'application/pdf',
       });
 
-      const patch = await ocrStep.run({ doc: document, db: await createTestDb(), storage, config: CONFIG, tmpDir });
+      const patch = await ocrStep.run({
+        doc: document,
+        db: await createTestDb(),
+        storage,
+        config: CONFIG,
+        embedder: createFakeEmbedder(),
+        tmpDir,
+      });
 
       const text = storage.text.objects.get(patch?.contentKey ?? '')?.body.toString();
       expect(text).toMatch(/Born digital invoice 4711/);

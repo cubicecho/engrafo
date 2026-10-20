@@ -6,6 +6,7 @@ import { trustProxy } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
+import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { checkHealth } from './health.ts';
 import { mountSso } from './sso.ts';
@@ -24,6 +25,8 @@ export interface AppDeps {
   events: PipelineEvents;
   /** Whether the ocr step can run here, as `detectOcr` found at boot. */
   ocrAvailable: boolean;
+  /** Embeds search queries, with the model the pipeline indexes with. */
+  embedder: Embedder;
   /** The built web client. Left out, the app serves the API alone. */
   staticDir?: string;
 }

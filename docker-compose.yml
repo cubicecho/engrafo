@@ -44,7 +44,10 @@ services:
       - "${PORT:-3004}:3004"
 
   postgres:
-    image: postgres:17-alpine
+    # pgvector's build of Postgres 17, for document search. Replaces
+    # postgres:17-alpine on the same volume; Engrafo rebuilds its indexes on the
+    # first boot after the switch, since the two order text differently.
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: engrafo

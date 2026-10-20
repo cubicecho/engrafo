@@ -1,4 +1,5 @@
 import type { DB, Document } from '@cubicecho/engrafo-db';
+import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
 /** The settings every run is handed, decided once at boot. */
@@ -20,6 +21,8 @@ export interface StepContext {
   db: DB;
   storage: StorageSet;
   config: PipelineConfig;
+  /** Turns passages into vectors for the search index. */
+  embedder: Embedder;
   /** Scratch space for this run, removed when the run ends however it ends. */
   tmpDir: string;
 }

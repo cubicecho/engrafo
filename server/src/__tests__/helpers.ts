@@ -5,7 +5,9 @@ import { pipeline } from 'node:stream/promises';
 import type { DB } from '@cubicecho/engrafo-db';
 import { relations } from '@cubicecho/engrafo-db/relations';
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
+import { EMBEDDING_DIMENSIONS } from '@cubicecho/engrafo-db/schema';
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { pushSchema } from 'drizzle-kit/api-postgres';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, graphql } from 'graphql';
@@ -16,6 +18,7 @@ import { appUrl, type OidcConfig } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
 import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
+import type { Embedder } from '../search/embedder.ts';
 import type { Storage, StorageSet } from '../storage/s3.ts';
 
 // A throwaway in-memory Postgres per suite. `@cubicecho/engrafo-db` is
@@ -30,7 +33,9 @@ export const TEST_SECRET = 'test-secret-0123456789abcdef0123456789';
 export const TEST_IP = '127.0.0.1';
 
 export async function createTestDb(): Promise<TestDb> {
-  const client = new PGlite('memory://');
+  // pgvector, as the migration enables it: the search index's embeddings need it.
+  const client = new PGlite('memory://', { extensions: { vector } });
+  await client.exec('CREATE EXTENSION IF NOT EXISTS vector');
   const db = drizzle({ client, relations });
   const { apply } = await pushSchema(dbSchema as never, db as never);
   await apply();
@@ -150,6 +155,8 @@ export interface ClientOptions {
   ocrAvailable?: boolean;
   /** Where the caller reached the instance. Defaults to `appUrl()`. */
   origin?: string;
+  /** Embeds search queries. Defaults to `createFakeEmbedder()`. */
+  embedder?: Embedder;
 }
 
 export function createClient(db: TestDb, userId: string | null, options: ClientOptions = {}): TestClient {
@@ -174,6 +181,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       storage,
       events,
       ocrAvailable: options.ocrAvailable ?? false,
+      embedder: options.embedder ?? createFakeEmbedder(),
     };
     return graphql({ schema, source: query, contextValue, variableValues: variables });
   };
@@ -228,4 +236,34 @@ export function bornDigitalPdf(text: string): Buffer {
   pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, 'latin1');
+}
+
+/**
+ * An embedder that needs no model: each word is hashed to one of the vector's dimensions, so
+ * texts that share words point the same way and the cosine is their overlap. Deterministic,
+ * which the model is not across versions, and instant.
+ *
+ * @returns The fake, which counts the texts it was asked to embed.
+ */
+export function createFakeEmbedder(): Embedder & { embedded: string[] } {
+  const embedded: string[] = [];
+  return {
+    model: 'fake-bag-of-words',
+    embedded,
+    async embed(texts) {
+      embedded.push(...texts);
+      return texts.map((text) => {
+        const vector = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+        for (const word of text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) {
+          let hash = 0;
+          for (const char of word) {
+            hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
+          }
+          vector[hash % EMBEDDING_DIMENSIONS] = (vector[hash % EMBEDDING_DIMENSIONS] ?? 0) + 1;
+        }
+        const length = Math.hypot(...vector) || 1;
+        return vector.map((value) => value / length);
+      });
+    },
+  };
 }

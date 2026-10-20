@@ -7,6 +7,7 @@ import { appUrl, isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
 import { publicOrigin } from '../http/origin.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
+import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { createSchema } from './build-schema.ts';
 
@@ -25,6 +26,8 @@ export interface GraphQLOptions {
   storage: StorageSet;
   events: PipelineEvents;
   ocrAvailable: boolean;
+  /** Embeds search queries. */
+  embedder: Embedder;
 }
 
 /**
@@ -40,6 +43,7 @@ export function createGraphQLHandler({
   storage,
   events,
   ocrAvailable,
+  embedder,
 }: GraphQLOptions): YogaServerInstance<ServerContext, Context> {
   const { schema } = createSchema(db);
   return createYoga<ServerContext, Context>({
@@ -66,6 +70,7 @@ export function createGraphQLHandler({
         storage,
         events,
         ocrAvailable,
+        embedder,
       };
     },
   });

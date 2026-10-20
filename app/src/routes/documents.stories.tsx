@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 import { DocumentStatusEnum, type DocumentsPageQuery } from '@/__generated__/graphql';
 import { clientId } from '@/lib/id';
 import { ROUTES } from '@/lib/routes';
@@ -125,5 +125,89 @@ export const Unreachable: Story = {
     const alert = await canvas.findByRole('alert');
     await expect(alert).toHaveTextContent('Could not load your documents');
     await expect(alert).toHaveTextContent('Connection terminated unexpectedly');
+  },
+};
+
+const SEARCH_HITS = [
+  {
+    score: 0.03,
+    snippet: '…the tenant shall pay the landlord 950 EUR on the first day of each month…',
+    document: { ...document({ title: 'Lease agreement', originalFilename: 'lease.pdf' }), id: clientId() },
+  },
+  {
+    score: 0.01,
+    snippet: '',
+    document: { ...document({ title: 'Rent receipts 2026', originalFilename: 'receipts.pdf' }), id: clientId() },
+  },
+];
+
+/**
+ * Typing searches: after a pause the box's text goes to `searchDocuments`, and the results take
+ * the place of the upload panel and the table, each with the passage that matched.
+ */
+export const Searching: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          documents: () => [document({ title: 'Electricity bill — August' })],
+          searchDocuments: (_parent: unknown, args: { query: string }) => (args.query === 'rent' ? SEARCH_HITS : []),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('link', { name: 'Electricity bill — August' })).toBeInTheDocument();
+    await userEvent.type(canvas.getByRole('searchbox', { name: 'Search documents' }), 'rent');
+
+    const results = await canvas.findByRole('list', { name: 'Documents matching “rent”' });
+    const rows = within(results).getAllByRole('listitem');
+    await expect(rows).toHaveLength(2);
+    await expect(rows[0]).toHaveTextContent('Lease agreement');
+    await expect(rows[0]).toHaveTextContent('950 EUR on the first day');
+    // A hit on the title alone shows which file it is instead of an empty line.
+    await expect(rows[1]).toHaveTextContent('receipts.pdf');
+    await expect(canvas.queryByRole('table')).not.toBeInTheDocument();
+  },
+};
+
+/** A search that finds nothing says so, rather than showing an empty list. */
+export const SearchFindsNothing: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?q=zebra`] },
+    apolloClient: {
+      resolvers: {
+        Query: { serverConfig: () => SERVER_CONFIG, documents: () => [], searchDocuments: () => [] },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    // Read from the URL, so a reload or Back lands on the same search.
+    await expect(canvas.getByRole('searchbox', { name: 'Search documents' })).toHaveValue('zebra');
+    await expect(await canvas.findByText('Nothing matches')).toBeInTheDocument();
+  },
+};
+
+/** A search the server cannot answer is an error, never "nothing matches". */
+export const SearchFails: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?q=lease`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          documents: () => [],
+          searchDocuments: () => {
+            throw new Error('The search model could not be loaded');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const alert = await canvas.findByRole('alert');
+    await expect(alert).toHaveTextContent('The search model could not be loaded');
+    await expect(canvas.queryByText('Nothing matches')).not.toBeInTheDocument();
   },
 };
