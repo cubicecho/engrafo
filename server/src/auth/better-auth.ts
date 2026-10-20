@@ -92,7 +92,8 @@ export function createAuth(
   { secret = authSecret(), sendMagicLink = logMagicLink, oidc = oidcConfig() }: AuthOptions = {},
 ) {
   const usesMemorySessions = sessionStore() === SESSION_STORE_MEMORY;
-  const dynamicBaseUrl = configuredAppUrl() === null;
+  const configuredUrl = configuredAppUrl();
+  const dynamicBaseUrl = configuredUrl === null;
   const sessionStorage = usesMemorySessions ? { secondaryStorage: memoryStorage() } : {};
 
   return betterAuth({
@@ -115,6 +116,12 @@ export function createAuth(
       // headers itself from what Express resolved under `trust proxy`, after
       // dropping whatever the client sent.
       trustedProxyHeaders: dynamicBaseUrl,
+      // Secure cookies only for an https APP_URL. Left to itself, better-auth
+      // makes them Secure whenever NODE_ENV is production and the base URL is
+      // per request, and a browser drops a Secure cookie over plain http: the
+      // OIDC state cookie never comes back and every sign-in is state_mismatch.
+      // The only cookie that matters here is that one; sessions are bearer tokens.
+      useSecureCookies: configuredUrl?.startsWith('https://') ?? false,
     },
     ...sessionStorage,
     // Every way an account is made (a link, SECURE_LOCAL_NET, OIDC) goes through
