@@ -1,3 +1,19 @@
+# [4.0.0](https://github.com/cubicecho/engrafo/compare/v3.3.0...v4.0.0) (2026-10-20)
+
+
+### Features
+
+* **search:** hybrid local search over every document's text ([487fd21](https://github.com/cubicecho/engrafo/commit/487fd21f8f7812509457098ebf66ea57b72351e6))
+
+
+### BREAKING CHANGES
+
+* **search:** Postgres needs the pgvector extension. The compose files move
+from postgres:17-alpine to pgvector/pgvector:pg17 on the same volume; the
+migration rebuilds existing indexes, since the two images order text
+differently. A server booted against Postgres without pgvector stops and says
+so.
+
 # [3.3.0](https://github.com/cubicecho/engrafo/compare/v3.2.0...v3.3.0) (2026-10-20)
 
 
