@@ -29,7 +29,7 @@ FROM builder AS test
 # "unable to read font ''".
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript \
+      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript poppler-utils \
       imagemagick fonts-dejavu-core fontconfig \
  && rm -rf /var/lib/apt/lists/*
 
@@ -50,9 +50,12 @@ WORKDIR /app
 # `--rotate-pages` and `--deskew` — two of the flags every run passes — load
 # it, so without it every document fails with
 # "Tesseract couldn't load any languages".
+#
+# poppler-utils is pdftotext: a PDF that already has text keeps it that way,
+# since ocrmypdf skips those pages and reports no text for them.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript \
+      ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # Only the runtime workspaces are installed; Vite and its plugins exist to

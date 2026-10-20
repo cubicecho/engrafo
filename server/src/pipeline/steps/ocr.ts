@@ -8,6 +8,7 @@ import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 import { archiveKey } from '../../storage/s3.ts';
 import { storeContent } from '../content.ts';
 import { isImage, isOcrable } from '../mime.ts';
+import { readPdfText } from '../pdf-text.ts';
 import type { PipelineStep } from '../types.ts';
 
 const exec = promisify(execFile);
@@ -78,6 +79,8 @@ export function ocrArgs(options: {
 
 // ocrmypdf writes this into the sidecar for every page --skip-text left alone.
 const SKIPPED_PAGE_MARKER = /\[OCR skipped on page\(s\) [\d-]+\]/g;
+/** The same marker, asked about once rather than replaced (a `g` regex's `test` keeps state). */
+const HAS_SKIPPED_PAGE = /\[OCR skipped on page\(s\) [\d-]+\]/;
 
 /**
  * Runs ocrmypdf over a PDF or an image, and stores the PDF/A archive and the text it recognised.
@@ -110,7 +113,14 @@ export const ocrStep: PipelineStep = {
     const key = archiveKey(doc.userId, doc.id);
     await storage.files.putFile(key, output, 'application/pdf');
 
-    const content = (await readFile(sidecar, 'utf-8')).replace(SKIPPED_PAGE_MARKER, '');
+    const recognised = await readFile(sidecar, 'utf-8');
+    // A page that already had text was skipped, and the sidecar holds only a
+    // marker for it. The archive carries every page's text layer, the PDF's own
+    // and the recognised one, so read it from there instead.
+    const content =
+      HAS_SKIPPED_PAGE.test(recognised) && config.pdfTextAvailable
+        ? await readPdfText(output)
+        : recognised.replace(SKIPPED_PAGE_MARKER, '');
     return { archiveKey: key, ...(await storeContent(storage, doc, content)) };
   },
 };
