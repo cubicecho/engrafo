@@ -49,6 +49,11 @@ describe('ocr step', () => {
     expect(ocrArgs({ ...base, image: false })).not.toContain('--image-dpi');
     expect(ocrArgs({ ...base, image: false }).slice(-2)).toEqual(['in', 'out.pdf']);
   });
+
+  it('converts an unusual colour space rather than failing the PDF/A conversion', () => {
+    const args = ocrArgs({ input: 'in', output: 'out.pdf', sidecar: 'out.txt', languages: 'eng', image: false });
+    expect(args[args.indexOf('--color-conversion-strategy') + 1]).toBe('RGB');
+  });
 });
 
 // The real thing, where the tools exist: the Docker image, or a host with
