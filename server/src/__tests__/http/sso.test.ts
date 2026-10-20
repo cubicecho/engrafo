@@ -261,6 +261,30 @@ describe('OIDC sign-in', () => {
     expect(result.errors).toBeUndefined();
   });
 
+  // A browser drops a Secure cookie over http, so the state cookie would never
+  // come back. better-auth would make it Secure in production on its own.
+  it('sets the state cookie without Secure when APP_URL is unset, so it survives plain http', async () => {
+    await close(engrafo);
+    await startEngrafo({ setAppUrl: false });
+    const start = await fetch(`${appUrl}${SSO_START_PATH}`, { redirect: 'manual' });
+    const cookies = start.headers.getSetCookie();
+    expect(cookies.length).toBeGreaterThan(0);
+    expect(cookies.some((cookie) => /;\s*secure/i.test(cookie) || cookie.startsWith('__Secure-'))).toBe(false);
+  });
+
+  it('sets the state cookie Secure when APP_URL is https', async () => {
+    vi.stubEnv('APP_URL', 'https://engrafo.example.com');
+    const httpsAuth = createTestAuth(db, {
+      issuer: provider.issuer,
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      clientAuth: 'client_secret_basic',
+      name: 'heautou',
+    }).auth;
+    const ctx = await httpsAuth.$context;
+    expect(ctx.authCookies.sessionToken.attributes.secure).toBe(true);
+  });
+
   it('signs an existing account in by the address the provider vouches for', async () => {
     const existing = await createUser(db, 'ada@example.com');
     const { location } = await signIn();
