@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
@@ -136,6 +136,75 @@ export const RetryRefused: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: 'Retry' }));
     await expect(await canvas.findByText('Could not retry processing')).toBeInTheDocument();
     await expect(canvas.getByText('The server is restarting')).toBeInTheDocument();
+  },
+};
+
+/**
+ * A finished document can be run again, with OCR switched on: the page sends exactly that, and
+ * the request is the subject, so it is checked through the resolver's arguments.
+ */
+export const Reprocessing: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: { document: () => document({}), serverConfig: () => ({ ocrAvailable: true }) },
+        Mutation: {
+          reprocessDocument: (_parent: unknown, args: { id: string; ocr: boolean }) => {
+            reprocessCalls.push(args);
+            return document({ status: DocumentStatusEnum.Uploaded, ocrRequested: args.ocr });
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    reprocessCalls.length = 0;
+    await userEvent.click(await canvas.findByRole('button', { name: 'Re-run processing' }));
+    const dialog = within(
+      await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Re-run processing' }),
+    );
+    const ocr = dialog.getByRole('switch', { name: /Run OCR/ });
+    // Enabled once the server has said it can OCR.
+    await waitFor(() => expect(ocr).toBeEnabled());
+    await userEvent.click(ocr);
+    await userEvent.click(dialog.getByRole('button', { name: 'Re-run' }));
+    await waitFor(() => expect(reprocessCalls).toEqual([{ id: ID, ocr: true }]));
+  },
+};
+
+const reprocessCalls: { id: string; ocr: boolean }[] = [];
+
+/** A re-run the server refuses closes the dialog and says why on the page. */
+export const ReprocessRefused: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: { document: () => document({}), serverConfig: () => ({ ocrAvailable: false }) },
+        Mutation: { reprocessDocument: refuse },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Re-run processing' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Re-run processing' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Re-run' }));
+    await expect(await canvas.findByText('Could not re-run processing')).toBeInTheDocument();
+    await expect(canvas.getByText('The server is restarting')).toBeInTheDocument();
+  },
+};
+
+/** While the pipeline is running there is nothing to re-run yet. */
+export const ReprocessWhileProcessing: Story = {
+  parameters: {
+    apolloClient: { resolvers: { Query: { document: () => document({ status: DocumentStatusEnum.Processing }) } } },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    // aria-disabled, not disabled: ActionButton keeps the tooltip that says why.
+    const button = await canvas.findByRole('button', { name: 'Re-run processing' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAccessibleDescription('Already processing');
+    await userEvent.click(button);
+    await expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument();
   },
 };
 

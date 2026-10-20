@@ -203,7 +203,11 @@ in `STEPS`.
 way: the step and the document are marked `failed` with the message, and the run
 stops there. There are no automatic retries — `retryDocumentProcessing` resets
 the failed steps to `queued` and re-emits, and it only accepts a document that is
-actually `failed`.
+actually `failed`. `reprocessDocument` is the other way back in: it accepts a
+`ready` or `failed` document, resets *every* step, optionally turns OCR on or
+off, and clears `archiveKey` and `contentKey` and deletes their objects before
+re-emitting, so a run that now produces no archive or no text does not leave
+the last one showing.
 
 **The OCR integration test only really runs in the image.** `ocr.test.ts` skips
 itself without ocrmypdf and ImageMagick, which a dev host usually lacks — so the

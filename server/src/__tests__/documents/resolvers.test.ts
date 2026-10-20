@@ -135,6 +135,77 @@ describe('document uploads', () => {
     expect(step).toMatchObject({ status: 'queued', error: null });
   });
 
+  describe('reprocessDocument', () => {
+    const REPROCESS =
+      'mutation ($id: UUID!, $ocr: Boolean) { reprocessDocument(id: $id, ocr: $ocr) { status error ocrRequested archiveKey contentKey } }';
+
+    /** A document that finished, with an archive and text in the buckets and every step done. */
+    async function finished(status: 'ready' | 'failed' = 'ready') {
+      const { document } = await createUpload({ ocr: false });
+      const archiveKey = `archives/${userId}/${document.id}`;
+      const contentKey = `text/${userId}/${document.id}`;
+      storage.files.objects.set(archiveKey, { body: Buffer.from('%PDF-'), contentType: 'application/pdf' });
+      storage.text.objects.set(contentKey, { body: Buffer.from('old text'), contentType: 'text/plain' });
+      await db
+        .update(documents)
+        .set({ status, archiveKey, contentKey, contentBytes: 8 })
+        .where(eq(documents.id, document.id));
+      await db.insert(processingSteps).values([
+        { userId, documentId: document.id, step: 'inspect', position: 0, status: 'succeeded' },
+        { userId, documentId: document.id, step: 'ocr', position: 2, status: 'skipped' },
+      ]);
+      return { id: document.id, archiveKey, contentKey };
+    }
+
+    it('re-runs every step of a ready document and forgets what the last run produced', async () => {
+      const { id, archiveKey, contentKey } = await finished();
+
+      const data = await client().expectOk(REPROCESS, { id });
+      expect(data.reprocessDocument).toEqual({
+        status: 'uploaded',
+        error: null,
+        ocrRequested: false,
+        archiveKey: null,
+        contentKey: null,
+      });
+      const steps = await db.select().from(processingSteps).where(eq(processingSteps.documentId, id));
+      expect(steps.map((step: { status: string }) => step.status)).toEqual(['queued', 'queued']);
+      expect(storage.files.objects.has(archiveKey)).toBe(false);
+      expect(storage.text.objects.has(contentKey)).toBe(false);
+      expect(emitted).toEqual([id]);
+    });
+
+    it('turns OCR on for the run when asked, and refuses where OCR is unavailable', async () => {
+      const { id } = await finished('failed');
+      expect((await client().expectError(REPROCESS, { id, ocr: true })).code).toBe(ErrorCode.BadUserInput);
+
+      const withOcr = createClient(db, userId, { storage, events, ocrAvailable: true });
+      const data = await withOcr.expectOk(REPROCESS, { id, ocr: true });
+      expect(data.reprocessDocument.ocrRequested).toBe(true);
+    });
+
+    it('refuses a document still uploading or already processing', async () => {
+      const { document } = await createUpload();
+      expect((await client().expectError(REPROCESS, { id: document.id })).code).toBe(ErrorCode.BadUserInput);
+      await db.update(documents).set({ status: 'processing' }).where(eq(documents.id, document.id));
+      expect((await client().expectError(REPROCESS, { id: document.id })).code).toBe(ErrorCode.Conflict);
+      expect(emitted).toEqual([]);
+    });
+
+    it('starts one run when re-run twice at once', async () => {
+      const { id } = await finished();
+      await Promise.all([client().run(REPROCESS, { id }), client().run(REPROCESS, { id })]);
+      expect(emitted).toEqual([id]);
+    });
+
+    it("answers NOT_FOUND for someone else's document", async () => {
+      const { id } = await finished();
+      const stranger = await createUser(db, 'stranger@example.com');
+      const error = await createClient(db, stranger, { storage, events }).expectError(REPROCESS, { id });
+      expect(error.code).toBe(ErrorCode.NotFound);
+    });
+  });
+
   it('renames, and refuses an empty title', async () => {
     const { document } = await createUpload();
     const rename = 'mutation ($id: UUID!, $title: String!) { renameDocument(id: $id, title: $title) { title } }';

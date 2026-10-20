@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { type Document, DocumentStatus, documents, processingSteps, StepStatus } from '@cubicecho/engrafo-db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
-import { badInput, notFound, requireAuth } from '../core/errors.ts';
+import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
@@ -76,6 +76,11 @@ const DOCUMENTS_SDL = parse(`
     completeDocumentUpload(id: UUID!): Document!
     "Re-runs a failed document from the step that failed."
     retryDocumentProcessing(id: UUID!): Document!
+    """
+    Runs every step again on a document that is ready or failed, as if it had just been uploaded.
+    \`ocr\` turns OCR on or off for this and later runs; left out, the document keeps its setting.
+    """
+    reprocessDocument(id: UUID!, ocr: Boolean): Document!
     renameDocument(id: UUID!, title: String!): Document!
     "Deletes the document and its stored files."
     deleteDocument(id: UUID!): Boolean!
@@ -298,6 +303,65 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     });
     if (updated === null) {
       return loadOwned(context, args.id);
+    }
+
+    context.events.emit('document.uploaded', { documentId: doc.id });
+    return updated;
+  };
+
+  mutations.reprocessDocument.resolve = async (
+    _parent: unknown,
+    args: { id: string; ocr?: boolean | null },
+    context: Context,
+  ) => {
+    const doc = await loadOwned(context, args.id);
+    if (doc.status === DocumentStatus.PendingUpload) {
+      throw badInput('The upload has not finished yet.');
+    }
+    if (doc.status !== DocumentStatus.Ready && doc.status !== DocumentStatus.Failed) {
+      throw conflict('This document is already being processed.');
+    }
+    if (args.ocr === true && context.ocrAvailable === false) {
+      throw badInput('OCR is not available on this server.');
+    }
+    const ocrRequested = typeof args.ocr === 'boolean' ? args.ocr : doc.ocrRequested;
+
+    // Claimed and reset in one transaction, conditional on the status it was
+    // read with, so two re-runs at once start one run, as with retry. What the
+    // last run produced is forgotten: a run that now produces no archive or no
+    // text must not leave the old one showing.
+    const updated = await context.db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(documents)
+        .set({
+          status: DocumentStatus.Uploaded,
+          error: null,
+          ocrRequested,
+          archiveKey: null,
+          contentKey: null,
+          contentBytes: null,
+        })
+        .where(and(eq(documents.id, doc.id), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])))
+        .returning();
+      if (!claimed) {
+        return null;
+      }
+      await tx
+        .update(processingSteps)
+        .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
+        .where(eq(processingSteps.documentId, doc.id));
+      return claimed;
+    });
+    if (updated === null) {
+      return loadOwned(context, args.id);
+    }
+
+    // Before the run starts, since it writes its new files under the same keys.
+    if (doc.archiveKey) {
+      await context.storage.files.delete([doc.archiveKey]);
+    }
+    if (doc.contentKey) {
+      await context.storage.text.delete([doc.contentKey]);
     }
 
     context.events.emit('document.uploaded', { documentId: doc.id });
