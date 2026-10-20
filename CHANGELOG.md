@@ -1,3 +1,10 @@
+# [3.3.0](https://github.com/cubicecho/engrafo/compare/v3.2.0...v3.3.0) (2026-10-20)
+
+
+### Features
+
+* **app:** let every page fill the space beside the sidebar ([2580ffc](https://github.com/cubicecho/engrafo/commit/2580ffcaffdbd613bca09d67ab00c2225b70cf1f))
+
 # [3.2.0](https://github.com/cubicecho/engrafo/compare/v3.1.4...v3.2.0) (2026-10-20)
 
 
