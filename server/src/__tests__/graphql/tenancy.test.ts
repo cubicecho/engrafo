@@ -9,8 +9,15 @@ import { createClient, createTestDb, createUser, type TestDb } from '../helpers.
 // what confines every generated read to the caller; a table missing from it is
 // readable across tenants, and nothing else in the codebase would say so.
 
-/** better-auth's tables and the server's own, which are not exposed through GraphQL. */
-const UNSERVED_TABLES = new Set<string>([...dbSchema.AUTH_TABLES, ...dbSchema.SERVER_TABLES]);
+/**
+ * better-auth's tables, the server's own and the search index, which are not exposed through
+ * GraphQL. The index is per user all the same: search/search.ts filters it by the caller itself.
+ */
+const UNSERVED_TABLES = new Set<string>([
+  ...dbSchema.AUTH_TABLES,
+  ...dbSchema.SERVER_TABLES,
+  ...dbSchema.SEARCH_TABLES,
+]);
 
 const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && UNSERVED_TABLES.has(key) === false;
 

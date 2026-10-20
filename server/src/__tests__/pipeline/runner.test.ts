@@ -6,7 +6,14 @@ import { createPipeline } from '../../pipeline/runner.ts';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import { textStep } from '../../pipeline/steps/text.ts';
 import type { PipelineConfig, PipelineStep } from '../../pipeline/types.ts';
-import { createFakeStorage, createTestDb, createUser, type FakeStorage, type TestDb } from '../helpers.ts';
+import {
+  createFakeEmbedder,
+  createFakeStorage,
+  createTestDb,
+  createUser,
+  type FakeStorage,
+  type TestDb,
+} from '../helpers.ts';
 
 const CONFIG: PipelineConfig = { ocrAvailable: false, pdfTextAvailable: false, ocrLanguages: 'eng', concurrency: 1 };
 
@@ -51,7 +58,14 @@ describe('pipeline runner', () => {
 
   it('runs every enabled step, skips the rest, and marks the document ready', async () => {
     const skipped: PipelineStep = { name: 'never', enabled: () => false, run: async () => ({ contentKey: 'nope' }) };
-    const pipeline = createPipeline({ db, storage, events, steps: [inspectStep, textStep, skipped], config: CONFIG });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [inspectStep, textStep, skipped],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
     storage.files.objects.set(`originals/${userId}/note`, { body: Buffer.from('hello'), contentType: 'text/plain' });
     const doc = await insertDocument();
 
@@ -83,7 +97,15 @@ describe('pipeline runner', () => {
         return { contentKey: 'text/ok.txt' };
       },
     };
-    const pipeline = createPipeline({ db, storage, events, steps: [first, flaky], config: CONFIG, log: () => {} });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [first, flaky],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+      log: () => {},
+    });
     const doc = await insertDocument();
 
     await pipeline.run(doc.id);
@@ -110,7 +132,14 @@ describe('pipeline runner', () => {
         return undefined;
       },
     };
-    const pipeline = createPipeline({ db, storage, events, steps: [slow], config: CONFIG });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [slow],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
     const doc = await insertDocument();
 
     events.emit('document.uploaded', { documentId: doc.id });
@@ -122,7 +151,14 @@ describe('pipeline runner', () => {
   });
 
   it('leaves pending uploads alone', async () => {
-    const pipeline = createPipeline({ db, storage, events, steps: [inspectStep], config: CONFIG });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [inspectStep],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
     const doc = await insertDocument({ status: 'pending_upload' });
     await pipeline.run(doc.id);
     expect((await reload(doc.id)).status).toBe('pending_upload');
@@ -130,7 +166,15 @@ describe('pipeline runner', () => {
   });
 
   it('fails a file whose bytes are not the type it claimed', async () => {
-    const pipeline = createPipeline({ db, storage, events, steps: [inspectStep], config: CONFIG, log: () => {} });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [inspectStep],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+      log: () => {},
+    });
     storage.files.objects.set(`originals/${userId}/note`, {
       body: Buffer.from('hello'),
       contentType: 'application/pdf',
@@ -155,7 +199,15 @@ describe('pipeline runner', () => {
           hasStarted();
         }),
     };
-    const pipeline = createPipeline({ db, storage, events, steps: [cutOff], config: CONFIG, log: () => {} });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [cutOff],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+      log: () => {},
+    });
     const doc = await insertDocument();
 
     const running = pipeline.run(doc.id);
@@ -173,7 +225,7 @@ describe('pipeline runner', () => {
   });
 
   it('resumes documents a previous process left unfinished', async () => {
-    const pipeline = createPipeline({ db, storage, events, steps: [], config: CONFIG });
+    const pipeline = createPipeline({ db, storage, events, steps: [], config: CONFIG, embedder: createFakeEmbedder() });
     const uploaded = await insertDocument();
     const processing = await insertDocument({ status: 'processing' });
     const ready = await insertDocument({ status: 'ready' });
@@ -184,5 +236,44 @@ describe('pipeline runner', () => {
     expect((await reload(uploaded.id)).status).toBe('ready');
     expect((await reload(processing.id)).status).toBe('ready');
     expect((await reload(ready.id)).status).toBe('ready');
+  });
+
+  it('runs a step added since a document finished, and only that step', async () => {
+    const ran: string[] = [];
+    const step = (name: string): PipelineStep => ({
+      name,
+      enabled: () => true,
+      run: async () => {
+        ran.push(name);
+        return undefined;
+      },
+    });
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [step('old'), step('new')],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
+    const finished = await insertDocument({ status: 'ready' });
+    const upToDate = await insertDocument({ status: 'ready' });
+    await db.insert(processingSteps).values([
+      { userId, documentId: finished.id, step: 'old', position: 0, status: 'succeeded' },
+      { userId, documentId: upToDate.id, step: 'old', position: 0, status: 'succeeded' },
+      { userId, documentId: upToDate.id, step: 'new', position: 1, status: 'succeeded' },
+    ]);
+
+    expect(await pipeline.catchUp()).toBe(1);
+    await pipeline.idle();
+
+    expect(ran).toEqual(['new']);
+    expect((await reload(finished.id)).status).toBe('ready');
+    expect((await stepsOf(finished.id)).map((row) => [row.step, row.status])).toEqual([
+      ['old', 'succeeded'],
+      ['new', 'succeeded'],
+    ]);
+    // Nothing left behind: a second boot finds nothing to do.
+    expect(await pipeline.catchUp()).toBe(0);
   });
 });

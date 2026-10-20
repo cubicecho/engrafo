@@ -11,7 +11,7 @@ import { HttpStatus } from '../../core/wire.ts';
 import { createApp, HEALTH_PATH } from '../../http/app.ts';
 import { checkHealth, DATABASE_UNREACHABLE } from '../../http/health.ts';
 import { createPipelineEvents } from '../../pipeline/events.ts';
-import { createFakeStorage, createTestAuth, createTestDb } from '../helpers.ts';
+import { createFakeEmbedder, createFakeStorage, createTestAuth, createTestDb } from '../helpers.ts';
 
 // The real app over a real socket: what a resolver test cannot see is the
 // routing around the schema — which path reaches Yoga, what the probe answers,
@@ -48,6 +48,7 @@ describe('createApp', () => {
       storage: createFakeStorage(),
       events: createPipelineEvents(),
       ocrAvailable: false,
+      embedder: createFakeEmbedder(),
       staticDir,
     });
     server = await new Promise<Server>((resolve) => {

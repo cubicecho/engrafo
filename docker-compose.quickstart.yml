@@ -50,6 +50,12 @@
 # network you trust, or put a reverse proxy with real auth in front of it.
 # Read the "Before you expose it" section of the README before giving it a
 # domain.
+#
+# Upgrading a stack made from an older copy of this file: document search needs
+# Postgres with pgvector, so the postgres service's image is now
+# pgvector/pgvector:pg17 instead of postgres:17-alpine. Paste this file again,
+# or change that one line, and redeploy. The data volume is kept as it is.
+# Without it the engrafo container stops at boot and its log says so.
 
 name: engrafo
 
@@ -106,7 +112,10 @@ services:
     # No healthcheck block: the image ships its own, on /healthz.
 
   postgres:
-    image: postgres:17-alpine
+    # pgvector's build of Postgres 17, for document search. Replaces
+    # postgres:17-alpine on the same volume; Engrafo rebuilds its indexes on the
+    # first boot after the switch, since the two order text differently.
+    image: pgvector/pgvector:pg17
     container_name: engrafo-postgres
     restart: unless-stopped
     environment:

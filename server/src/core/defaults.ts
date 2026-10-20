@@ -151,6 +151,48 @@ export const PDF_TEXT_DEFAULTS: Readonly<PdfTextSettings> = Object.freeze({
   maxOutputBytes: 67_108_864,
 });
 
+/** The search index and the queries over it. The retrieval numbers are mcp-ragdown's, measured there. */
+export interface SearchSettings {
+  /** The longest passage embedded, in characters: about 400 tokens, inside the model's window. */
+  chunkMaxChars: number;
+  /** How many passages are embedded in one call. */
+  embedBatchSize: number;
+  /** How many passages each side (meaning, words) hands the fusion. */
+  candidatePoolSize: number;
+  /** Reciprocal rank fusion's constant: a hit at rank r scores 1 / (k + r). */
+  rrfK: number;
+  /**
+   * The cosine under which a passage found only by meaning is dropped. Nearest neighbours always
+   * exist, so without a floor a query about nothing returns the whole archive in some order.
+   * granite-small's unrelated prompts topped out at 0.75 and on-topic questions sat above 0.86.
+   */
+  minCosine: number;
+  /** How many documents a search returns when not told. */
+  defaultResults: number;
+  /** The most a search may ask for. */
+  maxResults: number;
+  /** The longest query accepted, in characters. */
+  queryMaxChars: number;
+  /** How much of the best passage a hit shows, in characters. */
+  snippetChars: number;
+  /** How much of a snippet comes before the first word that matched, as a fraction of it. */
+  snippetLeadFraction: number;
+}
+
+/** The shipped values of `SearchSettings`. */
+export const SEARCH_DEFAULTS: Readonly<SearchSettings> = Object.freeze({
+  chunkMaxChars: 1500,
+  embedBatchSize: 16,
+  candidatePoolSize: 50,
+  rrfK: 60,
+  minCosine: 0.8,
+  defaultResults: 20,
+  maxResults: 50,
+  queryMaxChars: 500,
+  snippetChars: 240,
+  snippetLeadFraction: 0.3,
+});
+
 /** The buckets and the URLs signed for them. */
 export interface StorageSettings {
   /** S3 region. `S3_REGION` overrides it. */

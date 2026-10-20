@@ -110,3 +110,25 @@ export function requireAuth(ctx: Context): string {
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * Every message down an error's `cause` chain, outermost first.
+ *
+ * @param error - Anything thrown.
+ * @returns The messages joined with newlines.
+ *
+ * @remarks
+ * A wrapper often says only where it failed: drizzle's is "Failed query: …", and what Postgres
+ * said is its cause. Stops at a cycle.
+ */
+export function errorChainMessage(error: unknown): string {
+  const messages: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current !== undefined && current !== null && seen.has(current) === false) {
+    seen.add(current);
+    messages.push(errorMessage(current));
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return messages.join('\n');
+}

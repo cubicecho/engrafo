@@ -18,6 +18,7 @@ import { SSO_CALLBACK_PATH, SSO_START_PATH } from '../../http/sso.ts';
 import { createPipelineEvents } from '../../pipeline/events.ts';
 import {
   createClient,
+  createFakeEmbedder,
   createFakeStorage,
   createTestAuth,
   createTestDb,
@@ -186,6 +187,7 @@ async function startEngrafo({ setAppUrl }: { setAppUrl: boolean }): Promise<void
       storage: createFakeStorage(),
       events: createPipelineEvents(),
       ocrAvailable: false,
+      embedder: createFakeEmbedder(),
       staticDir,
     }),
   );

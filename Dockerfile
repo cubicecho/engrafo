@@ -16,6 +16,15 @@ RUN npm ci
 ENV DATABASE_URL=postgres://build:build@127.0.0.1:5432/build
 RUN npm run codegen && npm run build:app
 
+# The search model (~50 MB) is baked in, so a container starts offline and the
+# first upload does not stall on a download. The same call the server makes, so
+# the cache is laid out exactly where it will look. Kept in sync with
+# EMBEDDING_REPO in server/src/search/embedder.ts.
+RUN node --input-type=module -e ' \
+  const { env, pipeline } = await import("@huggingface/transformers"); \
+  env.cacheDir = "/models"; \
+  await pipeline("feature-extraction", "onnx-community/granite-embedding-small-english-r2-ONNX", { dtype: "q8" });'
+
 # Stage 2: test.
 # `docker build --target test -t engrafo-test . && docker run --rm engrafo-test`.
 # This is the only place the OCR integration test actually runs: it needs
@@ -32,6 +41,9 @@ RUN apt-get update \
       ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript poppler-utils \
       imagemagick fonts-dejavu-core fontconfig \
  && rm -rf /var/lib/apt/lists/*
+
+# The baked model, so the search test with the real model runs here too.
+ENV MODELS_DIR=/models
 
 # Not `npm test`: that also runs the `storybook` project, which needs a Chromium
 # this image does not carry. The stories run in CI's `check` job.
@@ -64,8 +76,22 @@ COPY package.json package-lock.json ./
 COPY db/package.json db/
 COPY server/package.json server/
 COPY app/package.json app/
+
+# ONNX Runtime ships every platform's binaries and its GPU providers, which this
+# CPU-only Linux container never loads. As mcp-ragdown's image does: keep this
+# platform's CPU build and the shared provider library, drop the rest. In the
+# same RUN as the install, or the deleted files still ship in its layer.
 RUN npm ci --omit=dev --include-workspace-root --workspace @cubicecho/engrafo-db --workspace @cubicecho/engrafo-server \
- && npm cache clean --force
+ && npm cache clean --force \
+ && cd node_modules/onnxruntime-node/bin \
+ && find . -name 'libonnxruntime_providers_*' ! -name '*shared*' -delete \
+ && find . -mindepth 2 -maxdepth 2 ! -name linux -exec rm -rf {} + \
+ && arch="$(node -p process.arch)" \
+ && find . -mindepth 3 -maxdepth 3 ! -name "$arch" -exec rm -rf {} +
+
+# The search model, from the build stage. MODELS_DIR is where the server looks.
+COPY --from=builder /models /models
+ENV MODELS_DIR=/models
 
 # The server is not compiled: Node strips the types from its TypeScript sources
 # as it loads them, so the sources are the build output.

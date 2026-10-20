@@ -16,6 +16,11 @@ whole product.
 - **OCR, optionally** — `ocrmypdf` with Paperless's own flags, so a scan becomes
   a searchable PDF/A plus the plain text it found. A born-digital PDF keeps the
   text layer it already has.
+- **Search** — by meaning and by exact words at once, over every document's
+  text and title, with the passage that matched. Runs on this machine: a small
+  embedding model (granite-embedding-small, about 50 MB, baked into the image)
+  and Postgres's full-text search, fused the way mcp-ragdown does it. Each
+  person searches only their own documents.
 - **A pipeline you can watch** — every step is a row with a status, so a document
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
@@ -23,8 +28,7 @@ whole product.
 - **Sign-in by magic link**, through an OpenID Connect provider such as
   heautou, or with no link at all on a private instance.
 
-No search, no tags, no correspondents, no mail ingestion. Those are what
-Paperless is for.
+No tags, no correspondents, no mail ingestion. Those are what Paperless is for.
 
 ## Quickstart
 
@@ -80,6 +84,15 @@ their metadata in `engrafo_pgdata`; both survive `docker compose down`, and a
 backup needs both, because one without the other is not a working archive.
 Upgrade with `docker compose -f docker-compose.quickstart.yml pull && docker
 compose -f docker-compose.quickstart.yml up -d`.
+
+**Upgrading to the release with search** also means a new Postgres image:
+`pgvector/pgvector:pg17` instead of `postgres:17-alpine`, on the same volume.
+Take the new compose file (or change that one line) before you pull. On its first
+boot Engrafo rebuilds its database indexes, because the two images order text
+differently, then indexes every document it already has, in the background; a
+large archive takes a while, and search answers from what is done so far. On a
+Postgres you run yourself, install pgvector and run `CREATE EXTENSION vector;`
+as a superuser first.
 
 ### Coming from a MinIO install
 
@@ -140,7 +153,8 @@ domain.
 | `OCR_ENABLED` | `true` | Set to `false` to turn OCR off. Also needs `ocrmypdf` on PATH — the image has it. |
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
-| `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR is CPU-bound. |
+| `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR and indexing are CPU-bound. |
+| `MODELS_DIR` | `/models` in the image | Where the search model is cached. Unset on a dev host, it is downloaded (about 50 MB) on first use. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |

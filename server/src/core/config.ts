@@ -299,6 +299,19 @@ export function configuredAppUrl(): string | null {
 }
 
 /**
+ * Reads where the embedding model is cached.
+ *
+ * @returns `MODELS_DIR`, or null for the library's own cache inside node_modules.
+ *
+ * @remarks
+ * The image bakes the model into /models and sets this, so a container starts offline. A dev
+ * host downloads it (about 50 MB) on first use.
+ */
+export function modelsDir(): string | null {
+  return process.env.MODELS_DIR?.trim() || null;
+}
+
+/**
  * Reads the largest upload accepted.
  *
  * @returns `MAX_UPLOAD_BYTES`, or `DOCUMENT_DEFAULTS.maxUploadBytes`, in bytes.

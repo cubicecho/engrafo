@@ -10,8 +10,9 @@ import {
   processingSteps,
   StepStatus,
 } from '@cubicecho/engrafo-db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
+import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep } from './types.ts';
@@ -25,6 +26,8 @@ export interface PipelineOptions {
   /** The steps, in the order they run. */
   steps: PipelineStep[];
   config: PipelineConfig;
+  /** Handed to every step; the index step embeds with it. */
+  embedder: Embedder;
   /** Reports a run whose bookkeeping broke, as opposed to a step that failed. */
   log?: (message: string, error?: unknown) => void;
 }
@@ -39,6 +42,13 @@ export interface Pipeline {
    * @returns How many documents were re-emitted.
    */
   resume(): Promise<number>;
+  /**
+   * Runs the steps a finished document has no row for: ones added in a release after it was
+   * processed, such as the search index. Steps it already ran are not run again.
+   *
+   * @returns How many documents were caught up.
+   */
+  catchUp(): Promise<number>;
   /** Resolves once nothing is queued or running. For tests. */
   idle(): Promise<void>;
   /**
@@ -84,7 +94,15 @@ function createLimiter(concurrency: number) {
  * and steps already done are not run again. A step failure is recorded on the step and the
  * document, never thrown.
  */
-export function createPipeline({ db, storage, events, steps, config, log = console.error }: PipelineOptions): Pipeline {
+export function createPipeline({
+  db,
+  storage,
+  events,
+  steps,
+  config,
+  embedder,
+  log = console.error,
+}: PipelineOptions): Pipeline {
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
@@ -155,7 +173,7 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         });
 
         try {
-          const patch = await step.run({ doc, db, storage, config, tmpDir });
+          const patch = await step.run({ doc, db, storage, config, embedder, tmpDir });
           if (patch && Object.keys(patch).length > 0) {
             const [updated] = await db.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
             if (!updated) {
@@ -222,6 +240,32 @@ export function createPipeline({ db, storage, events, steps, config, log = conso
         events.emit('document.uploaded', { documentId: id });
       }
       return unfinished.length;
+    },
+
+    async catchUp() {
+      if (steps.length === 0) {
+        return 0;
+      }
+      const names = steps.map((step) => step.name);
+      // A ready document missing a row for any current step. Put back to
+      // `uploaded` (only if still ready, as retry claims), so the run below does
+      // not take it for done; the runner inserts the missing rows itself.
+      const behind = await db
+        .update(documents)
+        .set({ status: DocumentStatus.Uploaded })
+        .where(
+          and(
+            eq(documents.status, DocumentStatus.Ready),
+            sql`(select count(*) from ${processingSteps}
+                 where ${processingSteps.documentId} = ${documents.id}
+                   and ${inArray(processingSteps.step, names)}) < ${names.length}`,
+          ),
+        )
+        .returning({ id: documents.id });
+      for (const { id } of behind) {
+        events.emit('document.uploaded', { documentId: id });
+      }
+      return behind.length;
     },
 
     async idle() {

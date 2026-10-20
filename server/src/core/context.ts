@@ -3,6 +3,7 @@ import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
+import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
 /** `Context.ip` when Express gave no address, as when a test runs an operation in-process. */
@@ -35,6 +36,8 @@ export interface Context {
   storage: StorageSet;
   /** How a mutation tells the pipeline there is work, without waiting for it. */
   events: PipelineEvents;
+  /** Embeds a search query, with the model the index was built with. */
+  embedder: Embedder;
   /** Whether the ocr step can run on this instance: allowed by config and ocrmypdf found at boot. */
   ocrAvailable: boolean;
 }
