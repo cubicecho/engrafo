@@ -2,12 +2,57 @@
 // no headings to split on, as Markdown gives mcp-ragdown, so paragraphs are the
 // unit: they are packed together up to the limit, and one longer than the limit
 // is cut at sentence ends, or at a space when a sentence alone is too long.
+//
+// An ebook does have headings: its table of contents. Its text is stored with
+// each chapter's name on a line of its own (`# Chapter 3`), and `chunkSections`
+// cuts each chapter on its own, so no passage straddles two chapters and each
+// one knows which chapter it is from.
 
 /** A blank line, with whatever spaces OCR left on it. */
 const PARAGRAPH_BREAK = /\n[ \t]*\n/;
 /** Where a sentence ends: punctuation, then space. The punctuation stays with its sentence. */
 const SENTENCE_END = /(?<=[.!?])\s+/;
 const WHITESPACE_RUN = /\s+/g;
+/** A paragraph that is a chapter's name and nothing else, as `headingLine` writes it. */
+const HEADING = /^# (.+)$/;
+
+/** A passage, and the chapter it is from when the text has chapters. */
+export interface Passage {
+  heading: string | null;
+  content: string;
+}
+
+/**
+ * A chapter's name as a line of stored text.
+ *
+ * @param heading - The name, on one line.
+ * @returns The line `chunkSections` recognises as the start of a chapter.
+ */
+export function headingLine(heading: string): string {
+  return `# ${heading}`;
+}
+
+/**
+ * Cuts text stored with chapter headings into passages, each chapter on its own.
+ *
+ * @param text - Text written with `headingLine` above each chapter.
+ * @param maxChars - The longest passage, in characters.
+ * @returns The passages in reading order, each with the heading it sits under: null before the first.
+ */
+export function chunkSections(text: string, maxChars: number): Passage[] {
+  const sections: Array<{ heading: string | null; paragraphs: string[] }> = [{ heading: null, paragraphs: [] }];
+  for (const paragraph of text.replace(/\r\n?/g, '\n').split(PARAGRAPH_BREAK)) {
+    const heading = HEADING.exec(paragraph.trim())?.[1]?.trim();
+    if (heading) {
+      sections.push({ heading, paragraphs: [] });
+    } else {
+      sections[sections.length - 1]?.paragraphs.push(paragraph);
+    }
+  }
+  return sections.flatMap(({ heading, paragraphs }) =>
+    chunkText(paragraphs.join('\n\n'), maxChars).map((content) => ({ heading, content })),
+  );
+}
 
 /**
  * Cuts text into passages.
@@ -88,8 +133,9 @@ function hardWrap(sentence: string, maxChars: number): string[] {
  * top-1 recall.
  *
  * @param title - The document's title.
- * @param passage - One passage from `chunkText`.
+ * @param passage - One passage from `chunkText` or `chunkSections`.
+ * @param heading - The chapter it is from, which goes in front of it under the title.
  */
-export function embeddingText(title: string, passage: string): string {
-  return `${title}\n\n${passage}`;
+export function embeddingText(title: string, passage: string, heading: string | null = null): string {
+  return heading === null ? `${title}\n\n${passage}` : `${title}\n${heading}\n\n${passage}`;
 }

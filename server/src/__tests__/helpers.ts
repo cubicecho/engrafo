@@ -10,6 +10,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { pushSchema } from 'drizzle-kit/api-postgres';
 import { drizzle } from 'drizzle-orm/pglite';
+import { strToU8, zipSync } from 'fflate';
 import { type ExecutionResult, graphql } from 'graphql';
 import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
 import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
@@ -207,6 +208,29 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       return { message: error.message, code: error.extensions?.code };
     },
   };
+}
+
+/**
+ * An EPUB zipped from the files given, as a packager writes one: the `mimetype` entry first and
+ * stored uncompressed, which is what makes it an EPUB to anything sniffing its bytes.
+ *
+ * @param files - Paths inside the zip and their contents. `META-INF/container.xml` pointing at
+ *   `OEBPS/content.opf` is added unless one is given.
+ * @returns The file's bytes.
+ */
+export function epubFile(files: Record<string, string>): Buffer {
+  const container = `<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`;
+  const entries: Parameters<typeof zipSync>[0] = {
+    mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+    'META-INF/container.xml': strToU8(container),
+  };
+  for (const [path, content] of Object.entries(files)) {
+    entries[path] = strToU8(content);
+  }
+  return Buffer.from(zipSync(entries));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chunkText, embeddingText } from '../../search/chunk.ts';
+import { chunkSections, chunkText, embeddingText } from '../../search/chunk.ts';
 
 describe('chunkText', () => {
   it('packs short paragraphs together up to the limit, in order', () => {
@@ -35,5 +35,32 @@ describe('chunkText', () => {
 
   it('puts the title in front of what is embedded', () => {
     expect(embeddingText('Lease', 'Rent is due on the 1st.')).toBe('Lease\n\nRent is due on the 1st.');
+  });
+});
+
+describe('chunkSections', () => {
+  it('never packs two chapters into one passage, and keeps the name on every piece of a long one', () => {
+    const text = '# One\n\nShort.\n\n# Two\n\nAlpha beta.\n\nGamma delta.';
+    expect(chunkSections(text, 1000)).toEqual([
+      { heading: 'One', content: 'Short.' },
+      { heading: 'Two', content: 'Alpha beta.\n\nGamma delta.' },
+    ]);
+    expect(chunkSections(text, 12)).toEqual([
+      { heading: 'One', content: 'Short.' },
+      { heading: 'Two', content: 'Alpha beta.' },
+      { heading: 'Two', content: 'Gamma delta.' },
+    ]);
+  });
+
+  it('drops a chapter with no text, and reads a heading only as a paragraph of its own', () => {
+    expect(chunkSections('# Empty\n\n# Full\n\nText.\n# not a heading', 1000)).toEqual([
+      { heading: 'Full', content: 'Text. # not a heading' },
+    ]);
+  });
+});
+
+describe('embeddingText with a chapter', () => {
+  it('puts the chapter under the title', () => {
+    expect(embeddingText('Novel', 'Rain fell.', 'The Storm')).toBe('Novel\nThe Storm\n\nRain fell.');
   });
 });

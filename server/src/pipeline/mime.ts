@@ -1,9 +1,19 @@
+/** An EPUB: a zip of XHTML chapters, read here without any outside tool. */
+export const EPUB_MIME_TYPE = 'application/epub+zip';
+
 /**
  * What can be uploaded. Kept to what the pipeline can do something with: PDFs
- * and the raster formats ocrmypdf accepts (through img2pdf), plus plain text,
- * whose content needs no OCR at all.
+ * and the raster formats ocrmypdf accepts (through img2pdf), plain text, whose
+ * content needs no OCR at all, and EPUB.
  */
-export const ACCEPTED_MIME_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/tiff', 'text/plain'] as const;
+export const ACCEPTED_MIME_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/tiff',
+  'text/plain',
+  EPUB_MIME_TYPE,
+] as const;
 
 /**
  * Whether a type is on the upload allowlist.
@@ -33,4 +43,14 @@ export function isImage(mimeType: string): boolean {
  */
 export function isOcrable(mimeType: string): boolean {
   return mimeType === 'application/pdf' || isImage(mimeType);
+}
+
+/**
+ * Whether a type is an ebook, whose text is stored with its chapter headings.
+ *
+ * @param mimeType - A MIME type.
+ * @returns true for EPUB, the one ebook format read so far.
+ */
+export function isEbook(mimeType: string): boolean {
+  return mimeType === EPUB_MIME_TYPE;
 }

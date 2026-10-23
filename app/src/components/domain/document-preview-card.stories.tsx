@@ -78,6 +78,26 @@ export const PlainText: Story = {
   },
 };
 
+/** A browser cannot draw an EPUB, and a frame pointed at one starts a download. Its text card shows the book. */
+export const Ebook: Story = {
+  args: { doc: { id: ID, mimeType: 'application/epub+zip', archiveKey: null } },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentFileUrl: () => {
+            throw new Error('An ebook must not ask for a preview');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole('heading', { name: 'Preview' })).not.toBeInTheDocument();
+    await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
+  },
+};
+
 /** The server would not sign an address. A missing frame would read as "this file has no preview". */
 export const AddressRefused: Story = {
   args: { doc: { id: ID, mimeType: 'application/pdf', archiveKey: null } },

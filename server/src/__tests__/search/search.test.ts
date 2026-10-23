@@ -38,7 +38,7 @@ describe('document search', () => {
   });
 
   /** A ready document with this text, indexed. */
-  async function indexed(userId: string, title: string, text: string) {
+  async function indexed(userId: string, title: string, text: string, mimeType = 'application/pdf') {
     const contentKey = `text/${userId}/${title}`;
     storage.text.objects.set(contentKey, { body: Buffer.from(text), contentType: 'text/plain' });
     const [doc] = await db
@@ -47,7 +47,7 @@ describe('document search', () => {
         userId,
         title,
         originalFilename: `${title}.pdf`,
-        mimeType: 'application/pdf',
+        mimeType,
         sizeBytes: 1,
         originalKey: `originals/${userId}/${title}`,
         contentKey,
@@ -60,6 +60,35 @@ describe('document search', () => {
 
   const search = (userId: string, query: string, minCosine = 0.3) =>
     searchDocuments({ db, embedder }, userId, query, 10, { minCosine });
+
+  it("cuts an ebook's passages by chapter and embeds each under its chapter's name", async () => {
+    const novel = await indexed(
+      alice,
+      'Novel',
+      'Title page.\n\n# One\n\nFirst.\n\n# Two\n\nSecond.',
+      'application/epub+zip',
+    );
+
+    const passages = await db
+      .select({ content: documentChunks.content })
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, novel.id))
+      .orderBy(documentChunks.position);
+    expect(passages.map((p) => p.content)).toEqual(['Title page.', 'First.', 'Second.']);
+    expect(embedder.embedded).toEqual(
+      expect.arrayContaining(['Novel\n\nTitle page.', 'Novel\nOne\n\nFirst.', 'Novel\nTwo\n\nSecond.']),
+    );
+  });
+
+  it('leaves a line starting with "# " alone in anything but an ebook', async () => {
+    const scan = await indexed(alice, 'Scan', 'Order\n\n# 4711\n\nShipped.');
+
+    const passages = await db
+      .select({ content: documentChunks.content })
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, scan.id));
+    expect(passages.map((p) => p.content)).toEqual(['Order\n\n# 4711\n\nShipped.']);
+  });
 
   it('finds a document by a word in its text, with the passage around it', async () => {
     const lease = await indexed(alice, 'Lease', 'The tenant pays rent monthly.\n\nThe deposit is 1200 EUR.');

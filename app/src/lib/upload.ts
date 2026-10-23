@@ -4,6 +4,32 @@ export interface UploadHeader {
   value: string;
 }
 
+// Browsers leave the type blank for extensions they do not know; the server's
+// allowlist says no with a clearer message than S3 would.
+const UNKNOWN_MIME_TYPE = 'application/octet-stream';
+
+/** Types the server accepts that a browser may not know, by extension. */
+const TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
+  // Windows without an ebook reader installed has no type for it.
+  epub: 'application/epub+zip',
+};
+
+/**
+ * The type an upload is declared as.
+ *
+ * @param file - The picked file's name and the type the browser gave it.
+ * @returns The browser's type, or one from the extension when it gave none. The server reads the
+ *   file's bytes afterwards either way, so this only has to get past the allowlist.
+ */
+export function uploadMimeType(file: { name: string; type: string }): string {
+  if (file.type !== '') {
+    return file.type;
+  }
+  const dot = file.name.lastIndexOf('.');
+  const extension = dot === -1 ? '' : file.name.slice(dot + 1).toLowerCase();
+  return TYPES_BY_EXTENSION[extension] ?? UNKNOWN_MIME_TYPE;
+}
+
 // The 2xx range: from here up to the first redirect is the bucket saying yes.
 const HTTP_SUCCESS_MIN = 200;
 const HTTP_REDIRECT_MIN = 300;

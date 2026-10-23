@@ -199,6 +199,21 @@ export const PDF_TEXT_DEFAULTS: Readonly<PdfTextSettings> = Object.freeze({
   maxOutputBytes: 67_108_864,
 });
 
+/** Reading ebooks. */
+export interface EbookSettings {
+  /**
+   * The most an EPUB's text files may unpack to, in bytes. A zip is small on the wire and can
+   * be enormous inside it, and every chapter is held in memory while it is read.
+   */
+  maxUnpackedBytes: number;
+}
+
+/** The shipped values of `EbookSettings`. */
+export const EBOOK_DEFAULTS: Readonly<EbookSettings> = Object.freeze({
+  // 256 MiB.
+  maxUnpackedBytes: 268_435_456,
+});
+
 /** The search index and the queries over it. The retrieval numbers are mcp-ragdown's, measured there. */
 export interface SearchSettings {
   /** The longest passage embedded, in characters: about 400 tokens, inside the model's window. */

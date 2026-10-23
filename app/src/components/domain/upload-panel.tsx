@@ -15,7 +15,7 @@ import { SwitchField } from '@/components/ui/switch-field';
 import { type FolderRow, folderOptions, TOP_LEVEL } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { clientId } from '@/lib/id';
-import { putFile } from '@/lib/upload';
+import { putFile, uploadMimeType } from '@/lib/upload';
 
 const CreateUpload = graphql(`
   mutation CreateDocumentUpload($input: CreateDocumentUploadInput!) {
@@ -40,10 +40,6 @@ const CompleteUpload = graphql(`
     }
   }
 `);
-
-// Browsers leave the type blank for extensions they do not know; the server's
-// allowlist says no with a clearer message than S3 would.
-const UNKNOWN_MIME_TYPE = 'application/octet-stream';
 
 // A job's progress is a fraction; the bar and its label are in percent.
 const PERCENT = 100;
@@ -98,7 +94,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
         variables: {
           input: {
             filename: file.name,
-            mimeType: file.type || UNKNOWN_MIME_TYPE,
+            mimeType: uploadMimeType(file),
             sizeBytes: file.size,
             ocr,
             folderId,
@@ -138,7 +134,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
         <>
           <FilePicker
             label="Drop files here, or click to choose"
-            hint={`PDF, images or text · up to ${formatBytes(config.maxUploadBytes)} each`}
+            hint={`PDF, images, text or EPUB · up to ${formatBytes(config.maxUploadBytes)} each`}
             // No `accept`: the picker skips a file that does not match without a word, where the
             // server's allowlist refuses it on the file's own row and says why.
             multiple

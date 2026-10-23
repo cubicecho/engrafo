@@ -1,3 +1,4 @@
+import { ebookStep } from './steps/ebook.ts';
 import { indexStep } from './steps/index.ts';
 import { inspectStep } from './steps/inspect.ts';
 import { ocrStep } from './steps/ocr.ts';
@@ -14,4 +15,7 @@ import type { PipelineStep } from './types.ts';
 // lands already has rows at positions 0-2, and a new step takes the next one.
 // It runs only when ocr does not, so the order between the two decides nothing.
 // index is after every step that can produce text, and new for the same reason.
-export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, indexStep];
+// ebook breaks that rule because it has to: it produces text, so it goes before
+// index. A document mid-pipeline when it lands gets its row at index's position,
+// which only ties the two in the timeline, and no document there is an ebook.
+export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, ebookStep, indexStep];
