@@ -1,3 +1,11 @@
+# [4.2.0](https://github.com/cubicecho/engrafo/compare/v4.1.0...v4.2.0) (2026-10-23)
+
+
+### Features
+
+* file documents in nested folders, shown as a tree ([cc9b8ad](https://github.com/cubicecho/engrafo/commit/cc9b8ad566b9a929af009e9ef5cb80cac7849c3f))
+* **storage:** add S3_FORCE_PATH_STYLE for buckets that want virtual-hosted addressing ([79c4da3](https://github.com/cubicecho/engrafo/commit/79c4da39e90486f21e16f6b889950064bea643d8))
+
 # [4.1.0](https://github.com/cubicecho/engrafo/compare/v4.0.0...v4.1.0) (2026-10-23)
 
 
