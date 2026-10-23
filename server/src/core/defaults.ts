@@ -199,6 +199,8 @@ export interface StorageSettings {
   region: string;
   /** What `S3_BUCKET` gains to name the text bucket. `S3_TEXT_BUCKET` overrides the whole name. */
   textBucketSuffix: string;
+  /** Address buckets as a path (`host/bucket`) rather than a subdomain. `S3_FORCE_PATH_STYLE` overrides it. */
+  forcePathStyle: boolean;
   /** How long a presigned upload URL works. */
   uploadUrlTtlMinutes: number;
   /** How long a presigned download URL works. */
@@ -209,6 +211,7 @@ export interface StorageSettings {
 export const STORAGE_DEFAULTS: Readonly<StorageSettings> = Object.freeze({
   region: 'us-east-1',
   textBucketSuffix: '-text',
+  forcePathStyle: true,
   uploadUrlTtlMinutes: 15,
   downloadUrlTtlMinutes: 5,
 });

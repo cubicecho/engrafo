@@ -146,6 +146,7 @@ domain.
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | — | **Required.** Bucket credentials. |
 | `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | Where the *browser* reaches the bucket. Presigned URLs are signed for this host, and the bucket has to answer CORS for the page's origin. |
 | `S3_REGION` | `us-east-1` | RustFS ignores it; AWS does not. |
+| `S3_FORCE_PATH_STYLE` | `true` | Address buckets as `host/bucket` (RustFS, MinIO). Set `false` for AWS S3, which prefers `bucket.host`. |
 | `APP_URL` | the request's own address | Public URL; magic-link URLs and the OIDC redirect URI are built from it. Unset, each request uses the scheme and host the browser came in on (forwarded ones only through a `TRUST_PROXY` hop). |
 | `PORT` | `3004` | Port the server listens on. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |

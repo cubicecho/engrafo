@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { envPositiveInteger } from '../../core/config.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { envPositiveInteger, s3Config } from '../../core/config.ts';
+import { STORAGE_DEFAULTS } from '../../core/defaults.ts';
 
 const FALLBACK = 7;
 
@@ -19,5 +20,26 @@ describe('envPositiveInteger', () => {
     ['infinite', 'Infinity'],
   ])('falls back when the value is %s', (_name, value) => {
     expect(envPositiveInteger(value, FALLBACK)).toBe(FALLBACK);
+  });
+});
+
+describe('s3Config forcePathStyle', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('defaults to path-style', () => {
+    vi.stubEnv('S3_FORCE_PATH_STYLE', undefined);
+    expect(s3Config().forcePathStyle).toBe(STORAGE_DEFAULTS.forcePathStyle);
+  });
+
+  it('turns off with S3_FORCE_PATH_STYLE=false', () => {
+    vi.stubEnv('S3_FORCE_PATH_STYLE', 'false');
+    expect(s3Config().forcePathStyle).toBe(false);
+  });
+
+  it('ignores a value that is neither yes nor no', () => {
+    vi.stubEnv('S3_FORCE_PATH_STYLE', 'maybe');
+    expect(s3Config().forcePathStyle).toBe(STORAGE_DEFAULTS.forcePathStyle);
   });
 });

@@ -53,8 +53,7 @@ function createClient(endpoint: string, config: S3Config): S3Client {
     endpoint,
     region: config.region,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    // RustFS and most self-hosted S3s serve buckets as a path, not a subdomain.
-    forcePathStyle: true,
+    forcePathStyle: config.forcePathStyle,
     // The SDK now adds CRC32 checksums to every PUT by default. A presigned URL
     // would carry that checksum of an empty body, and the browser's real upload
     // would then fail it; older MinIO releases also reject the headers outright.
