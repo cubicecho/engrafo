@@ -22,7 +22,9 @@ whole product.
   text and title, with the passage that matched. Runs on this machine: a small
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
-  person searches only their own documents.
+  person searches only their own documents. A search can be narrowed to a
+  folder (and everything in it), a kind of file (PDF, image, text, ebook), a
+  range of document dates, or receipts only.
 - **Document dates** — the date printed on a receipt, letter or invoice is read
   from its text (ISO, `12.03.2025`, `03/12/2025`, `12 March 2025`), shown on the
   document, and yours to correct. A date you set or clear is never replaced

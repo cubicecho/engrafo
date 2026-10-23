@@ -211,6 +211,53 @@ export const Searching: Story = {
   },
 };
 
+const searchedWith: Array<Record<string, unknown> | null> = [];
+
+/**
+ * The filters show only while there is a search to narrow. Read from the URL, they go to the
+ * server with the query; changing one asks again with it.
+ */
+export const SearchingWithFilters: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?q=rent&receipts=1`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          folders: () => [TAXES],
+          documents: () => [],
+          searchDocuments: (_parent: unknown, args: { filter?: Record<string, unknown> | null }) => {
+            searchedWith.push(args.filter ?? null);
+            return SEARCH_HITS;
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(await canvas.findByRole('switch', { name: 'Receipts only' })).toBeChecked();
+    await canvas.findByRole('list', { name: 'Documents matching “rent”' });
+    // The first search may have gone out before this ran, so it is looked for rather than reset.
+    await waitFor(() => expect(searchedWith.at(-1)).toMatchObject({ hasReceipt: true }));
+
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Kind' }));
+    await userEvent.click(await within(canvasElement.ownerDocument.body).findByRole('option', { name: 'PDF' }));
+    await waitFor(() => expect(searchedWith.at(-1)).toMatchObject({ hasReceipt: true, kinds: ['PDF'] }));
+    await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Folder' })).not.toHaveAttribute('aria-hidden'));
+  },
+};
+
+/** With nothing typed there is nothing to narrow, so there are no filters either. */
+export const NoFiltersWithoutASearch: Story = {
+  parameters: {
+    apolloClient: { resolvers: archiveServer({ folders: [], documents: [] }) },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('searchbox', { name: 'Search documents' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('switch', { name: 'Receipts only' })).not.toBeInTheDocument();
+  },
+};
+
 /** A search that finds nothing says so, rather than showing an empty list. */
 export const SearchFindsNothing: Story = {
   parameters: {

@@ -78,7 +78,7 @@ engrafo/
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
-│       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
+│       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -407,6 +407,22 @@ is a document with a vendor or a total; a range filters by `documentDate`,
 inclusive, so an undated receipt is only in an export with no range; a folder
 takes everything inside it. Cells go through `csvCell`, which quotes and
 defuses a leading `=`, `+`, `-` or `@` (CSV injection), except the total.
+
+**Search filters go inside each read, never over the fused list.**
+`searchDocuments` takes a `filter` (folder with its subfolders unless
+`includeSubfolders: false`, `kinds` of PDF / IMAGE / TEXT / EBOOK, a
+`documentDate` range, `hasReceipt`), and `filterConditions` in
+`search/filters.ts` turns it into conditions on `documents` that are ANDed
+into all three reads: the title read directly, the two passage reads through
+the same `document_id IN (select … from documents …)` subquery the MCP door's
+`folderIds` already used. Each read keeps only its best
+`candidatePoolSize`, so a filter applied after the fusion would leave a narrow
+search with whatever survived the cut, usually nothing; `search.test.ts`
+holds one search that only finds its document because of this. A folder
+that is not the caller's has no descendants of theirs and matches nothing.
+The MCP tool passes `folderIds` and no filter, and is unchanged. The app keeps
+the filters in the query string beside `q` (`lib/search-filters.ts`) and draws
+them only while there is a search to narrow.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

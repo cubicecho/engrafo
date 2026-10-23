@@ -1,6 +1,7 @@
 import { useQuery } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
+import type { DocumentSearchFilter } from '@/__generated__/graphql';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -12,8 +13,8 @@ import { queryLike } from '@/lib/query';
 import { documentPath } from '@/lib/routes';
 
 export const SearchDocuments = graphql(`
-  query SearchDocuments($query: String!) {
-    searchDocuments(query: $query) {
+  query SearchDocuments($query: String!, $filter: DocumentSearchFilter) {
+    searchDocuments(query: $query, filter: $filter) {
       snippet
       document {
         id
@@ -29,15 +30,17 @@ export const SearchDocuments = graphql(`
 interface DocumentSearchResultsProps {
   /** What was typed, trimmed and not empty. */
   query: string;
+  /** What the search is narrowed to, or null for everything. */
+  filter?: DocumentSearchFilter | null | undefined;
 }
 
 /**
  * What a search found, best match first: each document with the passage that matched under its
  * title. Pressing one opens it.
  */
-export function DocumentSearchResults({ query }: DocumentSearchResultsProps) {
+export function DocumentSearchResults({ query, filter = null }: DocumentSearchResultsProps) {
   const navigate = useNavigate();
-  const result = useQuery(SearchDocuments, { variables: { query } });
+  const result = useQuery(SearchDocuments, { variables: { query, filter } });
   const hits = result.data?.searchDocuments ?? [];
 
   return (
@@ -50,7 +53,11 @@ export function DocumentSearchResults({ query }: DocumentSearchResultsProps) {
           <EmptyState
             iconSlot={<Search />}
             title="Nothing matches"
-            description={`No document's title or text matches “${query}”.`}
+            description={
+              filter
+                ? `Nothing that matches the filters has “${query}” in its title or text.`
+                : `No document's title or text matches “${query}”.`
+            }
           />
         }
       />

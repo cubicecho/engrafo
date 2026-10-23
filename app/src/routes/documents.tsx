@@ -5,6 +5,7 @@ import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
 import { ExportReceiptsButton } from '@/components/domain/export-receipts';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
+import { SearchFilterBar } from '@/components/domain/search-filter-bar';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
@@ -15,6 +16,7 @@ import { useArchive } from '@/lib/archive';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { UPLOAD_INTO_PARAM } from '@/lib/routes';
+import { readSearchFilters, type SearchFilters, toSearchFilterInput, writeSearchFilters } from '@/lib/search-filters';
 import { cn } from '@/lib/utils';
 
 const DocumentsPage = graphql(`
@@ -55,6 +57,11 @@ export function DocumentsRoute() {
       { replace: true },
     );
 
+  // The search's filters sit beside its text in the URL, for the same reason.
+  const filters = readSearchFilters(params);
+  const setFilters = (next: SearchFilters) =>
+    setParams((current) => writeSearchFilters(current, next), { replace: true });
+
   const page = useQuery(DocumentsPage);
   const { result, folders, documents } = useArchive();
   // Where the upload panel files what it is given, kept in the URL so a folder's "Upload here"
@@ -87,17 +94,21 @@ export function DocumentsRoute() {
         </>
       }
       headerContentSlot={
-        <SearchInput
-          label="Search documents"
-          placeholder="Search by meaning or by exact words"
-          defaultValue={search}
-          onSettledText={setSearch}
-        />
+        <>
+          <SearchInput
+            label="Search documents"
+            placeholder="Search by meaning or by exact words"
+            defaultValue={search}
+            onSettledText={setSearch}
+          />
+          {/* Only while searching: the filters narrow a search, and narrow nothing without one. */}
+          {search !== '' && <SearchFilterBar folders={folders} value={filters} onValueChange={setFilters} />}
+        </>
       }
       contentClassName={cn(FULL_WIDTH_BODY, 'gap-6')}
       contentSlot={
         search !== '' ? (
-          <DocumentSearchResults query={search} />
+          <DocumentSearchResults query={search} filter={toSearchFilterInput(filters)} />
         ) : (
           <>
             {page.data?.serverConfig && (
