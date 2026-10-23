@@ -171,6 +171,13 @@ export interface OcrSettings {
   maxOutputBytes: number;
   /** How many lines from the end of stderr become the failure message. */
   errorTailLines: number;
+  /**
+   * The Python that turns a WebP or GIF into a PNG for ocrmypdf, with Pillow. Not a dependency of
+   * its own: ocrmypdf is Python and needs Pillow, so wherever it runs this does too.
+   */
+  pngConverter: string;
+  /** When turning an image into a PNG is given up on. It is one decode and one encode. */
+  pngTimeoutMinutes: number;
 }
 
 /** The shipped values of `OcrSettings`. */
@@ -185,6 +192,8 @@ export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   // 16 MiB.
   maxOutputBytes: 16_777_216,
   errorTailLines: 5,
+  pngConverter: 'python3',
+  pngTimeoutMinutes: 5,
 });
 
 /** Reading the text layer a PDF already has, with pdftotext. */

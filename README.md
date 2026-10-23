@@ -199,10 +199,15 @@ domain.
 | `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
 | `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
 
-Accepted uploads are PDF, PNG, JPEG, TIFF, plain text, Markdown and EPUB — what
-the pipeline can do something with. Markdown is searched section by section,
-under its headings. An EPUB's text is read chapter by chapter, and
-search knows which chapter a passage is from. DRM-protected books cannot be read.
+Accepted uploads are PDF, PNG, JPEG, TIFF, WebP, GIF, plain text, Markdown, CSV,
+HTML and EPUB — what the pipeline can do something with. Markdown is searched
+section by section, under its headings. An EPUB's text is read chapter by
+chapter, and search knows which chapter a passage is from. DRM-protected books
+cannot be read. A CSV (a bank or card statement, say) is searched row by row, with
+its header row kept with every passage. An HTML file (a saved order confirmation)
+is kept as uploaded, but what is searched and shown is its text; the page itself
+is never displayed in the app, since it could run scripts or load trackers. An
+animated GIF is read from its first frame.
 
 Engrafo ships no mail provider. With magic links on, the link is written to the
 server log, and that is the delivery channel — pipe the log somewhere you can

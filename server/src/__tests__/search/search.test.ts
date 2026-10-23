@@ -94,6 +94,30 @@ describe('document search', () => {
     expect(embedder.embedded).toContain('Runbook\nBackups › Restore\n\nRun it twice.');
   });
 
+  it("embeds a CSV's rows under its header row, and stores the rows alone", async () => {
+    const statement = await indexed(
+      alice,
+      'Statement',
+      'Date,Description,Amount\n2024-01-02,COFFEE SHOP,-3.50\n2024-01-03,PAYROLL,2100.00\n',
+      'text/csv',
+    );
+
+    expect(embedder.embedded).toContain(
+      'Statement\nDate,Description,Amount\n\n2024-01-02,COFFEE SHOP,-3.50\n2024-01-03,PAYROLL,2100.00',
+    );
+    const passages = await db
+      .select({ content: documentChunks.content })
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, statement.id));
+    expect(passages).toEqual([{ content: '2024-01-02,COFFEE SHOP,-3.50\n2024-01-03,PAYROLL,2100.00' }]);
+  });
+
+  it("embeds a web page's passages under its headings", async () => {
+    await indexed(alice, 'Order', '# Order 1234\n\n## Items\n\nOne kettle.', 'text/html');
+
+    expect(embedder.embedded).toContain('Order\nOrder 1234 › Items\n\nOne kettle.');
+  });
+
   it('leaves a line starting with "# " alone in anything without headings', async () => {
     const scan = await indexed(alice, 'Scan', 'Order\n\n# 4711\n\nShipped.');
 
@@ -216,7 +240,9 @@ describe('search filters', () => {
     await indexed('Scan', 'Rent receipt', { mimeType: 'image/png' });
     await indexed('Note', 'Rent notes', { mimeType: 'text/markdown' });
     await indexed('Lease', 'Rent lease');
-    expect(await found('rent', { kinds: ['IMAGE', 'TEXT'] })).toEqual(['Note', 'Scan']);
+    await indexed('Statement', 'Date,Payee\n2026-03-01,Rent', { mimeType: 'text/csv' });
+    await indexed('Order', 'Rent order', { mimeType: 'text/html' });
+    expect(await found('rent', { kinds: ['IMAGE', 'TEXT'] })).toEqual(['Note', 'Order', 'Scan', 'Statement']);
     expect(await found('rent', { kinds: ['PDF'] })).toEqual(['Lease']);
     expect(await found('rent', { kinds: [] })).toEqual([]);
   });

@@ -1,6 +1,12 @@
 import { documents } from '@cubicecho/engrafo-db/schema';
 import { and, eq, gte, inArray, isNotNull, isNull, like, lte, or, type SQL } from 'drizzle-orm';
-import { EPUB_MIME_TYPE, MARKDOWN_MIME_TYPE, PLAIN_TEXT_MIME_TYPE } from '../pipeline/mime.ts';
+import {
+  CSV_MIME_TYPE,
+  EPUB_MIME_TYPE,
+  HTML_MIME_TYPE,
+  MARKDOWN_MIME_TYPE,
+  PLAIN_TEXT_MIME_TYPE,
+} from '../pipeline/mime.ts';
 
 // What a search may be narrowed to, as conditions on `documents`. They are ANDed into every one
 // of the search's reads (passages by meaning, passages by words, titles), never applied to the
@@ -39,7 +45,8 @@ function kindCondition(kind: DocumentKind): SQL {
     case DocumentKind.Image:
       return like(documents.mimeType, 'image/%');
     case DocumentKind.Text:
-      return inArray(documents.mimeType, [PLAIN_TEXT_MIME_TYPE, MARKDOWN_MIME_TYPE]);
+      // Everything the text step reads: a CSV or a saved page is text to the person filtering.
+      return inArray(documents.mimeType, [PLAIN_TEXT_MIME_TYPE, MARKDOWN_MIME_TYPE, CSV_MIME_TYPE, HTML_MIME_TYPE]);
     case DocumentKind.Ebook:
       return eq(documents.mimeType, EPUB_MIME_TYPE);
   }

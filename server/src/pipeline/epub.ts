@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { posix } from 'node:path';
-import { type AnyNode, type Element, isTag, isText } from 'domhandler';
+import { type AnyNode, type Element, isTag } from 'domhandler';
 import { strFromU8, type UnzipFileInfo, unzipSync } from 'fflate';
 import { DomUtils, parseDocument } from 'htmlparser2';
 import { EBOOK_DEFAULTS } from '../core/defaults.ts';
-import { headingLine } from '../search/chunk.ts';
+import { createSectionBuilder, type SectionBuilder, sectionsText, type TextSection, walkHtml } from './html-text.ts';
 
 // An EPUB is a zip: META-INF/container.xml names the package (OPF), the
 // package's spine lists the chapters in reading order, and its table of
@@ -14,12 +14,7 @@ import { headingLine } from '../search/chunk.ts';
 // passage is from.
 
 /** One chapter of a book, as the table of contents names it. */
-export interface BookSection {
-  /** The table of contents' label, or null for what comes before its first entry. */
-  heading: string | null;
-  /** The chapter's paragraphs, separated by blank lines. */
-  text: string;
-}
+export type BookSection = TextSection;
 
 /** The book's own lock: its chapters are encrypted, so there is no text to read. */
 export class DrmProtectedError extends Error {
@@ -36,45 +31,6 @@ const ENCRYPTION_PATH = 'META-INF/encryption.xml';
 const HTML_MEDIA_TYPES = new Set(['application/xhtml+xml', 'text/html']);
 const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
 
-/** Elements that end a paragraph. Anything else is inline and runs on. */
-const BLOCK_ELEMENTS = new Set([
-  'address',
-  'article',
-  'aside',
-  'blockquote',
-  'body',
-  'caption',
-  'dd',
-  'details',
-  'div',
-  'dl',
-  'dt',
-  'figcaption',
-  'figure',
-  'footer',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'header',
-  'hr',
-  'li',
-  'main',
-  'ol',
-  'p',
-  'pre',
-  'section',
-  'summary',
-  'table',
-  'tr',
-  'ul',
-]);
-/** Elements whose content is not the book's text. */
-const SKIPPED_ELEMENTS = new Set(['head', 'script', 'style', 'noscript', 'template', 'svg', 'title']);
-/** Table cells sit side by side, so a row reads as one line rather than a paragraph per cell. */
-const CELL_ELEMENTS = new Set(['td', 'th']);
 const WHITESPACE_RUN = /\s+/g;
 
 /**
@@ -124,15 +80,13 @@ export async function readEpub(
 }
 
 /**
- * The book's text as it is stored: each section's heading on a line of its own above it.
+ * The book's text as it is stored: each chapter's name on a line of its own above it.
  *
  * @param sections - From `readEpub`.
- * @returns The text, which `chunkSections` reads the headings back out of.
+ * @returns The text, which `chunkSections` reads the chapters back out of.
  */
 export function bookText(sections: BookSection[]): string {
-  return sections
-    .map((section) => (section.heading === null ? section.text : `${headingLine(section.heading)}\n\n${section.text}`))
-    .join('\n\n');
+  return sectionsText(sections);
 }
 
 /** The zip's text files, refusing one whose declared sizes add up past the limit. */
@@ -285,55 +239,6 @@ function tableOfContents(book: BookPackage, read: (path: string) => string | nul
   return entries;
 }
 
-/** Collects text into paragraphs and paragraphs into sections. */
-interface SectionBuilder {
-  /** Starts a new section. Text before the first one goes in a section with no heading. */
-  startSection(heading: string): void;
-  text(value: string): void;
-  /** A `<br>`: a new line in the same paragraph. */
-  lineBreak(): void;
-  /** The end of a block element: the end of a paragraph. */
-  endParagraph(): void;
-  finish(): BookSection[];
-}
-
-function createSectionBuilder(): SectionBuilder {
-  const sections: Array<{ heading: string | null; paragraphs: string[] }> = [{ heading: null, paragraphs: [] }];
-  let paragraph = '';
-
-  const endParagraph = () => {
-    const lines = paragraph
-      .split('\n')
-      .map((line) => line.replace(WHITESPACE_RUN, ' ').trim())
-      .filter((line) => line !== '');
-    if (lines.length > 0) {
-      sections[sections.length - 1]?.paragraphs.push(lines.join('\n'));
-    }
-    paragraph = '';
-  };
-
-  return {
-    startSection(heading) {
-      endParagraph();
-      sections.push({ heading, paragraphs: [] });
-    },
-    text(value) {
-      // The source's own line breaks are its formatting, not the writer's.
-      paragraph += value.replace(WHITESPACE_RUN, ' ');
-    },
-    lineBreak() {
-      paragraph += '\n';
-    },
-    endParagraph,
-    finish() {
-      endParagraph();
-      return sections
-        .filter((section) => section.paragraphs.length > 0)
-        .map((section) => ({ heading: section.heading, text: section.paragraphs.join('\n\n') }));
-    },
-  };
-}
-
 /** Feeds one chapter file to the builder, starting a section wherever the table of contents points into it. */
 function walkChapter(html: string, entries: ContentsEntry[], builder: SectionBuilder) {
   // Lenient HTML parsing, not XML: plenty of EPUBs ship XHTML that is not well-formed.
@@ -360,43 +265,15 @@ function walkChapter(html: string, entries: ContentsEntry[], builder: SectionBui
     }
   }
 
-  const visit = (node: AnyNode) => {
-    if (isText(node)) {
-      builder.text(node.data);
-      return;
+  walkHtml(root.children, builder, (element) => {
+    if (isPageBreak(element)) {
+      return true;
     }
-    if (isTag(node) === false) {
-      if ('children' in node) {
-        node.children.forEach(visit);
-      }
-      return;
-    }
-
-    const name = node.name.toLowerCase();
-    if (SKIPPED_ELEMENTS.has(name) || isPageBreak(node)) {
-      return;
-    }
-    for (const label of anchors.get(node.attribs.id ?? '') ?? []) {
+    for (const label of anchors.get(element.attribs.id ?? '') ?? []) {
       builder.startSection(label);
     }
-    if (name === 'br') {
-      builder.lineBreak();
-      return;
-    }
-
-    const isBlock = BLOCK_ELEMENTS.has(name);
-    if (isBlock) {
-      builder.endParagraph();
-    }
-    node.children.forEach(visit);
-    if (isBlock) {
-      builder.endParagraph();
-    } else if (CELL_ELEMENTS.has(name)) {
-      builder.text(' ');
-    }
-  };
-  root.children.forEach(visit);
-  builder.endParagraph();
+    return false;
+  });
 }
 
 /** A printed edition's page number, which would otherwise land mid-sentence. */

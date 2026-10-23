@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chunkSections, chunkText, embeddingText } from '../../search/chunk.ts';
+import { chunkRows, chunkSections, chunkText, embeddingText, headingLine } from '../../search/chunk.ts';
 
 describe('chunkText', () => {
   it('packs short paragraphs together up to the limit, in order', () => {
@@ -108,5 +108,57 @@ describe('chunkSections', () => {
 describe('embeddingText with a chapter', () => {
   it('puts the chapter under the title', () => {
     expect(embeddingText('Novel', 'Rain fell.', 'The Storm')).toBe('Novel\nThe Storm\n\nRain fell.');
+  });
+});
+
+describe('chunkRows', () => {
+  const HEADER = 'Date,Description,Amount';
+  const ROWS = ['2024-01-02,COFFEE SHOP,-3.50', '2024-01-03,AMAZON MKTP. US,-23.40', '2024-01-05,PAYROLL,2100.00'];
+
+  it('packs whole rows, each passage under the header row', () => {
+    const csv = `${HEADER}\r\n${ROWS.join('\r\n')}\r\n`;
+    expect(chunkRows(csv, 1000)).toEqual([{ heading: HEADER, content: ROWS.join('\n') }]);
+    // Never mid-row, wherever the limit falls: the full stop in a description is not a sentence end.
+    expect(chunkRows(csv, 70)).toEqual([
+      { heading: HEADER, content: `${ROWS[0]}\n${ROWS[1]}` },
+      { heading: HEADER, content: ROWS[2] },
+    ]);
+  });
+
+  it('keeps a quoted line break in its row, and a stray quote does not swallow the file', () => {
+    const quoted = '2024-01-04,"Refund\nsee ""note""",12.00';
+    expect(chunkRows(`${HEADER}\n${quoted}\n${ROWS[0]}`, 1000)).toEqual([
+      { heading: HEADER, content: `${quoted}\n${ROWS[0]}` },
+    ]);
+    const stray = '2024-01-06,24" MONITOR,-199.00';
+    expect(chunkRows(`${HEADER}\n${stray}\n${ROWS[0]}`, 40)).toEqual([
+      { heading: HEADER, content: stray },
+      { heading: HEADER, content: ROWS[0] },
+    ]);
+  });
+
+  it('reads a semicolon-separated file the same way', () => {
+    expect(chunkRows('Datum;Betrag\n02.01.2024;"-3,50"\n03.01.2024;"-23,40"', 1000)).toEqual([
+      { heading: 'Datum;Betrag', content: '02.01.2024;"-3,50"\n03.01.2024;"-23,40"' },
+    ]);
+  });
+
+  it('gives nothing for an empty file, and one row is just that row', () => {
+    expect(chunkRows('\n\n', 1000)).toEqual([]);
+    expect(chunkRows(HEADER, 1000)).toEqual([{ heading: null, content: HEADER }]);
+  });
+
+  it('cuts a row longer than the limit at spaces', () => {
+    const long = `2024-01-07,${'word '.repeat(10).trim()},1.00`;
+    const passages = chunkRows(`${HEADER}\n${long}`, 20);
+    expect(passages.every((passage) => passage.content.length <= 20)).toBe(true);
+    expect(passages.map((passage) => passage.content.replaceAll('\n', ' ')).join(' ')).toBe(long);
+  });
+});
+
+describe('headingLine', () => {
+  it('writes a heading at the depth it is given, top-level by default', () => {
+    expect(headingLine('Order 1234')).toBe('# Order 1234');
+    expect(headingLine('Items', 3)).toBe('### Items');
   });
 });
