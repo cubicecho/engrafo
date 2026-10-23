@@ -3,8 +3,9 @@ import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, documentChunks } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { SEARCH_DEFAULTS } from '../core/defaults.ts';
+import { isEbook } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
-import { chunkText, embeddingText } from './chunk.ts';
+import { chunkSections, chunkText, embeddingText, type Passage } from './chunk.ts';
 import type { Embedder } from './embedder.ts';
 
 /**
@@ -24,14 +25,21 @@ export async function indexDocument(
   doc: Document,
 ): Promise<number> {
   const content = doc.contentKey ? await text(await storage.text.getStream(doc.contentKey)) : '';
-  const passages = chunkText(content, SEARCH_DEFAULTS.chunkMaxChars);
-  const vectors = passages.length > 0 ? await embedder.embed(passages.map((p) => embeddingText(doc.title, p))) : [];
+  // Only an ebook's text is written with chapter headings. A scan's line that happens to start
+  // with "# " is just a line.
+  const passages: Passage[] = isEbook(doc.mimeType)
+    ? chunkSections(content, SEARCH_DEFAULTS.chunkMaxChars)
+    : chunkText(content, SEARCH_DEFAULTS.chunkMaxChars).map((passage) => ({ heading: null, content: passage }));
+  const vectors =
+    passages.length > 0
+      ? await embedder.embed(passages.map((p) => embeddingText(doc.title, p.content, p.heading)))
+      : [];
 
   await db.transaction(async (tx) => {
     await tx.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
     if (passages.length > 0) {
       await tx.insert(documentChunks).values(
-        passages.map((content, position) => ({
+        passages.map(({ content }, position) => ({
           userId: doc.userId,
           documentId: doc.id,
           position,

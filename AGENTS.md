@@ -86,7 +86,8 @@ engrafo/
 │       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
-│       │   └── steps/       # inspect, text, ocr, pdf-text, index
+│       │   ├── epub.ts      # readEpub: an EPUB's text, chapter by chapter, in-process
+│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -320,6 +321,25 @@ recognised one. When OCR does not run (not asked for, or unavailable), the
 document mid-pipeline at upgrade gets it at a new position. `pdftotext` is
 `poppler-utils`, in both Docker stages, and `detectPdfText()` asks for it at
 boot like `detectOcr()`.
+
+**An EPUB is read in-process, and its text keeps its chapters.** No outside
+tool: `readEpub` in `pipeline/epub.ts` unzips the text files (`fflate`, capped by
+`EBOOK_DEFAULTS.maxUnpackedBytes`, because a zip can be tiny on the wire and huge
+inside), follows the package's spine, and takes the markup off with
+`htmlparser2` — leniently, since plenty of EPUBs ship XHTML that is not
+well-formed. The table of contents (the EPUB 3 nav document, else the EPUB 2 NCX)
+names the chapters, including ones that start partway through a file. The
+stored text puts each chapter's name on a line of its own (`# The Storm`,
+written by `headingLine`), and for an ebook — only an ebook, `isEbook` — the
+index step cuts with `chunkSections`, so no passage straddles two chapters and
+each is embedded as `title / chapter / passage`. A chapter listed in
+`META-INF/encryption.xml` is DRM and fails the step with a message saying so;
+obfuscated fonts are listed there too and are not. The step is called `ebook`,
+not `epub`, because its name is stored on every document's rows and MOBI, AZW3
+and FB2 are meant to land in it later. It sits before `index`, against the
+"new steps go last" rule, because it produces text; no document mid-pipeline at
+that upgrade was an EPUB. The detail page draws no preview frame for an EPUB:
+a browser cannot render one, and the frame only starts a download.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
