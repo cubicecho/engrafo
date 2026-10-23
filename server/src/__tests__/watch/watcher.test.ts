@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DocumentStatus, documents, folders, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
+import { strToU8, zipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WatchConfig } from '../../core/config.ts';
 import { insertPendingDocument } from '../../documents/create.ts';
@@ -182,15 +183,16 @@ describe('the watched folder', () => {
 
   it('leaves an unsupported file in place and says so once', async () => {
     await createUser(db, OWNER);
-    const path = await put('photo.gif', Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1'));
+    // A plain zip: file-type knows it, and nothing reads one.
+    const path = await put('photos.zip', Buffer.from(zipSync({ 'a.txt': strToU8('a') })));
     await settle();
     clock += STABLE_MS;
     await watcher.scanOnce();
     await watcher.scanOnce();
     expect(await db.select().from(documents)).toHaveLength(0);
     expect(existsSync(path)).toBe(true);
-    expect(lines.filter((line) => line.includes('photo.gif'))).toHaveLength(1);
-    expect(lines.find((line) => line.includes('photo.gif'))).toMatch(/unsupported file type \(image\/gif\)/);
+    expect(lines.filter((line) => line.includes('photos.zip'))).toHaveLength(1);
+    expect(lines.find((line) => line.includes('photos.zip'))).toMatch(/unsupported file type \(application\/zip\)/);
   });
 
   it('leaves a file over MAX_UPLOAD_BYTES in place', async () => {
