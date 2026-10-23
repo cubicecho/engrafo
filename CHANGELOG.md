@@ -1,3 +1,10 @@
+# [4.6.0](https://github.com/cubicecho/engrafo/compare/v4.5.0...v4.6.0) (2026-10-23)
+
+
+### Features
+
+* accept CSV, HTML, WebP and GIF uploads ([3b008b0](https://github.com/cubicecho/engrafo/commit/3b008b0d42c909d7868c18679ebf6d118a82c2cb))
+
 # [4.5.0](https://github.com/cubicecho/engrafo/compare/v4.4.0...v4.5.0) (2026-10-23)
 
 
