@@ -266,6 +266,56 @@ export const PDF_TEXT_DEFAULTS: Readonly<PdfTextSettings> = Object.freeze({
   maxOutputBytes: 67_108_864,
 });
 
+/** The thumbnail step: a small picture of a document's first page, for lists. */
+export interface ThumbnailSettings {
+  /** How wide a thumbnail is drawn, in pixels. Twice a list row's picture, for a sharp one on a dense screen. */
+  widthPx: number;
+  /**
+   * The tallest a thumbnail may be, in pixels: a receipt roll or a long screenshot is cut to
+   * this rather than drawn as a strip nobody can see in a row.
+   */
+  maxHeightPx: number;
+  /** JPEG quality, 1-95 as Pillow and pdftoppm read it. */
+  jpegQuality: number;
+  /** When rendering one is given up on. One page, one decode, one encode. */
+  timeoutMinutes: number;
+  /**
+   * The Python that resizes an image with Pillow. Not a dependency of its own: ocrmypdf is Python
+   * and needs Pillow, so wherever OCR runs this does too.
+   */
+  resizer: string;
+  /** The most an EPUB's cover image may unpack to, in bytes. */
+  maxCoverBytes: number;
+  /** How long a thumbnail's URL works. Longer than a download's, since a list is read for a while. */
+  urlTtlMinutes: number;
+  /** Most documents one `documentThumbnailUrls` call may ask about: a page of a list. */
+  lookupMaxIds: number;
+}
+
+/** The shipped values of `ThumbnailSettings`. */
+export const THUMBNAIL_DEFAULTS: Readonly<ThumbnailSettings> = Object.freeze({
+  widthPx: 320,
+  maxHeightPx: 640,
+  jpegQuality: 80,
+  timeoutMinutes: 2,
+  resizer: 'python3',
+  // 32 MiB.
+  maxCoverBytes: 33_554_432,
+  urlTtlMinutes: 60,
+  lookupMaxIds: 200,
+});
+
+/** Saved searches, listed in the sidebar. */
+export interface SavedSearchSettings {
+  /** The longest name, in characters: it has to fit a sidebar row. */
+  nameMaxLength: number;
+}
+
+/** The shipped values of `SavedSearchSettings`. */
+export const SAVED_SEARCH_DEFAULTS: Readonly<SavedSearchSettings> = Object.freeze({
+  nameMaxLength: 64,
+});
+
 /** Reading ebooks. */
 export interface EbookSettings {
   /**

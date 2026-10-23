@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
+import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -13,6 +14,7 @@ import { formatCalendarDay } from '@/lib/calendar-day';
 import { formatDate, joinStats } from '@/lib/format';
 import { queryLike } from '@/lib/query';
 import { documentPath } from '@/lib/routes';
+import { useThumbnailUrls } from '@/lib/thumbnails';
 
 export const BrowseDocuments = graphql(`
   query BrowseDocuments($filter: DocumentSearchFilter!, $first: Int!, $offset: Int!) {
@@ -22,6 +24,7 @@ export const BrowseDocuments = graphql(`
         id
         title
         originalFilename
+        mimeType
         createdAt
         documentDate
       }
@@ -47,6 +50,7 @@ export function FilteredDocuments({ filter }: FilteredDocumentsProps) {
   const [loadingMore, setLoadingMore] = useState(false);
   const page = result.data?.browseDocuments;
   const rows = page?.documents ?? [];
+  const thumbnails = useThumbnailUrls(rows.map((row) => row.id));
 
   const showMore = async () => {
     setLoadingMore(true);
@@ -81,6 +85,7 @@ export function FilteredDocuments({ filter }: FilteredDocumentsProps) {
         contentSlot={rows.map((document) => (
           <ListItem
             key={document.id}
+            leadingSlot={<DocumentThumbnail url={thumbnails.get(document.id)} mimeType={document.mimeType} />}
             title={document.title}
             description={document.originalFilename}
             // The date on the document when there is one, which is the date the list is ordered by.

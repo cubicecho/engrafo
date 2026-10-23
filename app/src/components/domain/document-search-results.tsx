@@ -2,6 +2,7 @@ import { useQuery } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
+import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -11,6 +12,7 @@ import { formatCalendarDay } from '@/lib/calendar-day';
 import { formatDate, joinStats } from '@/lib/format';
 import { queryLike } from '@/lib/query';
 import { documentPath } from '@/lib/routes';
+import { useThumbnailUrls } from '@/lib/thumbnails';
 
 export const SearchDocuments = graphql(`
   query SearchDocuments($query: String!, $filter: DocumentSearchFilter) {
@@ -20,6 +22,7 @@ export const SearchDocuments = graphql(`
         id
         title
         originalFilename
+        mimeType
         createdAt
         documentDate
       }
@@ -42,6 +45,7 @@ export function DocumentSearchResults({ query, filter = null }: DocumentSearchRe
   const navigate = useNavigate();
   const result = useQuery(SearchDocuments, { variables: { query, filter } });
   const hits = result.data?.searchDocuments ?? [];
+  const thumbnails = useThumbnailUrls(hits.map((hit) => hit.document.id));
 
   return (
     <>
@@ -66,6 +70,7 @@ export function DocumentSearchResults({ query, filter = null }: DocumentSearchRe
         contentSlot={hits.map(({ document, snippet }) => (
           <ListItem
             key={document.id}
+            leadingSlot={<DocumentThumbnail url={thumbnails.get(document.id)} mimeType={document.mimeType} />}
             title={document.title}
             // Only the title matched, or the text is one line: the file name says which file it is.
             description={snippet || document.originalFilename}

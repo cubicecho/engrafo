@@ -163,6 +163,7 @@ const SEARCH_HITS = [
     document: {
       ...document({ title: 'Lease agreement' }),
       originalFilename: 'lease.pdf',
+      mimeType: 'application/pdf',
       createdAt: '2026-09-02T11:04:00.000Z',
       documentDate: '2024-05-01',
     },
@@ -173,10 +174,15 @@ const SEARCH_HITS = [
     document: {
       ...document({ title: 'Rent receipts 2026' }),
       originalFilename: 'receipts.pdf',
+      mimeType: 'text/csv',
       createdAt: '2026-09-02T11:04:00.000Z',
     },
   },
 ];
+
+/** A one-pixel grey PNG, standing in for a presigned thumbnail URL. */
+const THUMBNAIL_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNoAAAAggCBd81ytgAAAABJRU5ErkJggg==';
 
 /**
  * Typing searches: after a pause the box's text goes to `searchDocuments`, and the results take
@@ -191,6 +197,10 @@ export const Searching: Story = {
           folders: () => [],
           documents: () => [document({ title: 'Electricity bill — August' })],
           searchDocuments: (_parent: unknown, args: { query: string }) => (args.query === 'rent' ? SEARCH_HITS : []),
+          documentThumbnailUrls: (_parent: unknown, args: { ids: string[] }) =>
+            args.ids
+              .filter((id) => id === SEARCH_HITS[0]?.document.id)
+              .map((documentId) => ({ documentId, url: THUMBNAIL_URL })),
         },
       },
     },
@@ -208,6 +218,11 @@ export const Searching: Story = {
     await expect(rows[1]).toHaveTextContent('2026');
     // A hit on the title alone shows which file it is instead of an empty line.
     await expect(rows[1]).toHaveTextContent('receipts.pdf');
+    // The first page's picture where there is one, asked for once for the whole list; a type icon
+    // where there is none.
+    await waitFor(() => expect(rows[0]?.querySelector('img')).toHaveAttribute('src', THUMBNAIL_URL));
+    await expect(rows[0]?.querySelector('img')).toHaveAttribute('loading', 'lazy');
+    await expect(rows[1]?.querySelector('img')).toBeNull();
   },
 };
 
@@ -263,6 +278,7 @@ const browsedWith: Array<Record<string, unknown>> = [];
 const RECEIPTS = ['2026-03-03', '2026-03-02', '2026-03-01'].map((documentDate, i) => ({
   ...document({ title: `Receipt ${i + 1}` }),
   originalFilename: `receipt-${i + 1}.pdf`,
+  mimeType: 'application/pdf',
   createdAt: '2026-09-02T11:04:00.000Z',
   documentDate,
 }));
@@ -372,5 +388,59 @@ export const SearchFails: Story = {
     const alert = await canvas.findByRole('alert');
     await expect(alert).toHaveTextContent('The search model could not be loaded');
     await expect(canvas.queryByText('Nothing matches')).not.toBeInTheDocument();
+  },
+};
+
+const savedWith: Array<Record<string, unknown>> = [];
+
+/**
+ * A search with filters can be saved under a name, which starts as the search text. What is saved
+ * is what the page is showing: the text and the filters as they go to the server.
+ */
+export const SavingASearch: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?q=rent&receipts=1`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          folders: () => [],
+          documents: () => [],
+          searchDocuments: () => SEARCH_HITS,
+          documentThumbnailUrls: () => [],
+          savedSearches: () => [],
+        },
+        Mutation: {
+          saveSearch: (_parent: unknown, args: Record<string, unknown>) => {
+            savedWith.push(args);
+            return { id: '00000000-0000-4000-8000-00000000005a' };
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Save search' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Save search' });
+    const name = within(dialog).getByRole('textbox', { name: /Name/ });
+    await expect(name).toHaveValue('rent');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Rent receipts');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(savedWith.at(-1)).toMatchObject({ name: 'Rent receipts', query: 'rent', filter: { hasReceipt: true } }),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  },
+};
+
+/** With nothing typed and nothing narrowed there is nothing to save, so there is no button. */
+export const NothingToSave: Story = {
+  parameters: {
+    apolloClient: { resolvers: archiveServer({ folders: [], documents: [] }) },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('searchbox', { name: 'Search documents' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('button', { name: 'Save search' })).not.toBeInTheDocument();
   },
 };

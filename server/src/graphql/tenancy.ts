@@ -15,7 +15,7 @@ import { requireAuth } from '../core/errors.ts';
 type AnyTable = any;
 
 /** The tables whose rows carry a `userId` and are scoped by it. */
-export const USER_OWNED_TABLES = ['documents', 'folders', 'processingSteps'] as const;
+export const USER_OWNED_TABLES = ['documents', 'folders', 'processingSteps', 'savedSearches'] as const;
 
 /** Every table drizzle-graphql will generate fields for. */
 export const ALL_TABLES = ['users', ...USER_OWNED_TABLES] as const;

@@ -8,6 +8,7 @@ import { applyDuplicatesExtension } from '../documents/duplicates.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
 import { applyMetadataExtension } from '../metadata/resolvers.ts';
+import { applySavedSearchesExtension } from '../saved-searches/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
 import { applyVisionExtension } from '../vision/resolvers.ts';
@@ -61,6 +62,8 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyFoldersExtension(schema);
   schema = applyMetadataExtension(schema);
   schema = applySearchExtension(schema);
+  // After search, whose DocumentSearchFilter it takes.
+  schema = applySavedSearchesExtension(schema);
   schema = applySsoExtension(schema);
   schema = applyApiKeysExtension(schema);
   schema = applyVisionExtension(schema);

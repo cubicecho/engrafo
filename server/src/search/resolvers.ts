@@ -60,7 +60,7 @@ const SEARCH_SDL = parse(`
   }
 `);
 
-const filterSchema = z
+export const filterSchema = z
   .object({
     folderId: z.uuid('That is not a folder id.').nullish(),
     includeSubfolders: z.boolean().nullish(),

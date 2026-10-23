@@ -4,6 +4,9 @@ import { DocumentKind, type DocumentSearchFilter } from '@/__generated__/graphql
 // text, so a narrowed search survives a reload and Back like the search does. Each filter has a
 // key of its own, and a key that is absent narrows nothing.
 
+/** The query string key the search box keeps its text in, so a search survives a reload and Back. */
+export const SEARCH_PARAM = 'q';
+
 /** The filters as the page holds them. */
 export interface SearchFilters {
   folderId: string | null;
