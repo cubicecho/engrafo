@@ -7,7 +7,7 @@ import { errorMessage } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 import { archiveKey } from '../../storage/s3.ts';
 import { storeContent } from '../content.ts';
-import { toOpaquePng } from '../image.ts';
+import { pngHasTransparency, toOpaquePng } from '../image.ts';
 import { isImage, isOcrable, needsPngForOcr } from '../mime.ts';
 import { readPdfText } from '../pdf-text.ts';
 import type { PipelineStep } from '../types.ts';
@@ -85,8 +85,9 @@ const HAS_SKIPPED_PAGE = /\[OCR skipped on page\(s\) [\d-]+\]/;
 
 /**
  * Runs ocrmypdf over a PDF or an image, and stores the PDF/A archive and the text it recognised.
- * A WebP or GIF is handed over as a PNG of its first frame (see `toOpaquePng`). Skipped when OCR
- * was not requested, is unavailable here, or the type is not one ocrmypdf takes.
+ * A WebP or GIF is handed over as a PNG of its first frame, and a PNG with transparency as one
+ * laid on white (see `toOpaquePng`). Skipped when OCR was not requested, is unavailable here, or
+ * the type is not one ocrmypdf takes.
  */
 export const ocrStep: PipelineStep = {
   name: 'ocr',
@@ -98,7 +99,7 @@ export const ocrStep: PipelineStep = {
 
     await storage.files.download(doc.originalKey, original);
     let input = original;
-    if (needsPngForOcr(doc.mimeType)) {
+    if (needsPngForOcr(doc.mimeType) || (doc.mimeType === 'image/png' && (await pngHasTransparency(original)))) {
       input = join(tmpDir, 'original.png');
       await toOpaquePng(original, input);
     }

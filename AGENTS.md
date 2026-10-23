@@ -90,7 +90,8 @@ engrafo/
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
 │       │   ├── epub.ts      # readEpub: an EPUB's text, chapter by chapter, in-process
 │       │   ├── html-text.ts # walkHtml: markup off, for EPUB chapters and HTML uploads
-│       │   ├── image.ts     # toOpaquePng: a WebP's or GIF's first frame, for ocrmypdf
+│       │   ├── image.ts     # toOpaquePng and pngHasTransparency: an image ocrmypdf will take
+│       │   ├── decode.ts    # decodeText: a text upload's bytes, in whatever encoding it was saved in
 │       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, metadata, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
@@ -483,14 +484,27 @@ the bucket from the app's origin behind one proxy, and even a fully sandboxed
 frame still fetches the page's remote images and pixels. The text card shows
 what the page said, and downloads are `attachment`.
 
-**WebP and GIF reach OCR as a PNG.** ocrmypdf reads an opaque one of either, but
-refuses any image with an alpha channel (common in WebP) and makes every frame
-of an animated GIF a page. So `toOpaquePng` (`pipeline/image.ts`) writes the
-first frame laid on white into the run's tmpDir first, with Pillow through
-`python3 -c` (`OCR_DEFAULTS.pngConverter`): ocrmypdf is Python and depends on
-Pillow, and Debian's Pillow reads WebP, so the image gained no package. With OCR
-off they are stored with no text, like any image, and the browser previews the
-original itself.
+**WebP, GIF and a see-through PNG reach OCR as an opaque PNG.** ocrmypdf reads
+an opaque one of any of them, but refuses any image with transparency (common
+in WebP, and in a PNG exported from a screenshot or a design tool) and makes
+every frame of an animated GIF a page. So `toOpaquePng` (`pipeline/image.ts`)
+writes the first frame laid on white into the run's tmpDir first, keeping a DPI
+the image states, with Pillow through `python3 -c` (`OCR_DEFAULTS.pngConverter`):
+ocrmypdf is Python and depends on Pillow, and Debian's Pillow reads WebP, so the
+image gained no package. A PNG goes through it only when `pngHasTransparency`
+finds an alpha colour type or a `tRNS` chunk in its headers; an opaque one goes
+in untouched. With OCR off they are stored with no text, like any image, and
+the browser previews the original itself.
+
+**A text upload is read in the encoding it was saved in.** Plain text,
+Markdown, CSV and HTML all reach the text step as bytes, and `decodeText`
+(`pipeline/decode.ts`) picks the encoding: a byte-order mark; then UTF-8 if the
+bytes are valid UTF-8 and hold no NUL (UTF-16 without a mark is valid UTF-8 too,
+so the NULs' side says which UTF-16 it is); then, for HTML only, the page's
+`<meta charset>`; then chardet's guess over the first
+`TEXT_DEFAULTS.encodingSampleBytes`; then windows-1252. UTF-8 is tried before a
+`<meta>` because an editor that re-saves a page rarely fixes its declaration.
+The stored text is always UTF-8, so nothing downstream knows.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

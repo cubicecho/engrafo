@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { toOpaquePng } from '../../pipeline/image.ts';
+import { pngHasTransparency, toOpaquePng } from '../../pipeline/image.ts';
 import { needsPngForOcr } from '../../pipeline/mime.ts';
 
 const exec = promisify(execFile);
@@ -79,6 +79,20 @@ describe.skipIf(hasPillow === false)('toOpaquePng', () => {
     expect((await python(DESCRIBE_IMAGE, output)).trim()).toBe('PNG RGB 1 (0, 0, 0)');
   });
 
+  it('keeps the resolution a scanner wrote', async () => {
+    const input = join(dir, 'scan.png');
+    const output = join(dir, 'opaque.png');
+    await python('import sys\nfrom PIL import Image\nImage.new("LA", (4, 4)).save(sys.argv[1], dpi=(600, 600))', input);
+
+    await toOpaquePng(input, output);
+
+    const dpi = await python(
+      'import sys\nfrom PIL import Image\nprint(round(Image.open(sys.argv[1]).info["dpi"][0]))',
+      output,
+    );
+    expect(dpi.trim()).toBe('600');
+  });
+
   it("fails with Pillow's own reason when the file is not an image", async () => {
     const input = join(dir, 'fake.webp');
     await writeFile(input, 'not an image');
@@ -86,5 +100,44 @@ describe.skipIf(hasPillow === false)('toOpaquePng', () => {
     await expect(toOpaquePng(input, join(dir, 'out.png'))).rejects.toThrow(
       /^Could not convert the image for OCR: .*cannot identify image file/,
     );
+  });
+});
+
+describe.skipIf(hasPillow === false)('pngHasTransparency', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'engrafo-png-test-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  /** A 4x4 PNG in this Pillow mode, with `transparency` set when given. */
+  async function png(mode: string, transparency = 'None'): Promise<string> {
+    const path = join(dir, `${mode}-${transparency}.png`);
+    const script = [
+      'import sys',
+      'from PIL import Image',
+      'image = Image.new(sys.argv[2], (4, 4))',
+      `image.save(sys.argv[1], **({} if ${transparency} is None else {"transparency": ${transparency}}))`,
+    ].join('\n');
+    await python(script, path, mode);
+    return path;
+  }
+
+  it('finds an alpha channel, and a see-through palette entry or colour', async () => {
+    expect(await pngHasTransparency(await png('RGBA'))).toBe(true);
+    expect(await pngHasTransparency(await png('LA'))).toBe(true);
+    expect(await pngHasTransparency(await png('P', '0'))).toBe(true);
+    expect(await pngHasTransparency(await png('RGB', '(0, 0, 0)'))).toBe(true);
+  });
+
+  it('passes an opaque PNG, and a file that is not one', async () => {
+    expect(await pngHasTransparency(await png('RGB'))).toBe(false);
+    expect(await pngHasTransparency(await png('P'))).toBe(false);
+    const fake = join(dir, 'fake.png');
+    await writeFile(fake, 'no');
+    expect(await pngHasTransparency(fake)).toBe(false);
   });
 });

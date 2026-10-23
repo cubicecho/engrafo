@@ -140,9 +140,11 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
     }
   });
 
-  // ocrmypdf refuses an image with an alpha channel, which a WebP often has, and
-  // reads every frame of an animated GIF as a page. Both go in as a PNG of the first frame.
-  it('reads a transparent WebP, and only the first frame of an animated GIF', { timeout: 240_000 }, async () => {
+  // ocrmypdf refuses an image with an alpha channel, which a WebP or a PNG often has, and
+  // reads every frame of an animated GIF as a page. All go in as an opaque PNG of the first frame.
+  it('reads a transparent WebP and PNG, and only the first frame of an animated GIF', {
+    timeout: 240_000,
+  }, async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-ocr-test-'));
     try {
       const first = join(tmpDir, 'first.png');
@@ -151,6 +153,7 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
       await drawText(second, 'Refund 9907');
       const webp = join(tmpDir, 'scan.webp');
       const gif = join(tmpDir, 'scan.gif');
+      const png = join(tmpDir, 'scan-transparent.png');
       // Pillow, which is wherever ocrmypdf is: the white made see-through, and the two pages as frames.
       await exec('python3', [
         '-c',
@@ -160,6 +163,7 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
           'first, second = Image.open(sys.argv[1]).convert("RGBA"), Image.open(sys.argv[2]).convert("RGB")',
           'first.putalpha(first.convert("L").point(lambda v: 255 - v))',
           'first.save(sys.argv[3], "WEBP", lossless=True)',
+          'first.save(sys.argv[5], "PNG")',
           'frames = [Image.open(sys.argv[1]).convert("RGB"), second]',
           'frames[0].save(sys.argv[4], save_all=True, append_images=frames[1:], duration=500, loop=0)',
         ].join('\n'),
@@ -167,11 +171,13 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
         second,
         webp,
         gif,
+        png,
       ]);
 
       for (const [path, mimeType] of [
         [webp, 'image/webp'],
         [gif, 'image/gif'],
+        [png, 'image/png'],
       ] as const) {
         const storage = createFakeStorage();
         const document = doc({ mimeType });
