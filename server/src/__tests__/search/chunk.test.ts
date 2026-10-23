@@ -52,9 +52,55 @@ describe('chunkSections', () => {
     ]);
   });
 
-  it('drops a chapter with no text, and reads a heading only as a paragraph of its own', () => {
-    expect(chunkSections('# Empty\n\n# Full\n\nText.\n# not a heading', 1000)).toEqual([
-      { heading: 'Full', content: 'Text. # not a heading' },
+  it('drops a section with no text', () => {
+    expect(chunkSections('# Empty\n\n# Full\n\nText.', 1000)).toEqual([{ heading: 'Full', content: 'Text.' }]);
+  });
+
+  it('gives a Markdown passage the breadcrumb of headings above it', () => {
+    const markdown = [
+      '# Backups',
+      'Nightly at two.',
+      '## Restore',
+      'Run it twice.',
+      '### Gotchas ###',
+      'Stop the app first.',
+      '## Retention',
+      'Thirty days.',
+      '# Other',
+      'Elsewhere.',
+    ].join('\n');
+    expect(chunkSections(markdown, 1000)).toEqual([
+      { heading: 'Backups', content: 'Nightly at two.' },
+      { heading: 'Backups › Restore', content: 'Run it twice.' },
+      { heading: 'Backups › Restore › Gotchas', content: 'Stop the app first.' },
+      { heading: 'Backups › Retention', content: 'Thirty days.' },
+      { heading: 'Other', content: 'Elsewhere.' },
+    ]);
+  });
+
+  it('skips a level without leaving a gap in the breadcrumb', () => {
+    expect(chunkSections('# Top\n### Deep\nText.', 1000)).toEqual([{ heading: 'Top › Deep', content: 'Text.' }]);
+  });
+
+  it('reads no heading inside a code block, and leaves front matter out', () => {
+    const markdown = [
+      '---',
+      'title: Server notes',
+      'tags: [ops]',
+      '---',
+      '# Setup',
+      '```bash',
+      '# install it',
+      'apt install foo',
+      '```',
+      'Then reboot.',
+      '#hashtag is not a heading',
+    ].join('\n');
+    expect(chunkSections(markdown, 1000)).toEqual([
+      {
+        heading: 'Setup',
+        content: '```bash # install it apt install foo ``` Then reboot. #hashtag is not a heading',
+      },
     ]);
   });
 });

@@ -12,6 +12,14 @@ const UNKNOWN_MIME_TYPE = 'application/octet-stream';
 const TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
   // Windows without an ebook reader installed has no type for it.
   epub: 'application/epub+zip',
+  // Most browsers have none for Markdown, and some call it text/x-markdown.
+  md: 'text/markdown',
+  markdown: 'text/markdown',
+};
+
+/** What a browser calls a type that the server knows by another name. */
+const TYPE_ALIASES: Readonly<Record<string, string>> = {
+  'text/x-markdown': 'text/markdown',
 };
 
 /**
@@ -23,7 +31,7 @@ const TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
  */
 export function uploadMimeType(file: { name: string; type: string }): string {
   if (file.type !== '') {
-    return file.type;
+    return TYPE_ALIASES[file.type] ?? file.type;
   }
   const dot = file.name.lastIndexOf('.');
   const extension = dot === -1 ? '' : file.name.slice(dot + 1).toLowerCase();

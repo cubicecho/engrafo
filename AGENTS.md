@@ -330,9 +330,9 @@ inside), follows the package's spine, and takes the markup off with
 well-formed. The table of contents (the EPUB 3 nav document, else the EPUB 2 NCX)
 names the chapters, including ones that start partway through a file. The
 stored text puts each chapter's name on a line of its own (`# The Storm`,
-written by `headingLine`), and for an ebook — only an ebook, `isEbook` — the
-index step cuts with `chunkSections`, so no passage straddles two chapters and
-each is embedded as `title / chapter / passage`. A chapter listed in
+written by `headingLine`), and for an ebook or Markdown — only those,
+`hasHeadings` — the index step cuts with `chunkSections`, so no passage
+straddles two sections and each is embedded as `title / breadcrumb / passage`. A chapter listed in
 `META-INF/encryption.xml` is DRM and fails the step with a message saying so;
 obfuscated fonts are listed there too and are not. The step is called `ebook`,
 not `epub`, because its name is stored on every document's rows and MOBI, AZW3
@@ -340,6 +340,16 @@ and FB2 are meant to land in it later. It sits before `index`, against the
 "new steps go last" rule, because it produces text; no document mid-pipeline at
 that upgrade was an EPUB. The detail page draws no preview frame for an EPUB:
 a browser cannot render one, and the frame only starts a download.
+
+**Markdown is text with headings.** A `.md` upload is stored as it is, by the
+text step, like plain text. Neither has magic bytes, so the inspect step takes
+the upload's word for both (`isText`), and the app names the type from the
+extension when the browser gives none. `chunkSections` reads ATX headings
+(`#` to `######`) line by line into a breadcrumb (`Backups › Restore`, as
+mcp-ragdown embeds it), ignores a `#` inside a fenced code block, and leaves
+YAML front matter out of the passages. It does not read Setext headings
+(`===` underlines), tags, wikilinks or anything else mcp-ragdown does: a
+Markdown document here is a file you filed, not a note an agent edits.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

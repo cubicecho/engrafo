@@ -5,10 +5,10 @@ import { CardLayout } from '@/components/card-layout';
 import { Alert } from '@/components/ui/alert';
 import { DocumentFileUrl } from './document-file';
 
-// Plain text gets no frame of its own: the text card already shows it. Nor does
-// an ebook: a browser cannot draw one, and a frame pointed at it only starts a
-// download. Its text card shows the book's text.
-const NOT_PREVIEWABLE = new Set(['text/plain', 'application/epub+zip']);
+// Plain text and Markdown get no frame of their own: the text card already shows
+// them. Nor does an ebook: a browser cannot draw one, and a frame pointed at it
+// only starts a download. Its text card shows the book's text.
+const NOT_PREVIEWABLE = new Set(['text/plain', 'text/markdown', 'application/epub+zip']);
 
 interface DocumentPreviewCardProps {
   /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
@@ -17,7 +17,7 @@ interface DocumentPreviewCardProps {
 
 /**
  * A document's file in a frame: the searchable PDF once OCR has produced one, the upload before.
- * Draws nothing for plain text or an ebook, which the text card already shows, and nothing until the
+ * Draws nothing for plain text, Markdown or an ebook, which the text card already shows, and nothing until the
  * presigned URL has arrived — or has failed to, which it says.
  */
 export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {

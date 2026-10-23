@@ -181,8 +181,9 @@ domain.
 | `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
 | `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
 
-Accepted uploads are PDF, PNG, JPEG, TIFF, plain text and EPUB — what the
-pipeline can do something with. An EPUB's text is read chapter by chapter, and
+Accepted uploads are PDF, PNG, JPEG, TIFF, plain text, Markdown and EPUB — what
+the pipeline can do something with. Markdown is searched section by section,
+under its headings. An EPUB's text is read chapter by chapter, and
 search knows which chapter a passage is from. DRM-protected books cannot be read.
 
 Engrafo ships no mail provider. With magic links on, the link is written to the
