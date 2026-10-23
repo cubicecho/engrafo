@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 /**
  * Whether a `TableHead` sits in the header row group, so it can default its `scope` to the
@@ -24,19 +24,24 @@ function useOverflowsX() {
   const [overflows, setOverflows] = React.useState(false);
   React.useEffect(() => {
     const node = ref.current;
-    if (!node || typeof ResizeObserver === 'undefined') return;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return;
+    }
     const measure = () => setOverflows(node.scrollWidth > node.clientWidth);
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     // The container keeps its width when a column grows, so the table is watched as well.
-    if (node.firstElementChild) observer.observe(node.firstElementChild);
+    if (node.firstElementChild) {
+      observer.observe(node.firstElementChild);
+    }
     measure();
     return () => observer.disconnect();
   }, []);
   return [ref, overflows] as const;
 }
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+/** A table inside a container that scrolls sideways when it is too wide. */
+function Table({ className, ...props }: React.ComponentProps<"table">) {
   const [ref, overflows] = useOverflowsX();
   return (
     <div
@@ -45,7 +50,11 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
       tabIndex={overflows ? 0 : undefined}
       className="relative w-full overflow-x-auto"
     >
-      <table data-slot="table" className={cn('w-full caption-bottom text-sm', className)} {...props} />
+      <table
+        data-slot="table"
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      />
     </div>
   );
 }
@@ -53,38 +62,51 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
 // Every border below names `border-foreground/10` beside its width. Upstream leans on the app's base
 // layer to colour a bare `border-b`, and the cubeui stylesheet sets no such rule, so without it
 // the rules between rows are `currentColor` — black lines in a light theme.
-function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
+/** The table's header row group. */
+function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <InTableHeader.Provider value={true}>
       <thead
         data-slot="table-header"
-        className={cn('[&_tr]:border-foreground/10 [&_tr]:border-b', className)}
+        className={cn("[&_tr]:border-foreground/10 [&_tr]:border-b", className)}
         {...props}
       />
     </InTableHeader.Provider>
   );
 }
 
-function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
-  return <tbody data-slot="table-body" className={cn('[&_tr:last-child]:border-0', className)} {...props} />;
-}
-
-function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
+/** The table's body row group. */
+function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn('border-foreground/10 border-t bg-foreground/10 font-medium [&>tr]:last:border-b-0', className)}
+    <tbody
+      data-slot="table-body"
+      className={cn("[&_tr:last-child]:border-0", className)}
       {...props}
     />
   );
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+/** The table's footer row group, for totals. */
+function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
+  return (
+    <tfoot
+      data-slot="table-footer"
+      className={cn(
+        "border-foreground/10 border-t bg-foreground/10 font-semibold [&>tr]:last:border-b-0",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** One row. */
+function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       data-slot="table-row"
       className={cn(
-        'border-foreground/10 border-b transition-colors hover:bg-hover has-aria-expanded:bg-foreground/10 data-[state=selected]:bg-active/40',
+        "border-foreground/10 border-b transition-colors hover:bg-hover has-aria-expanded:bg-foreground/10 data-[state=selected]:bg-active/40",
         className,
       )}
       {...props}
@@ -92,14 +114,15 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   );
 }
 
-function TableHead({ className, scope, ...props }: React.ComponentProps<'th'>) {
+/** A header cell, scoped to its column in the header and to its row in the body. */
+function TableHead({ className, scope, ...props }: React.ComponentProps<"th">) {
   const inHeader = React.useContext(InTableHeader);
   return (
     <th
       data-slot="table-head"
-      scope={scope ?? (inHeader ? 'col' : 'row')}
+      scope={scope ?? (inHeader ? "col" : "row")}
       className={cn(
-        'h-10 whitespace-nowrap px-2 text-left align-middle font-medium text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        "h-10 whitespace-nowrap px-2 text-left align-middle font-semibold text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
       {...props}
@@ -107,12 +130,13 @@ function TableHead({ className, scope, ...props }: React.ComponentProps<'th'>) {
   );
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
+/** A data cell. */
+function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
       className={cn(
-        'whitespace-nowrap p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        "whitespace-nowrap p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
       {...props}
@@ -120,8 +144,15 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
   );
 }
 
-function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
-  return <caption data-slot="table-caption" className={cn('mt-4 text-foreground/60 text-sm', className)} {...props} />;
+/** The table's caption, which is also its accessible name. */
+function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
+  return (
+    <caption
+      data-slot="table-caption"
+      className={cn("mt-4 text-foreground/60 text-sm", className)}
+      {...props}
+    />
+  );
 }
 
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow };

@@ -64,12 +64,7 @@ export function ReprocessDocumentDialog({
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton
-              content="Re-run"
-              pendingLabel="Starting…"
-              disabled={ocrAvailable === undefined}
-              onClick={() => form.handleSubmit()}
-            />
+            <form.SubmitButton content="Re-run" pendingLabel="Starting…" disabled={ocrAvailable === undefined} />
           </>
         )}
       />

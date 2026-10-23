@@ -389,10 +389,13 @@ between them — a change to how the shell *looks* is a change upstream, not her
 
 **Write cubeui the way cubeui is written.** No `children` on its components:
 nodes go in props ending in `Slot`, words go in `title`, `description`, `label`
-and `content`. An icon-only button is an `ActionButton` with a `label`; a
-destructive one is a `ConfirmButton` whose description says what is lost. Forms
-are TanStack Form through `useAppForm` (`login.tsx`, and the rename dialog in
-`document.tsx`). Colours in app code are cubeui's token names — `foreground`,
+and `content`. An icon-only button is a `Button` in an `icon*` size with an
+`aria-label` (it will not typecheck without one), and it shows a tooltip only
+when given a `hint`; a destructive one is a `ConfirmButton` whose description
+says what is lost. Forms are TanStack Form through `useAppForm` (`login.tsx`,
+and `rename-document-dialog.tsx`). A `form.SubmitButton` outside its `<form>`,
+as in a dialog's footer, submits by itself — do not give it an `onClick` that
+calls `handleSubmit()` too, or the form submits twice. Colours in app code are cubeui's token names — `foreground`,
 `secondary`, `positive`, `warning`, `negative`, `info`, `hover`, `active` — and
 "muted" is an opacity (`text-foreground/60`), not a token; the shadcn alias
 names (`muted-foreground`, `destructive`, `accent`) appear only in vendored

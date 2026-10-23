@@ -1,6 +1,7 @@
 import type { StepStatusEnum } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { StepStatusBadge } from '@/components/domain/status-badge';
+import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
 import { formatAgo, joinStats } from '@/lib/format';
 
@@ -32,22 +33,22 @@ export function DocumentPipelineCard({ ocrRequested, steps }: DocumentPipelineCa
       title="Pipeline"
       description={ocrRequested ? 'OCR was requested for this document.' : 'Uploaded without OCR.'}
       contentSlot={
-        <ul className="flex flex-col">
-          {steps.map((step) => (
-            <li key={step.id}>
-              <ListItem
-                className="px-0"
-                title={step.step}
-                description={joinStats(
-                  step.error,
-                  step.attempts > 1 && `${step.attempts} attempts`,
-                  step.finishedAt && formatAgo(step.finishedAt),
-                )}
-                meta={<StepStatusBadge status={step.status} />}
-              />
-            </li>
+        <List
+          label="Pipeline steps"
+          contentSlot={steps.map((step) => (
+            <ListItem
+              key={step.id}
+              className="px-0"
+              title={step.step}
+              description={joinStats(
+                step.error,
+                step.attempts > 1 && `${step.attempts} attempts`,
+                step.finishedAt && formatAgo(step.finishedAt),
+              )}
+              meta={<StepStatusBadge status={step.status} />}
+            />
           ))}
-        </ul>
+        />
       }
     />
   );

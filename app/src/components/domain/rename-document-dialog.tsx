@@ -55,7 +55,7 @@ export function RenameDocumentDialog({ title, onRename, onClose }: RenameDocumen
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton onClick={() => form.handleSubmit()} />
+            <form.SubmitButton requireChanges />
           </>
         )}
       />

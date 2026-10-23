@@ -1,7 +1,7 @@
-import type * as React from 'react';
-import { cn } from '@/lib/utils';
+import type * as React from "react";
+import { cn } from "@/lib/utils";
 
-type ViewProps = Omit<React.ComponentPropsWithoutRef<'div'>, 'className' | 'children'> & {
+type ViewProps = Omit<React.ComponentPropsWithoutRef<"div">, "className" | "children"> & {
   className?: string | undefined;
 };
 
@@ -24,9 +24,14 @@ export type ProgressProps = ViewProps & {
   indicatorClassName?: string | undefined;
 };
 
+/** What `max` is when nobody gives one, which makes `value` a percentage. */
+const DEFAULT_MAX = 100;
+const PERCENT = 100;
+
+/** A horizontal bar showing how much of something is done. */
 export function Progress({
   value,
-  max = 100,
+  max = DEFAULT_MAX,
   label,
   valueLabel,
   className,
@@ -34,10 +39,10 @@ export function Progress({
   ...props
 }: ProgressProps) {
   // A zero or negative `max` has no fraction to draw; treat it as nothing done rather than NaN.
-  const limit = max > 0 ? max : 100;
-  const known = typeof value === 'number' && Number.isFinite(value);
+  const limit = max > 0 ? max : DEFAULT_MAX;
+  const known = typeof value === "number" && Number.isFinite(value);
   const now = known ? Math.min(Math.max(value, 0), limit) : undefined;
-  const percent = now === undefined ? 0 : (now / limit) * 100;
+  const percent = now === undefined ? 0 : (now / limit) * PERCENT;
 
   return (
     <div
@@ -45,15 +50,24 @@ export function Progress({
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={limit}
-      {...(now === undefined ? {} : { 'aria-valuenow': now })}
-      {...(valueLabel ? { 'aria-valuetext': valueLabel } : {})}
-      {...(props as React.ComponentPropsWithoutRef<'div'>)}
-      {...(label ? { 'aria-label': label } : {})}
-      className={cn('cube-rn-view', 'h-2 w-full overflow-hidden rounded-full bg-foreground/10', className)}
+      {...(now === undefined ? {} : { "aria-valuenow": now })}
+      {...(valueLabel ? { "aria-valuetext": valueLabel } : {})}
+      {...(props as React.ComponentPropsWithoutRef<"div">)}
+      {...(label ? { "aria-label": label } : {})}
+      className={cn(
+        "cube-rn-view",
+        "h-2 w-full overflow-hidden rounded-full bg-foreground/10",
+        className,
+      )}
     >
       <div
         data-slot="progress-indicator"
-        className={cn('cube-rn-view', 'h-full bg-neutral', 'transition-[width]', indicatorClassName)}
+        className={cn(
+          "cube-rn-view",
+          "h-full bg-neutral",
+          "transition-[width]",
+          indicatorClassName,
+        )}
         style={{ width: `${percent}%` }}
       />
     </div>

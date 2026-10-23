@@ -145,7 +145,6 @@ export function SsoSettings() {
         description={setup.issuer ? `Paired with ${setup.issuer}.` : 'Paired.'}
         actionSlot={
           <ConfirmButton
-            label="Disconnect"
             content="Disconnect"
             variant="destructive-outline"
             loading={loading}
@@ -166,11 +165,12 @@ export function SsoSettings() {
       level={2}
       title="Sign-in"
       description="People can always sign in with an emailed link. An OpenID Connect provider adds a button for it on the login page."
+      contentClassName="gap-4"
       contentSlot={
-        <div className="flex flex-col gap-4">
+        <>
           {body}
           {error ? <Alert variant="destructive" title="Could not disconnect" description={error} /> : null}
-        </div>
+        </>
       }
     />
   );

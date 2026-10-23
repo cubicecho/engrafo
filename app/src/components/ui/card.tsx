@@ -1,14 +1,14 @@
-import * as React from 'react';
-import { ColorBar } from '@/components/ui/color-bar';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { ColorBar } from "@/components/ui/color-bar";
+import { cn } from "@/lib/utils";
 
 // `className` is re-declared rather than inherited: nativewind types it as
 // `className?: string`, which under `exactOptionalPropertyTypes` rejects the
 // conditional `cond ? 'x' : undefined` several call sites pass.
-type ViewProps = Omit<React.ComponentPropsWithoutRef<'div'>, 'className'> & {
+type ViewProps = Omit<React.ComponentPropsWithoutRef<"div">, "className"> & {
   className?: string | undefined;
 };
-type TextProps = Omit<React.ComponentPropsWithoutRef<'span'>, 'className'> & {
+type TextProps = Omit<React.ComponentPropsWithoutRef<"span">, "className"> & {
   className?: string | undefined;
 };
 
@@ -22,14 +22,15 @@ type CardProps = ViewProps & {
    * `Pressable` instead of a `View` — a `View` has no press handling on
    * native, and an `onClick` on a plain `div` is not reachable by keyboard.
    */
-  onClick?: React.ComponentPropsWithoutRef<'button'>['onClick'] | undefined;
+  onClick?: React.ComponentPropsWithoutRef<"button">["onClick"] | undefined;
 };
 
+/** A bordered surface for one thing, pressable when given `onPress`. */
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, accentColor, accentLabel, onClick: onPress, children, ...props }, ref) => {
     const classes = cn(
-      'rounded-lg border border-foreground/10 bg-secondary text-foreground shadow-sm',
-      accentColor && 'relative overflow-hidden',
+      "rounded-lg border border-foreground/10 bg-secondary text-foreground",
+      accentColor && "relative overflow-hidden",
       className,
     );
     const inner = (
@@ -49,8 +50,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
           type="button"
           ref={ref as React.Ref<HTMLButtonElement>}
           onClick={onPress}
-          className={cn('cube-rn-view cube-rn-pressable', classes)}
-          {...(props as React.ComponentPropsWithoutRef<'button'>)}
+          className={cn("cube-rn-view cube-rn-pressable", classes)}
+          {...(props as React.ComponentPropsWithoutRef<"button">)}
         >
           {inner}
         </button>
@@ -59,24 +60,25 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref as React.Ref<HTMLDivElement>}
-        className={cn('cube-rn-view', classes)}
-        {...(props as React.ComponentPropsWithoutRef<'div'>)}
+        className={cn("cube-rn-view", classes)}
+        {...(props as React.ComponentPropsWithoutRef<"div">)}
       >
         {inner}
       </div>
     );
   },
 );
-Card.displayName = 'Card';
+Card.displayName = "Card";
 
+/** The top of a card, holding its title and description. */
 const CardHeader = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
-    className={cn('cube-rn-view', 'flex flex-col gap-1.5 p-6', className)}
-    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+    className={cn("cube-rn-view", "flex flex-col gap-1.5 p-6", className)}
+    {...(props as React.ComponentPropsWithoutRef<"div">)}
   />
 ));
-CardHeader.displayName = 'CardHeader';
+CardHeader.displayName = "CardHeader";
 
 type CardTitleProps = TextProps & {
   /**
@@ -89,65 +91,73 @@ type CardTitleProps = TextProps & {
 
 // shadcn's current card: the page's own text size, so a card under a page header never has a
 // bigger title than the page does (#249).
-const CARD_TITLE = 'text-base font-semibold leading-none text-foreground';
+const CARD_TITLE = "text-base font-semibold leading-none text-foreground";
 
 // One arm per level because the compiler emits `<h1>`–`<h3>` from a *literal* `aria-level`; a level
 // held in a variable would be a tag chosen at runtime, which it refuses (see `page-header.tsx`).
-const CardTitle = React.forwardRef<HTMLSpanElement, CardTitleProps>(({ className, level = 3, ...props }, ref) => {
-  if (level === 1) {
+/** The card's title, a heading of rank `level`. */
+const CardTitle = React.forwardRef<HTMLSpanElement, CardTitleProps>(
+  ({ className, level = 3, ...props }, ref) => {
+    if (level === 1) {
+      return (
+        <h1
+          ref={ref as React.Ref<HTMLHeadingElement>}
+          className={cn("cube-rn-text", CARD_TITLE, className)}
+          {...(props as React.ComponentPropsWithoutRef<"h1">)}
+        />
+      );
+    }
+    if (level === 2) {
+      return (
+        <h2
+          ref={ref as React.Ref<HTMLHeadingElement>}
+          className={cn("cube-rn-text", CARD_TITLE, className)}
+          {...(props as React.ComponentPropsWithoutRef<"h2">)}
+        />
+      );
+    }
     return (
-      <h1
+      <h3
         ref={ref as React.Ref<HTMLHeadingElement>}
-        className={cn('cube-rn-text', CARD_TITLE, className)}
-        {...(props as React.ComponentPropsWithoutRef<'h1'>)}
+        className={cn("cube-rn-text", CARD_TITLE, className)}
+        {...(props as React.ComponentPropsWithoutRef<"h3">)}
       />
     );
-  }
-  if (level === 2) {
-    return (
-      <h2
-        ref={ref as React.Ref<HTMLHeadingElement>}
-        className={cn('cube-rn-text', CARD_TITLE, className)}
-        {...(props as React.ComponentPropsWithoutRef<'h2'>)}
-      />
-    );
-  }
-  return (
-    <h3
-      ref={ref as React.Ref<HTMLHeadingElement>}
-      className={cn('cube-rn-text', CARD_TITLE, className)}
-      {...(props as React.ComponentPropsWithoutRef<'h3'>)}
+  },
+);
+CardTitle.displayName = "CardTitle";
+
+/** The muted line under the card's title. */
+const CardDescription = React.forwardRef<HTMLSpanElement, TextProps>(
+  ({ className, ...props }, ref) => (
+    <span
+      ref={ref as React.Ref<HTMLSpanElement>}
+      className={cn("cube-rn-text", "text-sm text-foreground/60", className)}
+      {...(props as React.ComponentPropsWithoutRef<"span">)}
     />
-  );
-});
-CardTitle.displayName = 'CardTitle';
+  ),
+);
+CardDescription.displayName = "CardDescription";
 
-const CardDescription = React.forwardRef<HTMLSpanElement, TextProps>(({ className, ...props }, ref) => (
-  <span
-    ref={ref as React.Ref<HTMLSpanElement>}
-    className={cn('cube-rn-text', 'text-sm text-foreground/60', className)}
-    {...(props as React.ComponentPropsWithoutRef<'span'>)}
-  />
-));
-CardDescription.displayName = 'CardDescription';
-
+/** The card's body. */
 const CardContent = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
-    className={cn('cube-rn-view', 'p-6 pt-0', className)}
-    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+    className={cn("cube-rn-view", "p-6 pt-0", className)}
+    {...(props as React.ComponentPropsWithoutRef<"div">)}
   />
 ));
-CardContent.displayName = 'CardContent';
+CardContent.displayName = "CardContent";
 
+/** The row at the bottom of a card, for its actions. */
 const CardFooter = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
-    className={cn('cube-rn-view', 'flex flex-row items-center p-6 pt-0', className)}
-    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+    className={cn("cube-rn-view", "flex flex-row items-center p-6 pt-0", className)}
+    {...(props as React.ComponentPropsWithoutRef<"div">)}
   />
 ));
-CardFooter.displayName = 'CardFooter';
+CardFooter.displayName = "CardFooter";
 
 /**
  * The header's trailing slot — a menu button, a status chip.
@@ -160,10 +170,10 @@ CardFooter.displayName = 'CardFooter';
 const CardAction = React.forwardRef<HTMLDivElement, ViewProps>(({ className, ...props }, ref) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
-    className={cn('cube-rn-view', 'absolute right-6 top-6 items-end', className)}
-    {...(props as React.ComponentPropsWithoutRef<'div'>)}
+    className={cn("cube-rn-view", "absolute right-6 top-6 items-end", className)}
+    {...(props as React.ComponentPropsWithoutRef<"div">)}
   />
 ));
-CardAction.displayName = 'CardAction';
+CardAction.displayName = "CardAction";
 
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };

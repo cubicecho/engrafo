@@ -1,14 +1,14 @@
-import type { ReactNode } from 'react';
-import * as React from 'react';
-import { cn, type SlotNode } from '@/lib/utils';
+import type { ReactNode } from "react";
+import * as React from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 
-type Layout = 'inline' | 'stacked';
+type Layout = "inline" | "stacked";
 
 /**
  * The list's `layout`, handed to its rows. Context rather than a prop on every row, because a row
  * that disagreed with its neighbours would break the one column the labels line up in.
  */
-const LayoutContext = React.createContext<Layout>('inline');
+const LayoutContext = React.createContext<Layout>("inline");
 
 /**
  * The row, per layout. Literal class maps, because the scanner reads source text (conventions §3).
@@ -24,34 +24,34 @@ const LayoutContext = React.createContext<Layout>('inline');
  * (a hint) or beside it (an action taller than the text).
  */
 const ROWS = {
-  inline: 'flex-row flex-wrap items-baseline gap-x-4 gap-y-1',
-  stacked: 'gap-1',
+  inline: "flex-row flex-wrap items-baseline gap-x-4 gap-y-1",
+  stacked: "gap-1",
 } as const;
 
 const LABELS = {
-  inline: 'w-40 shrink-0',
-  stacked: '',
+  inline: "w-40 shrink-0",
+  stacked: "",
 } as const;
 
 const VALUES = {
-  inline: 'min-w-48 flex-1',
-  stacked: '',
+  inline: "min-w-48 flex-1",
+  stacked: "",
 } as const;
 
 /**
  * A wrapper around a caller's node, not layout of its own: a block box on the web, where a compiled
  * view would otherwise be a flex column and lay `<code>/data</code> (mounted)` out as two rows.
  */
-const SLOT = 'block';
+const SLOT = "block";
 
-const isText = (node: ReactNode) => typeof node === 'string' || typeof node === 'number';
+const isText = (node: ReactNode) => typeof node === "string" || typeof node === "number";
 
 /** A string on its own is a crash on device, so a string value gets a `Text` around it. */
 function asText(node: ReactNode, className: string) {
   return isText(node) ? (
-    <span className={cn('cube-rn-text', className)}>{node}</span>
+    <span className={cn("cube-rn-text", className)}>{node}</span>
   ) : (
-    <div className={cn('cube-rn-view', 'min-w-0', SLOT)}>{node}</div>
+    <div className={cn("cube-rn-view", "min-w-0", SLOT)}>{node}</div>
   );
 }
 
@@ -85,10 +85,14 @@ type DescriptionListProps = {
  *
  * No state, no data, no `children` — the rows are `contentSlot`, like every other shell's body.
  */
-export function DescriptionList({ contentSlot, layout = 'inline', className }: DescriptionListProps) {
+export function DescriptionList({
+  contentSlot,
+  layout = "inline",
+  className,
+}: DescriptionListProps) {
   return (
     <LayoutContext.Provider value={layout}>
-      <dl data-slot="description-list" className={cn('cube-rn-view', 'min-w-0 gap-3', className)}>
+      <dl data-slot="description-list" className={cn("cube-rn-view", "min-w-0 gap-3", className)}>
         {contentSlot}
       </dl>
     </LayoutContext.Provider>
@@ -151,18 +155,26 @@ export function PropertyRow({
   const layout = React.useContext(LayoutContext);
 
   return (
-    <div data-slot="property-row" className={cn('cube-rn-view', 'min-w-0', ROWS[layout], className)}>
+    <div
+      data-slot="property-row"
+      className={cn("cube-rn-view", "min-w-0", ROWS[layout], className)}
+    >
       <dt
         data-slot="property-row-label"
-        className={cn('cube-rn-text', 'break-words text-foreground/60 text-sm', LABELS[layout], labelClassName)}
+        className={cn(
+          "cube-rn-text",
+          "break-words text-foreground/60 text-sm",
+          LABELS[layout],
+          labelClassName,
+        )}
       >
         {label}
       </dt>
       <dd
         data-slot="property-row-value"
         className={cn(
-          'cube-rn-view',
-          'min-w-0 flex-row items-center gap-2',
+          "cube-rn-view",
+          "min-w-0 flex-row items-center gap-2",
           VALUES[layout],
           // A string's class is on its `Text`, below. Left here as well, a `font-mono` would reach
           // the hint and the action on the web, by inheritance, and neither of them on device.
@@ -170,7 +182,7 @@ export function PropertyRow({
         )}
       >
         <div className="cube-rn-view min-w-0 flex-1 gap-0.5">
-          {asText(value, cn('break-words text-foreground text-sm', valueClassName))}
+          {asText(value, cn("break-words text-foreground text-sm", valueClassName))}
           {hint ? (
             <span data-slot="property-row-hint" className="cube-rn-text text-foreground/60 text-xs">
               {hint}
@@ -178,7 +190,10 @@ export function PropertyRow({
           ) : null}
         </div>
         {actionSlot ? (
-          <div data-slot="property-row-action" className="cube-rn-view shrink-0 flex-row items-center gap-1">
+          <div
+            data-slot="property-row-action"
+            className="cube-rn-view shrink-0 flex-row items-center gap-1"
+          >
             {actionSlot}
           </div>
         ) : null}

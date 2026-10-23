@@ -1,8 +1,8 @@
 import { LogOut } from 'lucide-react';
 import { useLinkClickHandler, useMatch } from 'react-router';
-import { ActionButton } from '@/components/action-button';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
+import { Button } from '@/components/ui/button';
 import { FileText, type IconProps, Settings } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { ROUTES } from '@/lib/routes';
@@ -110,7 +110,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
       // No theme picker in the bar: the compact one is 130px wide and pushes the bar past a 320px
       // viewport. On a phone the theme is one tap away, on the Settings screen.
       actionSlot={
-        <ActionButton label="Sign out" variant="outline" size="icon-sm" iconSlot={<LogOut />} onClick={signOut} />
+        <Button aria-label="Sign out" variant="outline" size="icon-sm" iconSlot={<LogOut />} onClick={signOut} />
       }
       contentSlot={<main className="flex min-h-0 min-w-0 flex-1 flex-col">{contentSlot}</main>}
     />

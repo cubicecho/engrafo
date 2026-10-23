@@ -11,19 +11,20 @@
  * The glyph is `currentColor`, so it takes the colour of the text around it —
  * a button's label, a muted line — unless `className` names one.
  */
-import { LoaderCircle } from '@/components/ui/icons';
-import { type SpinnerProps, spinnerClass } from '@/components/ui/spinner-base';
-import { cn } from '@/lib/utils';
+import { LoaderCircle } from "@/components/ui/icons";
+import { type SpinnerProps, spinnerClass } from "@/components/ui/spinner-base";
+import { cn } from "@/lib/utils";
 
 export type { SpinnerProps };
 
-export function Spinner({ label = 'Loading', className }: SpinnerProps) {
+/** A turning glyph that says something is loading. */
+export function Spinner({ label = "Loading", className }: SpinnerProps) {
   return (
     <LoaderCircle
       data-slot="spinner"
       role="status"
       aria-label={label}
-      className={cn(spinnerClass, 'animate-spin', className)}
+      className={cn(spinnerClass, "animate-spin", className)}
     />
   );
 }

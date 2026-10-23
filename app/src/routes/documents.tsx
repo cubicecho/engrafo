@@ -6,7 +6,7 @@ import { DocumentSearchResults } from '@/components/domain/document-search-resul
 import { DocumentsTable } from '@/components/domain/documents-table';
 import { isInProgress } from '@/components/domain/status-badge';
 import { UploadPanel } from '@/components/domain/upload-panel';
-import { EmptyState } from '@/components/page';
+import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { FileText } from '@/components/ui/icons';
@@ -92,31 +92,30 @@ export function DocumentsRoute() {
           onSettledText={setSearch}
         />
       }
+      contentClassName="gap-6"
       contentSlot={
-        <div className="flex flex-col gap-6 py-4">
-          {search !== '' ? (
-            <DocumentSearchResults query={search} />
-          ) : (
-            <>
-              {data?.serverConfig && <UploadPanel config={data.serverConfig} onChanged={() => void result.refetch()} />}
+        search !== '' ? (
+          <DocumentSearchResults query={search} />
+        ) : (
+          <>
+            {data?.serverConfig && <UploadPanel config={data.serverConfig} onChanged={() => void result.refetch()} />}
 
-              <QueryState
-                query={queryLike(result)}
-                what="your documents"
-                count={documents.length}
-                emptySlot={
-                  <EmptyState
-                    icon={FileText}
-                    title="No documents yet"
-                    description="Upload a PDF, a scan or a text file to get started."
-                  />
-                }
-              />
+            <QueryState
+              query={queryLike(result)}
+              what="your documents"
+              count={documents.length}
+              emptySlot={
+                <EmptyState
+                  iconSlot={<FileText />}
+                  title="No documents yet"
+                  description="Upload a PDF, a scan or a text file to get started."
+                />
+              }
+            />
 
-              {documents.length > 0 && <DocumentsTable documents={documents} />}
-            </>
-          )}
-        </div>
+            {documents.length > 0 && <DocumentsTable documents={documents} />}
+          </>
+        )
       }
     />
   );

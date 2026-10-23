@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { RefreshCw, TriangleAlert } from '@/components/ui/icons';
-import { cn, type SlotNode } from '@/lib/utils';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { RefreshCw, TriangleAlert } from "@/components/ui/icons";
+import { cn, type SlotNode } from "@/lib/utils";
 
 /** What a list screen needs off its query, and nothing more. */
 type QueryLike = {
@@ -17,22 +17,34 @@ type QueryLike = {
 };
 
 /** What a failure says when neither the caller nor the error has anything to say. */
-const FALLBACK = 'The server did not answer.';
+const FALLBACK = "The server did not answer.";
 
-/** The error's own `message`, which is the transport's wording rather than the app's. */
+/**
+ * The error's own `message`, which is the transport's wording rather than the app's. Empty when it
+ * has none, so the caller's `|| FALLBACK` speaks; the forms' `messageOf` prints the value instead.
+ */
 function messageOf(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const { message } = error as { message: unknown };
-    if (typeof message === 'string') return message;
+  if (error instanceof Error) {
+    return error.message;
   }
-  return '';
+  if (typeof error === "string") {
+    return error;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const { message } = error as { message: unknown };
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+  return "";
 }
 
 const settles = (value: unknown): value is PromiseLike<unknown> =>
-  typeof value === 'object' && value !== null && typeof (value as { then?: unknown }).then === 'function';
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { then?: unknown }).then === "function";
 
+/** Draws a query's error, loading or empty state, and `contentSlot` once there are rows. */
 export function QueryState({
   query,
   what,
@@ -68,7 +80,7 @@ export function QueryState({
   describe?: ((error: unknown) => string) | undefined;
   className?: string | undefined;
 }) {
-  if (query.isError)
+  if (query.isError) {
     return (
       <QueryError
         error={query.error}
@@ -79,9 +91,19 @@ export function QueryState({
         {...(className === undefined ? {} : { className })}
       />
     );
-  if (query.isPending)
-    return <RowSkeleton rows={rows} compact={compact} {...(className === undefined ? {} : { className })} />;
-  if (count === 0) return <>{emptySlot}</>;
+  }
+  if (query.isPending) {
+    return (
+      <RowSkeleton
+        rows={rows}
+        compact={compact}
+        {...(className === undefined ? {} : { className })}
+      />
+    );
+  }
+  if (count === 0) {
+    return <>{emptySlot}</>;
+  }
   return null;
 }
 
@@ -129,24 +151,32 @@ export function QueryError({
   const [retrying, setRetrying] = useState(false);
   const retry = () => {
     const result = onRetry();
-    if (!settles(result)) return;
+    if (settles(result) === false) {
+      return;
+    }
     setRetrying(true);
     Promise.resolve(result)
       .catch(() => {})
       .finally(() => setRetrying(false));
   };
   const reason = (describe ?? messageOf)(error) || FALLBACK;
-  const label = retrying ? 'Retrying…' : 'Try again';
+  const label = retrying ? "Retrying…" : "Try again";
 
   // The same three parts — what failed, why, try again — at the size of a nav row. No card, since a
   // bordered box inside a rail reads as one more row, and the retry is a small outline button so the rail's
   // only filled control stays the primary action above it.
-  if (compact)
+  if (compact) {
     return (
-      <div role="alert" data-slot="query-error" className={cn('cube-rn-view', 'min-w-0 gap-1 px-2 py-1', className)}>
+      <div
+        role="alert"
+        data-slot="query-error"
+        className={cn("cube-rn-view", "min-w-0 gap-1 px-2 py-1", className)}
+      >
         <div className="cube-rn-view min-w-0 flex-row items-center gap-1.5">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-negative" aria-hidden />
-          <span className="cube-rn-text min-w-0 flex-1 font-medium text-negative text-xs">Could not load {what}</span>
+          <span className="cube-rn-text min-w-0 flex-1 font-semibold text-negative text-xs">
+            Could not load {what}
+          </span>
         </div>
         <span className="cube-rn-text text-foreground/60 text-xs">{reason}</span>
         <div className="cube-rn-view flex-row">
@@ -161,6 +191,7 @@ export function QueryError({
         </div>
       </div>
     );
+  }
 
   return (
     <Card
@@ -170,13 +201,15 @@ export function QueryError({
       // `bg-negative/5`, which drops both the red heading and the grey message under 4.5:1
       // against their own background — 4.36 and 4.33, caught by the story's axe run. The border
       // and the icon say "this failed" without moving the ground the words sit on.
-      className={cn('gap-2 border-negative/40 p-4', className)}
+      className={cn("gap-2 border-negative/40 p-4", className)}
     >
       {/* `flex-row` is explicit because a column is Yoga's default, and the icon carries its own
           colour because native inherits none — the two standing conversion rules. */}
       <div className="cube-rn-view flex-row items-center gap-2">
         <TriangleAlert className="h-4 w-4 text-negative" aria-hidden />
-        <span className="cube-rn-text font-medium text-negative text-sm">Could not load {what}</span>
+        <span className="cube-rn-text font-semibold text-negative text-sm">
+          Could not load {what}
+        </span>
       </div>
       <span className="cube-rn-text text-foreground/60 text-sm">{reason}</span>
       <div className="cube-rn-view flex-row">
@@ -221,23 +254,24 @@ export function RowSkeleton({
   compact?: boolean | undefined;
   className?: string | undefined;
 }) {
-  if (compact)
+  if (compact) {
     return (
-      <div role="status" aria-label="Loading" className={cn('cube-rn-view', 'gap-1', className)}>
+      <div role="status" aria-label="Loading" className={cn("cube-rn-view", "gap-1", className)}>
         {Array.from({ length: rows }, (_, index) => (
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: placeholders, in a list with no identity
             key={index}
             data-slot="row-skeleton"
             aria-hidden
-            className="cube-rn-view h-8 animate-pulse rounded-md bg-hover"
+            className="cube-rn-view h-8 animate-pulse rounded-md bg-foreground/10"
           />
         ))}
       </div>
     );
+  }
 
   return (
-    <div role="status" aria-label="Loading" className={cn('cube-rn-view', 'gap-2', className)}>
+    <div role="status" aria-label="Loading" className={cn("cube-rn-view", "gap-2", className)}>
       {Array.from({ length: rows }, (_, index) => (
         <Card
           // biome-ignore lint/suspicious/noArrayIndexKey: placeholders, in a list with no identity
@@ -249,8 +283,8 @@ export function RowSkeleton({
           {/* `animate-pulse` resolves to nothing on device and is kept for the same reason
               `page.tsx` keeps `container mx-auto`: the class is what the compiled web half needs,
               and dropping it here to tidy the native file would quietly regress the DOM. */}
-          <div className="cube-rn-view h-4 w-1/3 animate-pulse rounded-md bg-hover" />
-          <div className="cube-rn-view h-3 w-2/3 animate-pulse rounded-md bg-hover" />
+          <div className="cube-rn-view h-4 w-1/3 animate-pulse rounded-md bg-foreground/10" />
+          <div className="cube-rn-view h-3 w-2/3 animate-pulse rounded-md bg-foreground/10" />
         </Card>
       ))}
     </div>
