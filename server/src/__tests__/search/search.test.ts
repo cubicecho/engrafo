@@ -80,7 +80,13 @@ describe('document search', () => {
     );
   });
 
-  it('leaves a line starting with "# " alone in anything but an ebook', async () => {
+  it('embeds a Markdown passage under its breadcrumb of headings', async () => {
+    await indexed(alice, 'Runbook', '# Backups\n\n## Restore\n\nRun it twice.', 'text/markdown');
+
+    expect(embedder.embedded).toContain('Runbook\nBackups › Restore\n\nRun it twice.');
+  });
+
+  it('leaves a line starting with "# " alone in anything without headings', async () => {
     const scan = await indexed(alice, 'Scan', 'Order\n\n# 4711\n\nShipped.');
 
     const passages = await db

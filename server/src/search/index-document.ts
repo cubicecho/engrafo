@@ -3,7 +3,7 @@ import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, documentChunks } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { SEARCH_DEFAULTS } from '../core/defaults.ts';
-import { isEbook } from '../pipeline/mime.ts';
+import { hasHeadings } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { chunkSections, chunkText, embeddingText, type Passage } from './chunk.ts';
 import type { Embedder } from './embedder.ts';
@@ -25,9 +25,9 @@ export async function indexDocument(
   doc: Document,
 ): Promise<number> {
   const content = doc.contentKey ? await text(await storage.text.getStream(doc.contentKey)) : '';
-  // Only an ebook's text is written with chapter headings. A scan's line that happens to start
-  // with "# " is just a line.
-  const passages: Passage[] = isEbook(doc.mimeType)
+  // Only Markdown and an ebook's text are written with headings. A scan's line that happens to
+  // start with "# " is just a line.
+  const passages: Passage[] = hasHeadings(doc.mimeType)
     ? chunkSections(content, SEARCH_DEFAULTS.chunkMaxChars)
     : chunkText(content, SEARCH_DEFAULTS.chunkMaxChars).map((passage) => ({ heading: null, content: passage }));
   const vectors =

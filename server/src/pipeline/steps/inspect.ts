@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { fileTypeFromBuffer } from 'file-type';
-import { isAcceptedMimeType } from '../mime.ts';
+import { isAcceptedMimeType, isText } from '../mime.ts';
 import type { PipelineStep } from '../types.ts';
 
 // file-type needs at most this many leading bytes to recognise any format it knows.
@@ -11,8 +11,8 @@ const SNIFF_BYTES = 4100;
  *
  * The browser's type is a guess from the file extension, and the next step
  * decides whether to hand the file to ocrmypdf based on it — so the bytes win
- * when they disagree. Plain text has no magic bytes, which is why "no match" is
- * only accepted when the upload also said text/plain.
+ * when they disagree. Plain text and Markdown have no magic bytes, which is why
+ * "no match" is only accepted when the upload also said one of them.
  */
 export const inspectStep: PipelineStep = {
   name: 'inspect',
@@ -32,7 +32,7 @@ export const inspectStep: PipelineStep = {
     }
 
     const sniffed = await fileTypeFromBuffer(Buffer.concat(head).subarray(0, SNIFF_BYTES));
-    const mimeType = sniffed?.mime ?? (doc.mimeType === 'text/plain' ? 'text/plain' : null);
+    const mimeType = sniffed?.mime ?? (isText(doc.mimeType) ? doc.mimeType : null);
     const isUnsupported = !mimeType || isAcceptedMimeType(mimeType) === false;
     if (isUnsupported) {
       throw new Error(`Unsupported file type${sniffed ? ` (${sniffed.mime})` : ''}.`);
