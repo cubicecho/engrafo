@@ -4,11 +4,13 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
 import { ConfirmButton } from '@/components/confirm-button';
+import { FolderInput } from '@/components/domain/app-icons';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
 import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
+import { MoveDialog } from '@/components/domain/move-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
@@ -29,6 +31,11 @@ const DocumentDetail = graphql(`
     document(where: { id: { eq: $id } }) {
       id
       title
+      folderId
+      folder {
+        id
+        name
+      }
       originalFilename
       mimeType
       sizeBytes
@@ -96,6 +103,31 @@ const RenameDocument = graphql(`
   }
 `);
 
+// Asked only while the move dialog is open, for its picker: the page itself
+// names the folder the document is in and needs no others.
+const MoveTargets = graphql(`
+  query MoveTargets {
+    folders {
+      id
+      name
+      parentId
+    }
+  }
+`);
+
+const MoveDocumentHere = graphql(`
+  mutation MoveDocumentHere($id: UUID!, $folderId: UUID) {
+    moveDocument(id: $id, folderId: $folderId) {
+      id
+      folderId
+      folder {
+        id
+        name
+      }
+    }
+  }
+`);
+
 const DeleteDocument = graphql(`
   mutation DeleteDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -139,6 +171,9 @@ export function DocumentRoute() {
   const doc = data?.document ?? null;
 
   const [renaming, setRenaming] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const moveTargets = useQuery(MoveTargets, { skip: !moving, fetchPolicy: 'network-only' });
+  const [moveDocument] = useMutation(MoveDocumentHere);
   const [reprocessing, setReprocessing] = useState(false);
   const [retry, retryState] = useMutation(RetryProcessing);
   // Refetched so the timeline shows every step queued again, not the last run's.
@@ -212,7 +247,12 @@ export function DocumentRoute() {
       width="full"
       breadcrumbsSlot={<BackToDocuments />}
       title={doc.title}
-      description={joinStats(doc.originalFilename, doc.mimeType, formatBytes(doc.sizeBytes))}
+      description={joinStats(
+        doc.folder ? `In ${doc.folder.name}` : null,
+        doc.originalFilename,
+        doc.mimeType,
+        formatBytes(doc.sizeBytes),
+      )}
       actionSlot={
         <>
           <DocumentStatusBadge status={doc.status} />
@@ -222,6 +262,14 @@ export function DocumentRoute() {
             iconSlot={<Pencil />}
             content="Rename"
             onClick={() => setRenaming(true)}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            iconSlot={<FolderInput />}
+            content="Move"
+            aria-label="Move to a folder"
+            onClick={() => setMoving(true)}
           />
           <Button
             size="sm"
@@ -267,6 +315,15 @@ export function DocumentRoute() {
               title={doc.title}
               onRename={(title) => rename({ variables: { id: doc.id, title } })}
               onClose={() => setRenaming(false)}
+            />
+          ) : null}
+          {moving && moveTargets.data ? (
+            <MoveDialog
+              name={doc.title}
+              folders={moveTargets.data.folders}
+              currentFolderId={doc.folderId ?? null}
+              onMove={(folderId) => moveDocument({ variables: { id: doc.id, folderId } })}
+              onClose={() => setMoving(false)}
             />
           ) : null}
           {reprocessing ? (

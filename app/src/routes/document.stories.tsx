@@ -40,6 +40,8 @@ function document(overrides: Partial<Document>): Document {
   return {
     id: ID,
     title: 'Lease agreement',
+    folderId: null,
+    folder: null,
     originalFilename: 'lease.txt',
     mimeType: 'text/plain',
     sizeBytes: 48_211,
@@ -239,6 +241,36 @@ export const Renaming: Story = {
     await expect(within(dialog).getByRole('textbox', { name: /Title/ })).toHaveValue('Lease agreement');
     await expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
     await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  },
+};
+
+const HOME = { id: '6b3a1c2d-4e5f-4a6b-8c7d-9e0f1a2b3c4d', name: 'Home', parentId: null };
+
+/**
+ * The page names the folder the document is in, and "Move" opens the same dialog the tree's menu
+ * does, its picker filled only once it is open.
+ */
+export const MovingToAFolder: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: { document: () => document({}), folders: () => [HOME] },
+        Mutation: {
+          moveDocument: (_parent: unknown, args: { folderId?: string | null }) =>
+            document({ folderId: args.folderId ?? null, folder: args.folderId ? HOME : null }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Move to a folder' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Move “Lease agreement”' }));
+    await userEvent.click(dialog.getByRole('combobox', { name: 'Folder' }));
+    await userEvent.click(await page.findByRole('option', { name: 'Home' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Move' }));
+
+    await expect(await canvas.findByText(/In Home/)).toBeInTheDocument();
   },
 };
 

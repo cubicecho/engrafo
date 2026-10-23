@@ -53,8 +53,7 @@ function createClient(endpoint: string, config: S3Config): S3Client {
     endpoint,
     region: config.region,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    // RustFS and most self-hosted S3s serve buckets as a path, not a subdomain.
-    forcePathStyle: true,
+    forcePathStyle: config.forcePathStyle,
     // The SDK now adds CRC32 checksums to every PUT by default. A presigned URL
     // would carry that checksum of an empty body, and the browser's real upload
     // would then fail it; older MinIO releases also reject the headers outright.
@@ -167,9 +166,13 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
       if (keys.length === 0) {
         return;
       }
-      await client.send(
-        new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }),
-      );
+      // S3 takes at most a thousand keys a call, and a folder's delete can pass more.
+      for (let start = 0; start < keys.length; start += STORAGE_DEFAULTS.deleteBatchSize) {
+        const batch = keys.slice(start, start + STORAGE_DEFAULTS.deleteBatchSize);
+        await client.send(
+          new DeleteObjectsCommand({ Bucket, Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true } }),
+        );
+      }
     },
   };
 }

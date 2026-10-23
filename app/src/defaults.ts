@@ -20,15 +20,19 @@ export const POLLING_DEFAULTS: Readonly<PollingSettings> = Object.freeze({
   intervalMs: 3000,
 });
 
-/** How much of the archive the list asks for. */
+/** How much of the archive the tree asks for. */
 export interface DocumentListSettings {
-  /** The most documents the list query returns. There is no paging past it. */
+  /**
+   * The most documents the tree's query returns. There is no paging past it, and a
+   * tree cannot show "and more" the way a list can, so it is set well above an
+   * archive's usual size and the query asks for only what a row draws.
+   */
   limit: number;
 }
 
-/** What the list asks for unless something says otherwise. */
+/** What the tree asks for unless something says otherwise. */
 export const DOCUMENT_LIST_DEFAULTS: Readonly<DocumentListSettings> = Object.freeze({
-  limit: 200,
+  limit: 1000,
 });
 
 /** How much extracted text the document page will show in the browser. */

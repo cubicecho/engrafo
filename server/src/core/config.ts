@@ -376,6 +376,8 @@ export interface S3Config {
   bucket: string;
   /** Where extracted text goes. Postgres holds the metadata; the text itself is an object. */
   textBucket: string;
+  /** Path-style (`host/bucket/key`) instead of virtual-hosted (`bucket.host/key`) addressing. */
+  forcePathStyle: boolean;
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -390,6 +392,10 @@ export interface S3Config {
  * deployment wires it (`http://rustfs:9000` on a compose network); the browser needs an address
  * it can resolve, and a presigned URL's signature covers the host, so it has to be signed
  * against that public address, not rewritten afterwards.
+ *
+ * Path-style is the default because RustFS and most self-hosted S3s have no wildcard DNS for
+ * bucket subdomains. AWS still accepts it but prefers virtual-hosted, so `S3_FORCE_PATH_STYLE=false`
+ * is the switch for a real S3 bucket.
  */
 export function s3Config(): S3Config {
   const endpoint = process.env.S3_ENDPOINT ?? '';
@@ -400,6 +406,7 @@ export function s3Config(): S3Config {
     region: process.env.S3_REGION || STORAGE_DEFAULTS.region,
     bucket,
     textBucket: process.env.S3_TEXT_BUCKET || `${bucket}${STORAGE_DEFAULTS.textBucketSuffix}`,
+    forcePathStyle: envSwitch(process.env.S3_FORCE_PATH_STYLE, STORAGE_DEFAULTS.forcePathStyle),
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
   };

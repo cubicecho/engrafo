@@ -97,6 +97,17 @@ export const DOCUMENT_DEFAULTS: Readonly<DocumentSettings> = Object.freeze({
   filenameMaxLength: 1000,
 });
 
+/** Folders and the names of what is filed in them. */
+export interface FolderSettings {
+  /** The longest folder name, in characters. Short enough to sit in a URL path later. */
+  nameMaxLength: number;
+}
+
+/** The shipped values of `FolderSettings`. */
+export const FOLDER_DEFAULTS: Readonly<FolderSettings> = Object.freeze({
+  nameMaxLength: 64,
+});
+
 /** The ocr step and the pipeline around it. */
 export interface OcrSettings {
   /** Whether OCR is allowed on this instance. `OCR_ENABLED` overrides it. */
@@ -199,16 +210,22 @@ export interface StorageSettings {
   region: string;
   /** What `S3_BUCKET` gains to name the text bucket. `S3_TEXT_BUCKET` overrides the whole name. */
   textBucketSuffix: string;
+  /** Address buckets as a path (`host/bucket`) rather than a subdomain. `S3_FORCE_PATH_STYLE` overrides it. */
+  forcePathStyle: boolean;
   /** How long a presigned upload URL works. */
   uploadUrlTtlMinutes: number;
   /** How long a presigned download URL works. */
   downloadUrlTtlMinutes: number;
+  /** The most keys one delete call names. S3's own limit is a thousand. */
+  deleteBatchSize: number;
 }
 
 /** The shipped values of `StorageSettings`. */
 export const STORAGE_DEFAULTS: Readonly<StorageSettings> = Object.freeze({
   region: 'us-east-1',
   textBucketSuffix: '-text',
+  forcePathStyle: true,
   uploadUrlTtlMinutes: 15,
   downloadUrlTtlMinutes: 5,
+  deleteBatchSize: 1000,
 });

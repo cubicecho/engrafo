@@ -27,7 +27,7 @@ const tableKeys = Object.entries(dbSchema)
 
 describe('tenancy configuration', () => {
   it('finds the tables', () => {
-    expect(tableKeys.sort()).toEqual(['documents', 'processingSteps', 'users']);
+    expect(tableKeys.sort()).toEqual(['documents', 'folders', 'processingSteps', 'users']);
   });
 
   it.each(tableKeys)('scopes %s to the caller', (key) => {

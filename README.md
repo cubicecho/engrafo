@@ -21,6 +21,12 @@ whole product.
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
   person searches only their own documents.
+- **Folders** — file documents into folders, nested as deep as you like, and
+  see the archive as a tree. Drag a document or a folder onto another folder,
+  or use "Move to…". Names are unique within a folder, ignoring case, the way
+  files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
+  move onto a taken name is refused rather than overwriting. Deleting a folder
+  deletes everything in it, once you have typed its name.
 - **A pipeline you can watch** — every step is a row with a status, so a document
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
@@ -28,7 +34,8 @@ whole product.
 - **Sign-in by magic link**, through an OpenID Connect provider such as
   heautou, or with no link at all on a private instance.
 
-No tags, no correspondents, no mail ingestion. Those are what Paperless is for.
+No tags, no correspondents, no mail ingestion. Folders are the one way to
+organise. Those are what Paperless is for.
 
 ## Quickstart
 
@@ -146,6 +153,7 @@ domain.
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | — | **Required.** Bucket credentials. |
 | `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | Where the *browser* reaches the bucket. Presigned URLs are signed for this host, and the bucket has to answer CORS for the page's origin. |
 | `S3_REGION` | `us-east-1` | RustFS ignores it; AWS does not. |
+| `S3_FORCE_PATH_STYLE` | `true` | Address buckets as `host/bucket` (RustFS, MinIO). Set `false` for AWS S3, which prefers `bucket.host`. |
 | `APP_URL` | the request's own address | Public URL; magic-link URLs and the OIDC redirect URI are built from it. Unset, each request uses the scheme and host the browser came in on (forwarded ones only through a `TRUST_PROXY` hop). |
 | `PORT` | `3004` | Port the server listens on. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |

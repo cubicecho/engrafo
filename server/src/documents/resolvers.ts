@@ -16,9 +16,10 @@ import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
+import { assertNameFree, freeName, lockNames, ownedParent, type Tx } from '../folders/names.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
 import { STEPS } from '../pipeline/step-list.ts';
-import { originalKey } from '../storage/s3.ts';
+import { originalKey, type StorageSet } from '../storage/s3.ts';
 
 // Every write to a document. Reads — `documents`, `document`, and the
 // `processingSteps` relation — are generated and scoped in tenancy.ts.
@@ -47,6 +48,8 @@ const DOCUMENTS_SDL = parse(`
     title: String
     "Defaults to the instance's OCR_DEFAULT."
     ocr: Boolean
+    "The folder to file it in. Left out, the top level."
+    folderId: UUID
   }
 
   type HttpHeader {
@@ -88,7 +91,10 @@ const DOCUMENTS_SDL = parse(`
     \`ocr\` turns OCR on or off for this and later runs; left out, the document keeps its setting.
     """
     reprocessDocument(id: UUID!, ocr: Boolean): Document!
+    "Renames the document. Refused when something in its folder already has the title."
     renameDocument(id: UUID!, title: String!): Document!
+    "Files the document in another folder, or at the top level when \`folderId\` is null."
+    moveDocument(id: UUID!, folderId: UUID): Document!
     "Deletes the document and its stored files."
     deleteDocument(id: UUID!): Boolean!
   }
@@ -107,11 +113,14 @@ function documentNotFound(): GraphQLError {
   return notFound('Document not found');
 }
 
+// A title is also the document's name in its folder, and a `/` in it would draw
+// as a folder in the tree.
 const titleSchema = z
   .string()
   .trim()
   .min(1, 'Title cannot be empty.')
-  .max(DOCUMENT_DEFAULTS.titleMaxLength, 'Title is too long.');
+  .max(DOCUMENT_DEFAULTS.titleMaxLength, 'Title is too long.')
+  .refine((title) => title.includes('/') === false, 'A title cannot contain "/".');
 
 function createUploadSchema() {
   const max = maxUploadBytes();
@@ -131,12 +140,30 @@ function createUploadSchema() {
       .max(max, `The file is larger than the ${Math.floor(max / BYTES_PER_MEBIBYTE)} MiB limit.`),
     title: titleSchema.optional().nullable(),
     ocr: z.boolean().optional().nullable(),
+    folderId: z.string().optional().nullable(),
   });
 }
 
 function titleFromFilename(filename: string): string {
   const withoutExtension = filename.replace(/\.[^./\\]+$/, '');
-  return (withoutExtension || filename).slice(0, DOCUMENT_DEFAULTS.titleMaxLength);
+  return (withoutExtension || filename).replaceAll('/', '-').slice(0, DOCUMENT_DEFAULTS.titleMaxLength);
+}
+
+/**
+ * Deletes every object the documents have, in both buckets.
+ *
+ * @param storage - The buckets.
+ * @param docs - The documents whose files go. Their rows are the caller's to delete, afterwards.
+ *
+ * @remarks
+ * Objects before rows: a row without its file is visible and fixable by deleting again, while a
+ * file without its row is invisible storage nobody pays attention to.
+ */
+export async function deleteStoredFiles(storage: StorageSet, docs: readonly Document[]): Promise<void> {
+  await storage.files.delete(
+    docs.flatMap((doc) => [doc.originalKey, doc.archiveKey]).filter((key): key is string => Boolean(key)),
+  );
+  await storage.text.delete(docs.map((doc) => doc.contentKey).filter((key): key is string => Boolean(key)));
 }
 
 /**
@@ -144,12 +171,12 @@ function titleFromFilename(filename: string): string {
  * the generated ones, so they do not inherit `scope` and have to state ownership
  * themselves.
  */
-async function loadOwned(context: Context, id: string): Promise<Document> {
+async function loadOwned(context: Context, id: string, db: Context['db'] | Tx = context.db): Promise<Document> {
   const userId = requireAuth(context);
   if (!z.uuid().safeParse(id).success) {
     throw documentNotFound();
   }
-  const [doc] = await context.db
+  const [doc] = await db
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), eq(documents.userId, userId)));
@@ -226,20 +253,35 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
     const id = randomUUID();
     const key = originalKey(userId, id);
-    const [doc] = await context.db
-      .insert(documents)
-      .values({
-        id,
+    const doc = await context.db.transaction(async (tx) => {
+      await lockNames(tx, userId);
+      const folderId = await ownedParent(tx, userId, input.folderId);
+      // A clash gets a number rather than a refusal: the same filename twice is
+      // an everyday upload, and the title can be changed afterwards.
+      const title = await freeName(
+        tx,
         userId,
-        title: input.title ?? titleFromFilename(input.filename),
-        originalFilename: input.filename,
-        mimeType: input.mimeType,
-        sizeBytes: input.sizeBytes,
-        originalKey: key,
-        ocrRequested: input.ocr ?? ocrDefault(),
-        status: DocumentStatus.PendingUpload,
-      })
-      .returning();
+        folderId,
+        input.title ?? titleFromFilename(input.filename),
+        DOCUMENT_DEFAULTS.titleMaxLength,
+      );
+      const [inserted] = await tx
+        .insert(documents)
+        .values({
+          id,
+          userId,
+          folderId,
+          title,
+          originalFilename: input.filename,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          originalKey: key,
+          ocrRequested: input.ocr ?? ocrDefault(),
+          status: DocumentStatus.PendingUpload,
+        })
+        .returning();
+      return inserted;
+    });
 
     const uploadUrl = await context.storage.files.presignPut(key, {
       contentType: input.mimeType,
@@ -382,23 +424,40 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     args: { id: string; title: string },
     context: Context,
   ) => {
-    const doc = await loadOwned(context, args.id);
+    const userId = requireAuth(context);
     const title = parseOrThrow(titleSchema, args.title);
-    const [updated] = await context.db.update(documents).set({ title }).where(eq(documents.id, doc.id)).returning();
-    if (!updated) {
-      throw documentNotFound();
-    }
-    return updated;
+    return context.db.transaction(async (tx) => {
+      await lockNames(tx, userId);
+      // Read under the lock, so the folder checked is the one it is in now.
+      const doc = await loadOwned(context, args.id, tx);
+      await assertNameFree(tx, userId, doc.folderId, title, { documentId: doc.id });
+      const [updated] = await tx.update(documents).set({ title }).where(eq(documents.id, doc.id)).returning();
+      return updated;
+    });
+  };
+
+  mutations.moveDocument.resolve = async (
+    _parent: unknown,
+    args: { id: string; folderId?: string | null },
+    context: Context,
+  ) => {
+    const userId = requireAuth(context);
+    return context.db.transaction(async (tx) => {
+      await lockNames(tx, userId);
+      const doc = await loadOwned(context, args.id, tx);
+      const folderId = await ownedParent(tx, userId, args.folderId);
+      if (folderId === doc.folderId) {
+        return doc;
+      }
+      await assertNameFree(tx, userId, folderId, doc.title, { documentId: doc.id });
+      const [updated] = await tx.update(documents).set({ folderId }).where(eq(documents.id, doc.id)).returning();
+      return updated;
+    });
   };
 
   mutations.deleteDocument.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    // Objects first: a row without its file is visible and fixable by deleting
-    // again, while a file without its row is invisible storage nobody pays attention to.
-    await context.storage.files.delete([doc.originalKey, doc.archiveKey].filter((key): key is string => Boolean(key)));
-    if (doc.contentKey) {
-      await context.storage.text.delete([doc.contentKey]);
-    }
+    await deleteStoredFiles(context.storage, [doc]);
     await context.db.delete(documents).where(eq(documents.id, doc.id));
     return true;
   };

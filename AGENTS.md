@@ -10,8 +10,9 @@ One monorepo (npm workspaces) with three packages — `app/` (frontend), `server
 serves all of it.
 
 Search is hybrid and local: an embedding model on the CPU and Postgres full-text
-search, over passages of each document's text. There is no tagging, no
-correspondents, no mail ingestion. Those are what Paperless is for.
+search, over passages of each document's text. Documents are filed in nested
+folders, drawn as a tree. There is no tagging, no correspondents, no mail
+ingestion. Those are what Paperless is for.
 
 ## Tech Stack
 
@@ -41,9 +42,9 @@ engrafo/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell around every signed-in page
-│       │   └── domain/      # status-badge, upload-panel
-│       ├── routes/          # login, verify, documents (list), document (detail), settings
-│       ├── lib/             # apollo, auth, upload, query, format, cn()
+│       │   └── domain/      # archive-tree, status-badge, upload-panel, the name and move dialogs
+│       ├── routes/          # login, verify, documents (the tree), document (detail), settings
+│       ├── lib/             # apollo, auth, upload, query, format, folder-tree, tree (vendored), cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -72,6 +73,7 @@ engrafo/
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
+│       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes)
 │       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -86,7 +88,7 @@ engrafo/
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, processing-steps, document-chunks, auth (better-auth's tables)
+│       ├── models/          # users, documents, folders, processing-steps, document-chunks, auth (better-auth's tables)
 │       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       ├── defaults.ts      # DATABASE_DEFAULTS
@@ -162,6 +164,25 @@ re-heads the object and refuses if the size does not match what was declared,
 because the row was written on the client's word and the object is the only
 evidence. It is idempotent — a document already past `pending_upload` is returned
 untouched, so a retried call does not queue a second run.
+
+**Folders are rows, and a name is unique in its folder.** `folders` nests by
+`parent_id` (null is the top level, where a document with no `folder_id` sits
+too) rather than by path strings, so a folder can be empty and a rename or move
+is one row. A document's title is its name in its folder: the tree draws
+`<folder path>/<title>`, and later an MCP client will ask for that path. So
+nothing in one folder shares a name with anything else there — folder or
+document, ignoring case — and a title has no `/`. The two unique indexes hold
+it within each table (`coalesce(parent, TOP_LEVEL)` because an index treats
+every NULL as distinct); the check across the two tables is `assertNameFree`
+in `folders/names.ts`, and every write that adds or changes a name takes
+`lockNames` (a per-user advisory lock) first, or two requests could both pass
+it. A rename or move onto a taken name is `CONFLICT`, never an overwrite; an
+upload is numbered instead (`scan (2)`), since the same filename twice is not a
+mistake. `deleteFolder` takes everything under it, objects first, under the same
+lock so an upload into it either goes with the rest or finds the folder gone;
+`documents.folder_id` is `ON DELETE RESTRICT` so the database can never drop a
+document whose objects are still in the bucket. The behaviour follows
+mcp-ragdown's, which is where the folder name rule comes from.
 
 **Two buckets: files and text.** `S3_BUCKET` holds what the user uploaded and
 what OCR produced; `S3_TEXT_BUCKET` (default `<bucket>-text`) holds the extracted
