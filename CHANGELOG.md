@@ -1,3 +1,10 @@
+# [4.3.0](https://github.com/cubicecho/engrafo/compare/v4.2.0...v4.3.0) (2026-10-23)
+
+
+### Features
+
+* serve shared folders over MCP, and move the archive tree to the sidebar ([224d68c](https://github.com/cubicecho/engrafo/commit/224d68cb1e103ca1490279663eec71388c26feb5))
+
 # [4.2.0](https://github.com/cubicecho/engrafo/compare/v4.1.0...v4.2.0) (2026-10-23)
 
 
