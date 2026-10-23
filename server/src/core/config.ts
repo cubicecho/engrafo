@@ -10,7 +10,9 @@ import {
   HTTP_DEFAULTS,
   OCR_DEFAULTS,
   STORAGE_DEFAULTS,
+  WATCH_DEFAULTS,
 } from './defaults.ts';
+import { MS_PER_SECOND } from './wire.ts';
 
 /** Signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production-0123456789';
@@ -409,5 +411,39 @@ export function s3Config(): S3Config {
     forcePathStyle: envSwitch(process.env.S3_FORCE_PATH_STYLE, STORAGE_DEFAULTS.forcePathStyle),
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+  };
+}
+
+/** The watched folder, as configured. */
+export interface WatchConfig {
+  /** The directory to file from. */
+  dir: string;
+  /** The email address of the account the files are filed for, or null when `WATCH_OWNER` is unset. */
+  owner: string | null;
+  /** How often the directory is listed, in milliseconds. */
+  pollMs: number;
+  /** How long a file must stay unchanged before it is filed, in milliseconds. */
+  stableMs: number;
+}
+
+/**
+ * Reads the watched folder's settings.
+ *
+ * @returns The settings, or null when `WATCH_DIR` is unset, which turns the watcher off.
+ *
+ * @remarks
+ * Whether the owner's account exists is the database's to say, and the watcher asks on every
+ * pass, so an install can name the owner before the first account is made.
+ */
+export function watchConfig(): WatchConfig | null {
+  const dir = process.env.WATCH_DIR?.trim();
+  if (!dir) {
+    return null;
+  }
+  return {
+    dir,
+    owner: process.env.WATCH_OWNER?.trim().toLowerCase() || null,
+    pollMs: envPositiveInteger(process.env.WATCH_POLL_SECONDS, WATCH_DEFAULTS.pollSeconds) * MS_PER_SECOND,
+    stableMs: envPositiveInteger(process.env.WATCH_STABLE_SECONDS, WATCH_DEFAULTS.stableSeconds) * MS_PER_SECOND,
   };
 }

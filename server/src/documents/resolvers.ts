@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   type Document,
   DocumentStatus,
@@ -12,14 +11,18 @@ import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, 
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
-import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
-import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
-import { assertNameFree, freeName, lockNames, ownedParent, type Tx } from '../folders/names.ts';
-import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
-import { STEPS } from '../pipeline/step-list.ts';
-import { originalKey, type StorageSet } from '../storage/s3.ts';
+import { assertNameFree, lockNames, ownedParent, type Tx } from '../folders/names.ts';
+import { ACCEPTED_MIME_TYPES } from '../pipeline/mime.ts';
+import type { StorageSet } from '../storage/s3.ts';
+import {
+  completePendingDocument,
+  createUploadSchema,
+  insertPendingDocument,
+  titleFromFilename,
+  titleSchema,
+} from './create.ts';
 
 // Every write to a document. Reads — `documents`, `document`, and the
 // `processingSteps` relation — are generated and scoped in tenancy.ts.
@@ -111,42 +114,6 @@ type DocumentFileVariant = (typeof DocumentFileVariant)[keyof typeof DocumentFil
 /** Hides a missing document and someone else's behind one answer. */
 function documentNotFound(): GraphQLError {
   return notFound('Document not found');
-}
-
-// A title is also the document's name in its folder, and a `/` in it would draw
-// as a folder in the tree.
-const titleSchema = z
-  .string()
-  .trim()
-  .min(1, 'Title cannot be empty.')
-  .max(DOCUMENT_DEFAULTS.titleMaxLength, 'Title is too long.')
-  .refine((title) => title.includes('/') === false, 'A title cannot contain "/".');
-
-function createUploadSchema() {
-  const max = maxUploadBytes();
-  return z.object({
-    filename: z
-      .string()
-      .trim()
-      .min(1, 'Filename cannot be empty.')
-      .max(DOCUMENT_DEFAULTS.filenameMaxLength, 'Filename is too long.'),
-    mimeType: z.string().refine(isAcceptedMimeType, {
-      message: `Unsupported file type. Accepted: ${ACCEPTED_MIME_TYPES.join(', ')}.`,
-    }),
-    sizeBytes: z
-      .number()
-      .int()
-      .positive('The file is empty.')
-      .max(max, `The file is larger than the ${Math.floor(max / BYTES_PER_MEBIBYTE)} MiB limit.`),
-    title: titleSchema.optional().nullable(),
-    ocr: z.boolean().optional().nullable(),
-    folderId: z.string().optional().nullable(),
-  });
-}
-
-function titleFromFilename(filename: string): string {
-  const withoutExtension = filename.replace(/\.[^./\\]+$/, '');
-  return (withoutExtension || filename).replaceAll('/', '-').slice(0, DOCUMENT_DEFAULTS.titleMaxLength);
 }
 
 /**
@@ -250,40 +217,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
   mutations.createDocumentUpload.resolve = async (_parent: unknown, args: { input: unknown }, context: Context) => {
     const userId = requireAuth(context);
     const input = parseOrThrow(createUploadSchema(), args.input);
-
-    const id = randomUUID();
-    const key = originalKey(userId, id);
-    const doc = await context.db.transaction(async (tx) => {
-      await lockNames(tx, userId);
-      const folderId = await ownedParent(tx, userId, input.folderId);
-      // A clash gets a number rather than a refusal: the same filename twice is
-      // an everyday upload, and the title can be changed afterwards.
-      const title = await freeName(
-        tx,
-        userId,
-        folderId,
-        input.title ?? titleFromFilename(input.filename),
-        DOCUMENT_DEFAULTS.titleMaxLength,
-      );
-      const [inserted] = await tx
-        .insert(documents)
-        .values({
-          id,
-          userId,
-          folderId,
-          title,
-          originalFilename: input.filename,
-          mimeType: input.mimeType,
-          sizeBytes: input.sizeBytes,
-          originalKey: key,
-          ocrRequested: input.ocr ?? ocrDefault(),
-          status: DocumentStatus.PendingUpload,
-        })
-        .returning();
-      return inserted;
-    });
-
-    const uploadUrl = await context.storage.files.presignPut(key, {
+    const doc = await insertPendingDocument(context.db, userId, input);
+    const uploadUrl = await context.storage.files.presignPut(doc.originalKey, {
       contentType: input.mimeType,
       contentLength: input.sizeBytes,
     });
@@ -295,34 +230,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     if (doc.status !== DocumentStatus.PendingUpload) {
       return doc;
     }
-
-    const stored = await context.storage.files.head(doc.originalKey);
-    if (!stored) {
-      throw badInput('The upload has not arrived yet.');
-    }
-    if (stored.size !== doc.sizeBytes) {
-      throw badInput(`The stored file is ${stored.size} bytes, but the upload declared ${doc.sizeBytes}.`);
-    }
-
-    const db = context.db;
-    // Conditional on the status it was read with, so two concurrent completes
-    // start the pipeline once.
-    const [updated] = await db
-      .update(documents)
-      .set({ status: DocumentStatus.Uploaded })
-      .where(and(eq(documents.id, doc.id), eq(documents.status, DocumentStatus.PendingUpload)))
-      .returning();
-    if (!updated) {
-      return loadOwned(context, args.id);
-    }
-
-    await db
-      .insert(processingSteps)
-      .values(STEPS.map((step, position) => ({ userId: doc.userId, documentId: doc.id, step: step.name, position })))
-      .onConflictDoNothing();
-
-    context.events.emit('document.uploaded', { documentId: doc.id });
-    return updated;
+    const updated = await completePendingDocument(context.db, context.storage, context.events, doc);
+    return updated ?? loadOwned(context, args.id);
   };
 
   mutations.retryDocumentProcessing.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {

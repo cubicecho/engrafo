@@ -1,3 +1,5 @@
+import { fileTypeFromBuffer } from 'file-type';
+
 /** An EPUB: a zip of XHTML chapters, read here without any outside tool. */
 export const EPUB_MIME_TYPE = 'application/epub+zip';
 /** Plain text with no markup to take off. */
@@ -69,4 +71,24 @@ export function isText(mimeType: string): boolean {
  */
 export function hasHeadings(mimeType: string): boolean {
   return mimeType === MARKDOWN_MIME_TYPE || mimeType === EPUB_MIME_TYPE;
+}
+
+/** How many leading bytes file-type needs, at most, to recognise any format it knows. */
+export const SNIFF_BYTES = 4100;
+
+/**
+ * A file's real type, read from its magic bytes.
+ *
+ * @param head - The file's first bytes; at least `SNIFF_BYTES` of them when it is that long.
+ * @param claimed - The type the uploader said, or guessed from the file's extension.
+ * @returns The type the bytes say, or `claimed` when the bytes say nothing and it is a text type,
+ *   or null when neither can be believed.
+ *
+ * @remarks
+ * Plain text and Markdown have no magic bytes, so "no match" is only taken for one of them when
+ * the uploader also said so. Whether the type is accepted is the caller's question.
+ */
+export async function sniffMimeType(head: Uint8Array, claimed: string): Promise<string | null> {
+  const sniffed = await fileTypeFromBuffer(head.subarray(0, SNIFF_BYTES));
+  return sniffed?.mime ?? (isText(claimed) ? claimed : null);
 }

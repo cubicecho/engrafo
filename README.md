@@ -34,6 +34,10 @@ whole product.
   list, search and read what is in it. Sharing a folder shares the folders
   inside it; nothing else is visible, and the tools are read-only. See
   [Connecting an agent](#connecting-an-agent).
+- **A watched folder** — point a scanner's network share at `WATCH_DIR` and
+  whatever lands there is filed into one account's archive, its subfolders
+  as folders, then removed. Paperless's consume folder. See
+  [The watched folder](#the-watched-folder).
 - **A pipeline you can watch** — every step is a row with a status, so a document
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
@@ -170,6 +174,10 @@ domain.
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR and indexing are CPU-bound. |
 | `MODELS_DIR` | `/models` in the image | Where the search model is cached. Unset on a dev host, it is downloaded (about 50 MB) on first use. |
+| `WATCH_DIR` | — | A directory to file from, such as a scanner's share mounted into the container. Unset, there is no watched folder. See [The watched folder](#the-watched-folder). |
+| `WATCH_OWNER` | — | The email address of the account the watched folder files into. Required with `WATCH_DIR`; until that account exists, nothing is filed. |
+| `WATCH_POLL_SECONDS` | `5` | How often the watched folder is listed. |
+| `WATCH_STABLE_SECONDS` | `10` | How long a file's size and modification time must hold still before it counts as written. Raise it for a slow scanner. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
@@ -189,6 +197,56 @@ search knows which chapter a passage is from. DRM-protected books cannot be read
 Engrafo ships no mail provider. With magic links on, the link is written to the
 server log, and that is the delivery channel — pipe the log somewhere you can
 read, or run with `SECURE_LOCAL_NET=true`.
+
+### The watched folder
+
+Set `WATCH_DIR` to a directory and `WATCH_OWNER` to an account's email address,
+and Engrafo files whatever lands in that directory into that account's archive,
+then deletes it from the directory: Paperless's consume folder. Point a
+scanner's "scan to SMB" at a share, mount the share into the container, and the
+scans file themselves.
+
+- **One owner.** Everything in the folder goes into `WATCH_OWNER`'s archive.
+  The account has to exist: until someone signs in with that address once,
+  the log says so and nothing is filed. Without `WATCH_OWNER` the folder is
+  not watched at all.
+- **Subdirectories are folders.** `Taxes/2026/receipt.pdf` is filed in the
+  folder `Taxes` → `2026`, made if it is missing and reused if it exists, in any
+  case. A directory whose name could not be a folder's (letters, digits,
+  spaces, `_`, `.` and `-`) is left alone, and so is a name a document already
+  has. A file whose name is taken in its folder is numbered, `scan (2)`, as an
+  upload is.
+- **A file is filed once it has stopped changing.** The folder is listed every
+  `WATCH_POLL_SECONDS`, and a file is taken once its size and modification time
+  have held still for `WATCH_STABLE_SECONDS`. It is polled, not watched, because
+  file-change events do not cross a network share or, reliably, a Docker bind
+  mount.
+- **It is deleted only once it is in the bucket.** The file is uploaded, the
+  upload is checked against the file's size, the document goes to the pipeline,
+  and only then is the file removed. A file Engrafo cannot take (a type it does
+  not accept, over `MAX_UPLOAD_BYTES`, empty) stays where it is, and the log says
+  why, once. It is tried again when it changes or the server restarts. A
+  storage or database failure is retried on the next pass.
+- **The same bytes are not filed twice.** A file whose content is already in the
+  owner's archive is removed without adding a copy, and the log names the
+  document that has it. That is also what makes a restart in the middle of
+  filing harmless.
+- **Skipped without a word:** dotfiles (`.DS_Store`, `._scan.pdf`,
+  `.~lock…`), `~$` files, `*.tmp`, `*.part` and the like, and the directories
+  NASes keep for themselves (`@eaDir`, `#recycle`, `$RECYCLE.BIN`, anything
+  starting with a dot). Symlinks are not followed.
+
+The container has to be able to delete files in the directory. If it cannot,
+each file is filed once and then stays, and the log says it could not be
+removed. In compose:
+
+```yaml
+    environment:
+      WATCH_DIR: /consume
+      WATCH_OWNER: you@example.com
+    volumes:
+      - /mnt/scans:/consume
+```
 
 ### Signing in with an OIDC provider
 

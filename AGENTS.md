@@ -73,11 +73,12 @@ engrafo/
 │       │   └── write-schema.ts # Prints the SDL for codegen
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
-│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
+│       ├── documents/       # create.ts (insertPendingDocument, completePendingDocument), resolvers.ts — the document fields CRUD cannot express
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
+│       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -167,7 +168,10 @@ to the bucket; `completeDocumentUpload` is what turns it into a real document. I
 re-heads the object and refuses if the size does not match what was declared,
 because the row was written on the client's word and the object is the only
 evidence. It is idempotent — a document already past `pending_upload` is returned
-untouched, so a retried call does not queue a second run.
+untouched, so a retried call does not queue a second run. Both halves live in
+`documents/create.ts` (`insertPendingDocument`, `completePendingDocument`), and
+the watched folder calls the same two with a server-side `putFile` between
+them, so there is one way a document comes into being.
 
 **Folders are rows, and a name is unique in its folder.** `folders` nests by
 `parent_id` (null is the top level, where a document with no `folder_id` sits
@@ -288,6 +292,34 @@ actually `failed`. `reprocessDocument` is the other way back in: it accepts a
 off, and clears `archiveKey` and `contentKey` and deletes their objects before
 re-emitting, so a run that now produces no archive or no text does not leave
 the last one showing.
+
+**The watched folder files into one account, and deletes nothing it has not
+stored.** `WATCH_DIR` turns it on; `WATCH_OWNER` names the account by email, and
+the folder is per instance, not per user, because a scanner's share has no idea
+who is standing at the scanner. The owner is looked up on every pass, so a
+missing `WATCH_OWNER` or an address with no account is a `[watch]` line said
+once and no filing, never a crash, and setting it before the first sign-in
+works. `watch/watcher.ts` polls (`WATCH_POLL_SECONDS`) instead of `fs.watch`,
+which sees nothing an SMB client or a bind mount writes, and takes a file only
+once its size and mtime have held for `WATCH_STABLE_SECONDS`. Subdirectories are
+folders, found ignoring case or made under `lockNames`; a directory name that
+breaks the folder name rule, or is a document's, leaves its files alone. A
+title clash is numbered, as an upload is. `ingestFile` sniffs the type with
+`sniffMimeType` (the inspect step's own rule, with `.txt`/`.md` as the claim)
+and checks `createUploadSchema`, so the allowlist and `MAX_UPLOAD_BYTES` are
+the browser's. A refusal (`Rejected`) is logged once and remembered by size and
+mtime, so it is tried again only when the file changes or the server restarts;
+anything else is retried on the next pass. **Never twice, never lost:** the
+file's sha256 goes into `checksumSha256` with the pending row, before the
+bytes are stored (the inspect step later writes the same value). A pending row
+with that checksum is resumed instead of a second one inserted, and a filed
+document with it means the file is already in — so a crash at any point is
+undone by the next pass, without a marker file or a table. The file is unlinked
+only after `completePendingDocument` has headed the object, and only if its
+size and mtime are what was read. `stop()` refuses new files and waits for the
+one in hand, and runs before `pipeline.stop()` in `stopOnSignals`. A file whose
+bytes are already in the owner's archive, uploaded from the browser included,
+is removed without a copy being added: Paperless refuses duplicates too.
 
 **The OCR integration test only really runs in the image.** `ocr.test.ts` skips
 itself without ocrmypdf and ImageMagick, which a dev host usually lacks — so the
@@ -424,7 +456,8 @@ off in `graphql/handler.ts`.
 
 **Boot waits, shutdown drains.** `waitForDatabase` runs before `migrate`, so a
 compose stack whose Postgres is still starting does not crash-loop the server.
-On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, calls
+On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, waits for
+the watched folder to put down the file it is filing, calls
 `pipeline.stop()` — new runs resolve without starting, and a step cut off
 mid-run is not recorded as failed, so `resume()` picks it up on the next boot —
 then closes the database. `/healthz` answers 503 while the database is
@@ -438,7 +471,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
-`[pipeline]`, `[ocr]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[watch]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

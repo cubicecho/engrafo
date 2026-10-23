@@ -256,6 +256,23 @@ export const SEARCH_DEFAULTS: Readonly<SearchSettings> = Object.freeze({
   snippetLeadFraction: 0.3,
 });
 
+/** The watched folder: a directory, such as a scanner's share, that files whatever lands in it. */
+export interface WatchSettings {
+  /** How often the directory is listed. `WATCH_POLL_SECONDS` overrides it. */
+  pollSeconds: number;
+  /**
+   * How long a file's size and modification time must stay the same before it counts as written.
+   * Scanners and SMB copies write slowly. `WATCH_STABLE_SECONDS` overrides it.
+   */
+  stableSeconds: number;
+}
+
+/** The shipped values of `WatchSettings`. */
+export const WATCH_DEFAULTS: Readonly<WatchSettings> = Object.freeze({
+  pollSeconds: 5,
+  stableSeconds: 10,
+});
+
 /** The buckets and the URLs signed for them. */
 export interface StorageSettings {
   /** S3 region. `S3_REGION` overrides it. */
