@@ -5,15 +5,16 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { detectPdfText } from '../../pipeline/pdf-text.ts';
 import { pdfTextStep } from '../../pipeline/steps/pdf-text.ts';
-import type { PipelineConfig } from '../../pipeline/types.ts';
+import type { RunConfig } from '../../pipeline/types.ts';
 import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = {
+const CONFIG: RunConfig = {
   ocrAvailable: true,
   pdfTextAvailable: true,
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
+  vision: null,
 };
 
 function doc(values: Partial<Document> = {}): Document {
@@ -37,6 +38,7 @@ function doc(values: Partial<Document> = {}): Document {
     currency: null,
     receiptSource: null,
     ocrRequested: false,
+    visionRequested: false,
     status: 'processing',
     error: null,
     createdAt: new Date(),

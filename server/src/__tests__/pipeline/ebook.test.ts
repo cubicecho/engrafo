@@ -5,15 +5,16 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ebookStep } from '../../pipeline/steps/ebook.ts';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
-import type { PipelineConfig, StepContext } from '../../pipeline/types.ts';
+import type { RunConfig, StepContext } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, createTestDb, epubFile, type FakeStorage } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = {
+const CONFIG: RunConfig = {
   ocrAvailable: true,
   pdfTextAvailable: true,
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
+  vision: null,
 };
 
 const BOOK = epubFile({
@@ -51,6 +52,7 @@ function doc(values: Partial<Document> = {}): Document {
     currency: null,
     receiptSource: null,
     ocrRequested: true,
+    visionRequested: false,
     status: 'processing',
     error: null,
     createdAt: new Date(),

@@ -1,15 +1,19 @@
 import { useApolloClient, useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
-import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
+import {
+  DocumentFileVariant,
+  DocumentStatusEnum as DocumentStatus,
+  StepStatusEnum as StepStatus,
+} from '@/__generated__/graphql';
 import { ConfirmButton } from '@/components/confirm-button';
 import { FolderInput } from '@/components/domain/app-icons';
 import { DocumentDateDialog } from '@/components/domain/document-date-dialog';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
-import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
+import { DocumentPreviewCard, isPreviewable } from '@/components/domain/document-preview-card';
 import { DocumentReceiptCard } from '@/components/domain/document-receipt-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
 import { DuplicateAlert } from '@/components/domain/duplicate-alert';
@@ -21,11 +25,15 @@ import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-ba
 import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
+import { SplitLayout } from '@/components/split-layout';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
+import { ArrowLeft, Download, Eye, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { POLLING_DEFAULTS } from '@/defaults';
 import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
+import { DOCUMENT_TAB_PARAM, type DocumentTab, documentTab, tabSearch } from '@/lib/document-tabs';
 import { formatBytes, joinStats } from '@/lib/format';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
@@ -50,6 +58,7 @@ const DocumentDetail = graphql(`
       contentKey
       contentBytes
       ocrRequested
+      visionRequested
       status
       error
       createdAt
@@ -114,12 +123,25 @@ const ReprocessDocument = graphql(`
   }
 `);
 
-// Its own query, asked only while the re-run dialog is open, so the page's own
-// query does not change shape for one switch.
-const ServerOcr = graphql(`
-  query ServerOcr {
+// Its own query, so the page's own query does not change shape for what the server can do: the
+// re-run dialog's OCR switch, and whether there is a vision model to offer at all.
+const ServerReaders = graphql(`
+  query ServerReaders {
     serverConfig {
       ocrAvailable
+      visionAvailable
+      visionAuto
+    }
+  }
+`);
+
+const ReadDocumentWithVision = graphql(`
+  mutation ReadDocumentWithVision($id: UUID!) {
+    readDocumentWithVision(id: $id) {
+      id
+      status
+      error
+      visionRequested
     }
   }
 `);
@@ -186,6 +208,39 @@ const DeleteDocument = graphql(`
   }
 `);
 
+/**
+ * A header button's words, drawn from `sm` up. Six buttons in words do not fit a phone's width, so
+ * there the row is icons, each still named by its `aria-label`.
+ */
+function WideLabel({ text }: { text: string }) {
+  return <span className="hidden sm:inline">{text}</span>;
+}
+
+/** The step the vision model's run is stored under in `processing_steps`. */
+const VISION_STEP = 'vision';
+
+/**
+ * Whether the vision model can read a document of this type: it looks at pages, so a PDF or an
+ * image, and not text, an ebook or a web page, which have their text already.
+ */
+function readsWithVision(mimeType: string): boolean {
+  return mimeType === 'application/pdf' || mimeType.startsWith('image/');
+}
+
+/**
+ * The mark on the History tab while there is something to see there: the pipeline still running,
+ * or stopped on a failure. Named, so it is read as part of the tab's name.
+ */
+function historyMark(status: DocumentStatus): SlotNode {
+  if (isInProgress(status)) {
+    return <Badge variant="info" pulse label="Processing" />;
+  }
+  if (status === DocumentStatus.Failed) {
+    return <Badge variant="destructive" label="Failed" />;
+  }
+  return null;
+}
+
 /** The one-step trail above every state of this page, so it does not jump as the title lands. */
 function BackToDocuments() {
   return (
@@ -211,9 +266,9 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
 }
 
 /**
- * One document, by the id in the URL: its pipeline, preview, text and details,
- * and the rename, download, retry, re-run and delete that act on it. Polls while the
- * document is still being processed.
+ * One document, by the id in the URL: its preview, text and history in tabs (`?tab=`), its
+ * receipt and details beside them, and the rename, download, retry, re-run, vision read and
+ * delete that act on it. Polls while the document is still being processed.
  */
 export function DocumentRoute() {
   const { id = '' } = useParams();
@@ -242,7 +297,16 @@ export function DocumentRoute() {
   const [reprocess, reprocessState] = useMutation(ReprocessDocument, {
     refetchQueries: [DocumentDetail],
   });
-  const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
+  // Asked up front, not when the re-run dialog opens: whether to offer the vision model at all
+  // depends on it. Its failure costs only that button and the dialog's OCR switch.
+  const serverReaders = useQuery(ServerReaders);
+  const server = serverReaders.data?.serverConfig;
+  // Refetched as reprocess is, so the timeline shows the steps queued again; the answer's
+  // `uploaded` status is what starts the page's poll.
+  const [readWithVision, visionState] = useMutation(ReadDocumentWithVision, {
+    refetchQueries: [DocumentDetail],
+  });
+  const [searchParams] = useSearchParams();
   const [rename] = useMutation(RenameDocument);
   const [editingDate, setEditingDate] = useState(false);
   const [setDate] = useMutation(SetDocumentDate);
@@ -317,6 +381,15 @@ export function DocumentRoute() {
     );
   }
 
+  const previewable = isPreviewable(doc.mimeType);
+  const tab = documentTab(searchParams.get(DOCUMENT_TAB_PARAM), previewable);
+  const settled = doc.status === DocumentStatus.Ready || doc.status === DocumentStatus.Failed;
+  const offerVision = server?.visionAvailable === true && readsWithVision(doc.mimeType) && settled;
+  const readBefore =
+    doc.visionRequested ||
+    doc.processingSteps.some((step) => step.step === VISION_STEP && step.status === StepStatus.Succeeded);
+  const tabLink = (to: DocumentTab) => <Link to={{ search: tabSearch(searchParams, to) }} replace />;
+
   return (
     <PageLayout
       width="full"
@@ -335,14 +408,15 @@ export function DocumentRoute() {
             size="sm"
             variant="outline"
             iconSlot={<Pencil />}
-            content="Rename"
+            content={<WideLabel text="Rename" />}
+            aria-label="Rename"
             onClick={() => setRenaming(true)}
           />
           <Button
             size="sm"
             variant="outline"
             iconSlot={<FolderInput />}
-            content="Move"
+            content={<WideLabel text="Move" />}
             aria-label="Move to a folder"
             onClick={() => setMoving(true)}
           />
@@ -350,17 +424,28 @@ export function DocumentRoute() {
             size="sm"
             variant="outline"
             iconSlot={<RefreshCw />}
-            content="Re-run"
+            content={<WideLabel text="Re-run" />}
             aria-label="Re-run processing"
             hint={busy ? 'Already processing' : undefined}
             disabled={busy || doc.status === DocumentStatus.PendingUpload}
             onClick={() => setReprocessing(true)}
           />
+          {offerVision ? (
+            <Button
+              size="sm"
+              variant="outline"
+              iconSlot={<Eye />}
+              content={<WideLabel text={readBefore ? 'Read again with vision' : 'Read with vision'} />}
+              aria-label={readBefore ? 'Read again with vision model' : 'Read with vision model'}
+              loading={visionState.loading}
+              onClick={() => void readWithVision({ variables: { id: doc.id } }).catch(() => undefined)}
+            />
+          ) : null}
           <Button
             size="sm"
             variant="outline"
             iconSlot={<Download />}
-            content="Download"
+            content={<WideLabel text="Download" />}
             aria-label="Download original"
             onClick={() => void download()}
           />
@@ -368,7 +453,8 @@ export function DocumentRoute() {
             size="sm"
             variant="destructive-outline"
             iconSlot={<Trash2 />}
-            content="Delete"
+            content={<WideLabel text="Delete" />}
+            aria-label="Delete"
             title="Delete this document?"
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
@@ -412,7 +498,7 @@ export function DocumentRoute() {
           {reprocessing ? (
             <ReprocessDocumentDialog
               ocrRequested={doc.ocrRequested}
-              ocrAvailable={serverOcr.data?.serverConfig.ocrAvailable}
+              ocrAvailable={server?.ocrAvailable}
               // A refusal closes the dialog too, so the alert drawn from `reprocessState` is not behind it.
               onReprocess={(ocr) => reprocess({ variables: { id: doc.id, ocr } }).catch(() => undefined)}
               onClose={() => setReprocessing(false)}
@@ -431,6 +517,13 @@ export function DocumentRoute() {
               variant="destructive"
               title="Could not re-run processing"
               description={reprocessState.error.message}
+            />
+          )}
+          {visionState.error && (
+            <Alert
+              variant="destructive"
+              title="Could not read this document with the vision model"
+              description={visionState.error.message}
             />
           )}
           {downloadError && (
@@ -474,22 +567,63 @@ export function DocumentRoute() {
             }
           />
 
-          <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
-          <DocumentPreviewCard doc={doc} />
-          <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
-          <DocumentReceiptCard
-            vendor={doc.vendor}
-            total={doc.total}
-            currency={doc.currency}
-            source={doc.receiptSource}
-            onEdit={() => setEditingReceipt(true)}
-          />
-          <DocumentDetailsCard
-            createdAt={doc.createdAt}
-            checksumSha256={doc.checksumSha256}
-            documentDate={doc.documentDate ?? null}
-            documentDateSource={doc.documentDateSource ?? null}
-            onEditDate={() => setEditingDate(true)}
+          <SplitLayout
+            stackBelow="lg"
+            secondWidth="md"
+            firstSlot={
+              // Tabs that are links: the URL holds the tab, so a reload or a shared link opens the
+              // same one, and the route, not `onValueChange`, is what changes it.
+              <Tabs value={tab}>
+                <TabsList aria-label="Document view" className="self-start">
+                  {previewable ? (
+                    <TabsTrigger value="preview" linkSlot={tabLink('preview')}>
+                      Preview
+                    </TabsTrigger>
+                  ) : null}
+                  <TabsTrigger value="text" linkSlot={tabLink('text')}>
+                    Text
+                  </TabsTrigger>
+                  <TabsTrigger value="history" linkSlot={tabLink('history')} trailingSlot={historyMark(doc.status)}>
+                    History
+                  </TabsTrigger>
+                </TabsList>
+                {previewable ? (
+                  <TabsContent value="preview">
+                    <DocumentPreviewCard doc={doc} />
+                  </TabsContent>
+                ) : null}
+                <TabsContent value="text">
+                  <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
+                </TabsContent>
+                <TabsContent value="history">
+                  <DocumentPipelineCard
+                    ocrRequested={doc.ocrRequested}
+                    visionRequested={doc.visionRequested}
+                    uploadedAt={doc.createdAt}
+                    steps={doc.processingSteps}
+                  />
+                </TabsContent>
+              </Tabs>
+            }
+            secondClassName="gap-4"
+            secondSlot={
+              <>
+                <DocumentReceiptCard
+                  vendor={doc.vendor}
+                  total={doc.total}
+                  currency={doc.currency}
+                  source={doc.receiptSource}
+                  onEdit={() => setEditingReceipt(true)}
+                />
+                <DocumentDetailsCard
+                  createdAt={doc.createdAt}
+                  checksumSha256={doc.checksumSha256}
+                  documentDate={doc.documentDate ?? null}
+                  documentDateSource={doc.documentDateSource ?? null}
+                  onEditDate={() => setEditingDate(true)}
+                />
+              </>
+            }
           />
         </>
       }

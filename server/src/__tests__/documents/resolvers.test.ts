@@ -101,6 +101,7 @@ describe('document uploads', () => {
       ['ocr', 'queued'],
       ['pdf-text', 'queued'],
       ['ebook', 'queued'],
+      ['vision', 'queued'],
       ['metadata', 'queued'],
       ['index', 'queued'],
     ]);

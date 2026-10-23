@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation } from 'react-router';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { type DocumentDetailQuery, DocumentStatusEnum, FieldSourceEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
+import { SERVER_CONFIG } from '../../.storybook/archive.ts';
 import { DocumentRoute } from './document';
 
 /**
@@ -50,6 +51,7 @@ function document(overrides: Partial<Document>): Document {
     contentKey: null,
     contentBytes: null,
     ocrRequested: false,
+    visionRequested: false,
     status: DocumentStatusEnum.Ready,
     error: null,
     createdAt: '2026-09-02T11:04:00.000Z',
@@ -64,6 +66,15 @@ function document(overrides: Partial<Document>): Document {
   };
 }
 
+/** The query string the page is on, so a story can check that a tab is kept in the URL. */
+function SearchProbe() {
+  return (
+    <span hidden data-testid="search">
+      {useLocation().search}
+    </span>
+  );
+}
+
 /** A route of its own, because the page reads its id off the URL. */
 function Framed() {
   return (
@@ -71,8 +82,22 @@ function Framed() {
       <Routes>
         <Route path={ROUTES.document} element={<DocumentRoute />} />
       </Routes>
+      <SearchProbe />
     </div>
   );
+}
+
+/** What the server says it can do. No vision model unless a story says there is one. */
+function serverConfig(overrides: Partial<typeof SERVER_CONFIG> = {}) {
+  return () => ({ ...SERVER_CONFIG, ...overrides });
+}
+
+/** Opens one of the page's tabs, found by the start of its name: a mark can follow it. */
+async function openTab(canvas: ReturnType<typeof within>, name: 'Preview' | 'Text' | 'History') {
+  const tab = await canvas.findByRole('tab', { name: new RegExp(`^${name}`) });
+  await userEvent.click(tab);
+  await waitFor(() => expect(tab).toHaveAttribute('aria-selected', 'true'));
+  return tab;
 }
 
 const meta = {
@@ -89,6 +114,12 @@ export const Ready: Story = {
   parameters: { apolloClient: { resolvers: { Query: { document: () => document({}) } } } },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
+    // Plain text has no preview, so there is no tab for one and the page opens on its text.
+    await expect(canvas.queryByRole('tab', { name: 'Preview' })).not.toBeInTheDocument();
+    await expect(canvas.getByRole('tab', { name: 'Text' })).toHaveAttribute('aria-selected', 'true');
+    // The details are beside the tabs, whichever one is open.
+    await expect(canvas.getByRole('button', { name: 'Copy checksum' })).toBeInTheDocument();
+    await openTab(canvas, 'History');
     await expect(canvas.getAllByRole('listitem')[1]).toHaveTextContent('extract-text');
     await expect(canvas.getByRole('button', { name: 'Copy checksum' })).toBeInTheDocument();
     await expect(canvas.queryByRole('alert')).not.toBeInTheDocument();
@@ -118,7 +149,12 @@ export const Failed: Story = {
     const alert = await canvas.findByRole('alert');
     await expect(alert).toHaveTextContent('Processing failed');
     await expect(within(alert).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    // The History tab is marked, since that is where the failed step is.
+    const history = await openTab(canvas, 'History');
+    await expect(history).toHaveAccessibleName('History Failed');
     await expect(canvas.getAllByRole('listitem')[1]).toHaveTextContent('3 attempts');
+    // The alert stays above the tabs, whichever is open.
+    await expect(canvas.getByRole('alert')).toHaveTextContent('Processing failed');
   },
 };
 
@@ -155,7 +191,7 @@ export const Reprocessing: Story = {
   parameters: {
     apolloClient: {
       resolvers: {
-        Query: { document: () => document({}), serverConfig: () => ({ ocrAvailable: true }) },
+        Query: { document: () => document({}), serverConfig: serverConfig({ ocrAvailable: true }) },
         Mutation: {
           reprocessDocument: (_parent: unknown, args: { id: string; ocr: boolean }) => {
             reprocessCalls.push(args);
@@ -187,7 +223,7 @@ export const ReprocessRefused: Story = {
   parameters: {
     apolloClient: {
       resolvers: {
-        Query: { document: () => document({}), serverConfig: () => ({ ocrAvailable: false }) },
+        Query: { document: () => document({}), serverConfig: serverConfig({ ocrAvailable: false }) },
         Mutation: { reprocessDocument: refuse },
       },
     },
@@ -204,15 +240,26 @@ export const ReprocessRefused: Story = {
 /** While the pipeline is running there is nothing to re-run yet. */
 export const ReprocessWhileProcessing: Story = {
   parameters: {
-    apolloClient: { resolvers: { Query: { document: () => document({ status: DocumentStatusEnum.Processing }) } } },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ status: DocumentStatusEnum.Processing, mimeType: 'application/pdf' }),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+      },
+    },
   },
   play: async ({ canvas, canvasElement }) => {
+    // The History tab says where to look while it runs.
+    await expect(await canvas.findByRole('tab', { name: 'History Processing' })).toBeInTheDocument();
     // aria-disabled, not disabled: a Button with a hint keeps the tooltip that says why.
     const button = await canvas.findByRole('button', { name: 'Re-run processing' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(button).toHaveAccessibleDescription('Already processing');
     await userEvent.click(button);
     await expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument();
+    // Nor is there anything for the vision model to read yet.
+    await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
   },
 };
 
@@ -536,5 +583,203 @@ export const NotADuplicate: Story = {
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
     await expect(canvas.queryByText('You already have this file')).not.toBeInTheDocument();
+  },
+};
+
+const SCAN = () =>
+  document({
+    title: 'Electricity bill',
+    originalFilename: 'bill.pdf',
+    mimeType: 'application/pdf',
+    ocrRequested: true,
+    contentKey: 'text/bill.txt',
+    contentBytes: TEXT.length,
+    processingSteps: [
+      step({ step: 'inspect' }),
+      step({ step: 'ocr' }),
+      step({ step: 'vision', status: StepStatusEnum.Skipped }),
+      step({ step: 'index' }),
+    ],
+  });
+
+/**
+ * A PDF opens on its preview. Each tab is a link that keeps itself in the query string, so the
+ * tab survives a reload or a shared link, and the receipt and details stay beside every one.
+ */
+export const SwitchingTabs: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: { Query: { document: SCAN, documentFileUrl: () => textUrl(TEXT), serverConfig: serverConfig() } },
+    },
+  },
+  play: async ({ canvas }) => {
+    const preview = await canvas.findByRole('tab', { name: 'Preview' });
+    await expect(preview).toHaveAttribute('aria-selected', 'true');
+    await expect(await canvas.findByTitle('Document preview')).toBeInTheDocument();
+
+    const text = await openTab(canvas, 'Text');
+    await expect(text).toHaveAttribute('href', expect.stringContaining('?tab=text'));
+    await expect(canvas.getByTestId('search')).toHaveTextContent('?tab=text');
+    await expect(await canvas.findByText(TEXT)).toBeInTheDocument();
+    await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
+
+    await openTab(canvas, 'History');
+    await expect(canvas.getByTestId('search')).toHaveTextContent('?tab=history');
+    await expect(canvas.getByRole('heading', { level: 2, name: 'Pipeline' })).toBeInTheDocument();
+    await expect(canvas.queryByText(TEXT)).not.toBeInTheDocument();
+    await expect(canvas.getByRole('heading', { level: 2, name: 'Details' })).toBeInTheDocument();
+  },
+};
+
+/** A link with `?tab=history` opens on the timeline: every step by name, the vision one included. */
+export const OpenedOnHistory: Story = {
+  parameters: {
+    router: { initialEntries: [`${documentPath(ID)}?tab=history`] },
+    apolloClient: {
+      resolvers: { Query: { document: SCAN, documentFileUrl: () => textUrl(TEXT), serverConfig: serverConfig() } },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    const list = canvas.getByRole('list', { name: 'Pipeline steps' });
+    const rows = within(list).getAllByRole('listitem');
+    const labels = ['Inspect', 'OCR', 'Vision model', 'Search index'];
+    await expect(rows).toHaveLength(labels.length);
+    for (const [index, label] of labels.entries()) {
+      await expect(rows[index]).toHaveTextContent(new RegExp(`^${label}`));
+    }
+    await expect(rows[2]).toHaveTextContent('No vision model is set up, or it was not asked for');
+    await expect(rows[2]).toHaveTextContent('Skipped');
+  },
+};
+
+/** An ebook has no preview: there is no tab for one, and a link to it lands on the text. */
+export const EbookOpensOnText: Story = {
+  parameters: {
+    router: { initialEntries: [`${documentPath(ID)}?tab=preview`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ mimeType: 'application/epub+zip', originalFilename: 'storm.epub' }),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('tab', { name: 'Text' })).toHaveAttribute('aria-selected', 'true');
+    await expect(canvas.queryByRole('tab', { name: 'Preview' })).not.toBeInTheDocument();
+    // An ebook has its text already: there are no pages for the vision model to look at.
+    await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
+  },
+};
+
+const visionCalls: string[] = [];
+
+/**
+ * With a vision model set up, a PDF can be read with it. The page sends the document's id, and
+ * the document, queued again, marks the History tab while it runs.
+ */
+export const ReadingWithVision: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: (() => {
+        let status: DocumentStatusEnum = DocumentStatusEnum.Ready;
+        return {
+          Query: {
+            document: () => ({ ...SCAN(), status }),
+            documentFileUrl: () => textUrl(TEXT),
+            serverConfig: serverConfig({ visionAvailable: true }),
+          },
+          Mutation: {
+            readDocumentWithVision: (_parent: unknown, args: { id: string }) => {
+              visionCalls.push(args.id);
+              status = DocumentStatusEnum.Uploaded;
+              return { ...SCAN(), status, visionRequested: true };
+            },
+          },
+        };
+      })(),
+    },
+  },
+  play: async ({ canvas }) => {
+    visionCalls.length = 0;
+    await userEvent.click(await canvas.findByRole('button', { name: 'Read with vision model' }));
+    await waitFor(() => expect(visionCalls).toEqual([ID]));
+    await expect(await canvas.findByRole('tab', { name: 'History Processing' })).toBeInTheDocument();
+    // Queued again, so it is no longer something to start.
+    await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
+  },
+};
+
+/** A document the vision model has read before says the button would read it again. */
+export const ReadAgainWithVision: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => ({ ...SCAN(), mimeType: 'image/png', visionRequested: true }),
+          documentFileUrl: () => textUrl(TEXT),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('button', { name: 'Read again with vision model' })).toBeInTheDocument();
+  },
+};
+
+/** A vision read the server refuses is said on the page, as a refused re-run is. */
+export const VisionRefused: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: SCAN,
+          documentFileUrl: () => textUrl(TEXT),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+        Mutation: { readDocumentWithVision: refuse },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Read with vision model' }));
+    await expect(await canvas.findByText('Could not read this document with the vision model')).toBeInTheDocument();
+    await expect(canvas.getByText('The server is restarting')).toBeInTheDocument();
+  },
+};
+
+/** No vision model set up: a PDF is offered no vision read at all, not a button that fails. */
+export const VisionUnavailable: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: { document: SCAN, documentFileUrl: () => textUrl(TEXT), serverConfig: serverConfig() },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('button', { name: 'Re-run processing' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
+  },
+};
+
+/** Markdown is text already, so even with a vision model there is nothing for it to look at. */
+export const MarkdownHasNoVision: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ mimeType: 'text/markdown', originalFilename: 'notes.md' }),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('button', { name: 'Re-run processing' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
   },
 };

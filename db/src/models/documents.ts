@@ -85,6 +85,9 @@ export const documents = pgTable(
     // One source for all three: an edit to any of them is the user taking the receipt over.
     receiptSource: fieldSource('receipt_source'),
     ocrRequested: boolean('ocr_requested').notNull().default(true),
+    // Someone asked, from the document's page, for the vision model to read it. With the model on
+    // "auto" every document OCR runs on is read anyway; this is what reaches the rest.
+    visionRequested: boolean('vision_requested').notNull().default(false),
     status: documentStatus('status').notNull().default('pending_upload'),
     error: text('error'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

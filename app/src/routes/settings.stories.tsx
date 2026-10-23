@@ -16,6 +16,14 @@ import { SettingsRoute } from './settings';
 
 const MAX_UPLOAD_BYTES = 104_857_600;
 
+/** How many times `visionSettings` was asked, across the stories in this file. */
+let visionSettingsReads = 0;
+
+/** The page at one tab, as a link to it would open it. */
+function at(tab: string) {
+  return { initialEntries: [`${ROUTES.settings}?tab=${tab}`] };
+}
+
 const RESOLVERS = {
   Query: {
     me: () => ({
@@ -37,9 +45,29 @@ const RESOLVERS = {
       acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
       ocrAvailable: true,
       ocrDefault: true,
+      visionAvailable: true,
+      visionAuto: true,
     }),
     apiKeys: () => [],
+    visionSettings: () => {
+      // The page must never ask this for anyone but the admin: the real server answers FORBIDDEN.
+      visionSettingsReads += 1;
+      return {
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'qwen2.5vl:7b',
+        hasApiKey: false,
+        auto: true,
+        requestTimeoutSeconds: 600,
+        configured: true,
+      };
+    },
+    visionModels: () => [{ id: 'qwen2.5vl:7b', contextLength: null }],
   },
+};
+
+/** The same server, signed in as the admin. */
+const ADMIN_RESOLVERS = {
+  Query: { ...RESOLVERS.Query, me: () => ({ ...RESOLVERS.Query.me(), isAdmin: true }) },
 };
 
 /** A key as `apiKeys` answers it. */
@@ -106,33 +134,93 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Everything the page has to say, with OCR installed and turned on. */
+/** The first tab, which is where the page opens: the account, and the theme on this device. */
 export const Ready: Story = {
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('archivist@example.com')).toBeInTheDocument();
-    await expect(canvas.getByText('1.4.2')).toBeInTheDocument();
-    await expect(canvas.getByText('100.0 MB')).toBeInTheDocument();
-    await expect(canvas.getByText('Available, on by default')).toBeInTheDocument();
+    await expect(canvas.getByRole('tab', { name: 'Account' })).toHaveAttribute('aria-selected', 'true');
     // The one control on this page that is not read-only. It is a device preference, so it has
     // no mutation behind it and no server state to wait for — it is here because settings is
     // where someone looks for it, not because the query supplies it.
     await expect(canvas.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
     // How people sign in is the instance's, so an account that is not the admin is not shown it.
-    await expect(canvas.queryByText('Sign-in')).not.toBeInTheDocument();
+    await expect(canvas.queryByRole('tab', { name: 'Sign-in' })).not.toBeInTheDocument();
+    await expect(canvas.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Account',
+      'Processing',
+      'MCP',
+      'About',
+    ]);
   },
 };
 
-/** The admin also gets the sign-in card, here with nothing paired yet, so it offers the form. */
-export const Admin: Story = {
-  parameters: {
-    apolloClient: {
-      resolvers: {
-        Query: { ...RESOLVERS.Query, me: () => ({ ...RESOLVERS.Query.me(), isAdmin: true }) },
-      },
-    },
-  },
+/** A tab is a link: pressing one opens it, and the URL carries it, so a reload lands there too. */
+export const SwitchesTabs: Story = {
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Sign-in')).toBeInTheDocument();
+    await canvas.findByText('archivist@example.com');
+    const about = canvas.getByRole('tab', { name: 'About' });
+    await expect(about).toHaveAttribute('href', '/settings?tab=about');
+    await userEvent.click(about);
+    await expect(await canvas.findByText('1.4.2')).toBeInTheDocument();
+    await expect(canvas.queryByText('archivist@example.com')).not.toBeInTheDocument();
+  },
+};
+
+/** What the server accepts and does with it, with OCR installed and turned on, for someone who is not the admin. */
+export const Processing: Story = {
+  parameters: { router: at('processing') },
+  play: async ({ canvas }) => {
+    const readsBefore = visionSettingsReads;
+    await expect(await canvas.findByText('100.0 MB')).toBeInTheDocument();
+    await expect(canvas.getByText('Available, on by default')).toBeInTheDocument();
+    await expect(canvas.getByText('On, reads every OCR’d document automatically')).toBeInTheDocument();
+    await expect(canvas.queryByRole('textbox', { name: 'Base URL' })).not.toBeInTheDocument();
+    await expect(visionSettingsReads).toBe(readsBefore);
+  },
+};
+
+/** The admin sets the vision model up on the same tab. */
+export const ProcessingAdmin: Story = {
+  parameters: { router: at('processing'), apolloClient: { resolvers: ADMIN_RESOLVERS } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('textbox', { name: 'Base URL' })).toHaveValue('http://localhost:11434/v1');
+    await expect(await canvas.findByText('Connected')).toBeInTheDocument();
+    await expect(canvas.getByText('100.0 MB')).toBeInTheDocument();
+  },
+};
+
+/** The version, worth quoting in a bug report. */
+export const About: Story = {
+  parameters: { router: at('about') },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('1.4.2')).toBeInTheDocument();
+  },
+};
+
+/** A tab that does not exist opens the first, rather than an empty page. */
+export const UnknownTab: Story = {
+  parameters: { router: at('nonsense') },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('archivist@example.com')).toBeInTheDocument();
+    await expect(canvas.getByRole('tab', { name: 'Account' })).toHaveAttribute('aria-selected', 'true');
+  },
+};
+
+/** A link to the sign-in tab, opened by someone who is not the admin, opens the first tab instead. */
+export const SignInTabForOthers: Story = {
+  parameters: { router: at('sign-in') },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('archivist@example.com')).toBeInTheDocument();
+    await expect(canvas.queryByRole('tab', { name: 'Sign-in' })).not.toBeInTheDocument();
+  },
+};
+
+/** The admin also gets the sign-in tab, here with nothing paired yet, so it offers the form. */
+export const Admin: Story = {
+  parameters: { apolloClient: { resolvers: ADMIN_RESOLVERS } },
+  play: async ({ canvas }) => {
+    await userEvent.click(await canvas.findByRole('tab', { name: 'Sign-in' }));
+    await expect(await canvas.findByRole('heading', { name: 'Sign-in' })).toBeInTheDocument();
     await expect(canvas.getByRole('textbox', { name: /setup url/i })).toBeInTheDocument();
   },
 };
@@ -144,6 +232,7 @@ export const Admin: Story = {
  */
 export const WithoutOcr: Story = {
   parameters: {
+    router: at('processing'),
     apolloClient: {
       resolvers: {
         Query: {
@@ -193,7 +282,7 @@ export const Unreachable: Story = {
 
 /** The MCP card: where an agent connects, and the keys it connects with, none shown whole. */
 export const McpKeys: Story = {
-  parameters: { apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
+  parameters: { router: at('mcp'), apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('Claude Code on my laptop')).toBeInTheDocument();
     await expect(canvas.getByText(/\/mcp$/)).toBeInTheDocument();
@@ -204,7 +293,7 @@ export const McpKeys: Story = {
 
 /** A new key is shown once, with what to paste into Claude Code, then listed by its start alone. */
 export const MakesAKey: Story = {
-  parameters: { apolloClient: { resolvers: keyServer([]) } },
+  parameters: { router: at('mcp'), apolloClient: { resolvers: keyServer([]) } },
   play: async ({ canvas, canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     await expect(await canvas.findByText(/No keys yet/)).toBeInTheDocument();
@@ -226,7 +315,7 @@ export const MakesAKey: Story = {
 
 /** Revoking asks first, saying what stops working, and the key leaves the list. */
 export const RevokesAKey: Story = {
-  parameters: { apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
+  parameters: { router: at('mcp'), apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
   play: async ({ canvas, canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByRole('button', { name: 'Revoke' }));

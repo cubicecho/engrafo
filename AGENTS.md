@@ -43,7 +43,7 @@ engrafo/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
-│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, the dialogs
+│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, vision-settings, the dialogs
 │       ├── routes/          # login, verify, documents (upload + search), document (detail), settings
 │       ├── lib/             # apollo, auth, upload, query, format, archive, folder-tree, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
@@ -72,6 +72,7 @@ engrafo/
 │       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
 │       │   └── write-schema.ts # Prints the SDL for codegen
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
+│       ├── vision/          # The vision model: settings (the row, loadVisionConfig), models (listing an endpoint), resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # create.ts (insertPendingDocument, completePendingDocument), resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
@@ -92,7 +93,7 @@ engrafo/
 │       │   ├── html-text.ts # walkHtml: markup off, for EPUB chapters and HTML uploads
 │       │   ├── image.ts     # toOpaquePng and pngHasTransparency: an image ocrmypdf will take
 │       │   ├── decode.ts    # decodeText: a text upload's bytes, in whatever encoding it was saved in
-│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, metadata, index
+│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, vision, metadata, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -509,6 +510,50 @@ finds an alpha colour type or a `tRNS` chunk in its headers; an opaque one goes
 in untouched. With OCR off they are stored with no text, like any image, and
 the browser previews the original itself.
 
+**The vision model is the admin's setting, read per run, and it replaces only
+the text.** An OpenAI-compatible vision model can re-read a PDF's or image's
+pages and its transcript replaces the extracted text; ocrmypdf still writes the
+PDF/A archive, because that is the copy meant to outlive this instance and no
+model emits one. It is configured in Settings, not the environment:
+`vision_settings` is a singleton row in `SERVER_TABLES`, written by
+`setVisionSettings`, and only the admin reads or writes it (FORBIDDEN for
+anyone else: an instance setting, not a row). The API key is write-only —
+left out keeps the stored one, `''` clears it — and `visionModels` (what the
+form's model list is filled from, as soon as the stored endpoint is known)
+sends the stored key only to the base URL it was stored with, and refuses
+redirects. `PipelineConfig` is still decided at boot, but the runner calls
+`loadVision()` at the start of every run and hands the steps a `RunConfig`
+with `vision`, so a change reaches the next document without a restart. The
+`vision` step sits after `ebook` and before `metadata`, breaking "new steps go
+last" because it produces text. It runs when a model is set up, the document is
+a PDF or an image, and either `visionRequested` is set or the model is on
+"Read automatically" and `ocrRequested` is. Pages are rasterised from the
+archive (already deskewed and upright) at 200 DPI with Ghostscript; an image
+goes as uploaded, WebP, GIF and a see-through PNG as `toOpaquePng`, and a TIFF
+as a PNG per frame, so a multi-page scan keeps its later pages.
+
+**All pages or nothing, and who asked decides what a failure means.** A page
+that does not come back, every page blank (a model that did not read, not a
+blank document), or more than `VISION_DEFAULTS.maxPages` (declined, never
+truncated) writes nothing. On an automatic run the old text stays, a
+`[vision]` line is logged and the step succeeds, so an endpoint being down
+never fails every scan filed meanwhile. On a run someone asked for, the step
+fails with the reason and Retry runs it again. `readDocumentWithVision` (the
+document page's "Read with vision model") takes a ready or failed PDF or image,
+claims it conditionally as retry and reprocess do, sets `visionRequested`, and
+re-queues `vision`, `metadata`, `index` and any failed steps; it keeps
+`archiveKey` and `contentKey`, because the step renders the archive and a failed
+read keeps the old text. Re-running metadata and index is safe: metadata keeps
+user edits and index swaps passages in one transaction. `visionRequested`
+sticks, as `ocrRequested` does, so a later reprocess reads with the model again.
+
+**Settings and the document page are tabs in the query string.** `?tab=` on
+both, a `Link` per tab, so a tab can be linked and survives a reload; an
+unknown tab (or Sign-in for a non-admin) opens the first. The document page is
+Preview / Text / History (the pipeline timeline), with the alerts above the
+tabs and Receipt and Details beside them; a type the preview card does not
+frame has no Preview tab and opens on Text.
+
 **A text upload is read in the encoding it was saved in.** Plain text,
 Markdown, CSV and HTML all reach the text step as bytes, and `decodeText`
 (`pipeline/decode.ts`) picks the encoding: a byte-order mark; then UTF-8 if the
@@ -625,7 +670,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
-`[pipeline]`, `[ocr]`, `[watch]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
