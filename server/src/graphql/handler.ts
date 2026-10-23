@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { createYoga, type YogaServerInstance } from 'graphql-yoga';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
+import type { Backups } from '../backup/state.ts';
 import { appUrl, isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
 import { publicOrigin } from '../http/origin.ts';
@@ -28,6 +29,8 @@ export interface GraphQLOptions {
   ocrAvailable: boolean;
   /** Embeds search queries. */
   embedder: Embedder;
+  /** Export links and import runs, shared with the export route. */
+  backups: Backups;
 }
 
 /**
@@ -44,6 +47,7 @@ export function createGraphQLHandler({
   events,
   ocrAvailable,
   embedder,
+  backups,
 }: GraphQLOptions): YogaServerInstance<ServerContext, Context> {
   const { schema } = createSchema(db);
   return createYoga<ServerContext, Context>({
@@ -71,6 +75,7 @@ export function createGraphQLHandler({
         events,
         ocrAvailable,
         embedder,
+        backups,
       };
     },
   });

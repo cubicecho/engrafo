@@ -43,7 +43,7 @@ engrafo/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
-│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, vision-settings, the dialogs
+│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
 │       ├── routes/          # login, verify, documents (upload + search), document (detail), settings
 │       ├── lib/             # apollo, auth, upload, query, format, archive, folder-tree, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
@@ -78,6 +78,7 @@ engrafo/
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
+│       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), browse (filters, no search), resolvers
 │       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
@@ -453,6 +454,48 @@ inclusive, so an undated receipt is only in an export with no range; a folder
 takes everything inside it. Cells go through `csvCell`, which quotes and
 defuses a leading `=`, `+`, `-` or `@` (CSV injection), except the total.
 
+**The whole-archive export is a link, and it is a tar, streamed.** The export
+is too big for `downloadBlob`, so `createExportLink` mints a token (32 random
+bytes, kept in memory only as its sha256, for `BACKUP_DEFAULTS.exportLinkTtlMinutes`)
+and the app hands the browser `/export/<token>`, which `backup/endpoint.ts`
+mounts before the static handler. The token is the credential, spent on first
+use; unknown, spent and expired are one 404. Tar rather than zip because
+fflate's streaming `Zip` has no ZIP64 (an archive past 4 GiB would come out
+corrupt) and a zip's directory is at its end, so the import could not read one
+in a single pass; `backup/tar.ts` writes ustar with pax for long or non-ASCII
+names and reads the same back. `metadata.json` comes first (`backup/manifest.ts`,
+`format` + `version`), then each document's original, archive PDF and text,
+each `head`ed for its size and streamed from the bucket into the response, so
+memory is one object's chunks. Paths are the tree (`originals/Taxes/2026/<title><ext>`),
+with Windows-unsafe characters swapped in the path only. An object missing
+from the bucket is left out and logged; a stream that breaks mid-way destroys
+the response, so a broken export fails as a download instead of saving short.
+Only the caller's rows are read, and `pending_upload` rows are left out.
+
+**The import goes through the bucket and the same two calls as an upload.**
+`createImportUpload(sizeBytes)` signs a PUT to `imports/<userId>/<uuid>.tar`
+(capped by `MAX_IMPORT_BYTES`, default 5 GiB, S3's single-PUT ceiling);
+`importArchive(key)` refuses a key outside the caller's prefix as NOT_FOUND,
+starts a background run and returns at once; the app polls `latestImport`. A
+run is in memory (`backup/state.ts`), one at a time per user (a second is
+`CONFLICT`, since two would race the checksum check), and the uploaded object
+is deleted when it ends. A run cut off by a restart is finished by importing
+the same archive again: it is idempotent by checksum. `importArchive` in
+`backup/import.ts` reads the tar in one pass (gunzipping a `.tar.gz`):
+`metadata.json` must be first, folders are made with the watcher's
+`ensureFolders` (found ignoring case, made under `lockNames`), and each
+original is checked against the manifest's checksum, skipped when that
+checksum is already filed in the caller's archive (read once before the run,
+so two copies inside one export both come in), sniffed with `sniffMimeType`,
+checked with `createUploadSchema` and filed with `insertPendingDocument` +
+`completePendingDocument`, so a clash is numbered and the pipeline runs as for
+any upload. Before completing, the row gets `createdAt` and whatever the
+manifest marks `user` (the date, the receipt through `receiptSchema`), which
+the metadata step then leaves alone; extracted fields are read again. The
+archive PDFs and text in the tar are not imported: the pipeline makes them.
+`mcpEnabled` is recorded, never restored. Notes are not in the manifest
+because there is no notes column yet; add them to both halves when there is.
+
 **Search filters go inside each read, never over the fused list.**
 `searchDocuments` takes a `filter` (folder with its subfolders unless
 `includeSubfolders: false`, `kinds` of PDF / IMAGE / TEXT / EBOOK, a
@@ -679,7 +722,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
-`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[backup]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

@@ -1,4 +1,4 @@
-import { DocumentStatus, documents, FieldSource, type Folder, folders } from '@cubicecho/engrafo-db/schema';
+import { DocumentStatus, documents, FieldSource, folders } from '@cubicecho/engrafo-db/schema';
 import { and, asc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
@@ -8,7 +8,7 @@ import { METADATA_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { loadOwned } from '../documents/resolvers.ts';
-import { folderAndDescendants } from '../folders/names.ts';
+import { folderAndDescendants, folderPaths } from '../folders/names.ts';
 import { readMetadata } from '../pipeline/steps/metadata.ts';
 import { csvCell, csvText } from './csv.ts';
 import { calendarDaySchema } from './schemas.ts';
@@ -84,7 +84,8 @@ const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim
 // cent or the fils: up to twelve digits before the point and three after.
 const TOTAL_PATTERN = /^\d{1,12}(?:[.,]\d{1,3})?$/;
 
-const receiptSchema = z.object({
+/** A receipt as a client or a backup gives it: each field checked, a blank one null. */
+export const receiptSchema = z.object({
   vendor: z.preprocess(
     blankToNull,
     z.string().trim().max(METADATA_DEFAULTS.vendorMaxLength, 'That vendor name is too long.').nullish(),
@@ -116,24 +117,6 @@ const exportSchema = z
     folderId: z.string().nullish(),
   })
   .refine(({ from, to }) => (from && to ? from <= to : true), 'The range ends before it starts.');
-
-/** Each folder's path from the top, `Taxes/2026`, for the export's folder column. */
-function folderPaths(all: readonly Folder[]): Map<string, string> {
-  const byId = new Map(all.map((folder) => [folder.id, folder]));
-  const paths = new Map<string, string>();
-  for (const folder of all) {
-    const names: string[] = [];
-    const seen = new Set<string>();
-    // Up to the top. `seen` guards a loop the server never makes.
-    for (let at: Folder | undefined = folder; at && seen.has(at.id) === false; ) {
-      seen.add(at.id);
-      names.unshift(at.name);
-      at = at.parentId ? byId.get(at.parentId) : undefined;
-    }
-    paths.set(folder.id, names.join('/'));
-  }
-  return paths;
-}
 
 /**
  * Adds the document-date and receipt writes, and the receipts export, to the schema.

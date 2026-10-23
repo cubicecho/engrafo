@@ -1,3 +1,24 @@
+# [4.10.0](https://github.com/cubicecho/engrafo/compare/v4.9.0...v4.10.0) (2026-10-23)
+
+
+### Features
+
+* export the whole archive as a tar, and import one back ([dc4c789](https://github.com/cubicecho/engrafo/commit/dc4c78909389ec3127c678baf7f5840ee38d4408)), closes [#35](https://github.com/cubicecho/engrafo/issues/35)
+
+# [4.9.0](https://github.com/cubicecho/engrafo/compare/v4.8.0...v4.9.0) (2026-10-23)
+
+
+### Features
+
+* read scanned pages with a vision model, set up in the app ([1831d73](https://github.com/cubicecho/engrafo/commit/1831d7340d88f2d958edc52561e1a30aab25595e))
+
+# [4.8.0](https://github.com/cubicecho/engrafo/compare/v4.7.1...v4.8.0) (2026-10-23)
+
+
+### Features
+
+* list documents by filter alone, without a search ([270dbe5](https://github.com/cubicecho/engrafo/commit/270dbe55ac8ad7ae7140873ec860e0630620d6de)), closes [#43](https://github.com/cubicecho/engrafo/issues/43)
+
 ## [4.7.1](https://github.com/cubicecho/engrafo/compare/v4.7.0...v4.7.1) (2026-10-23)
 
 
