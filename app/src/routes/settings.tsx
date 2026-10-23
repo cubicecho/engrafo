@@ -1,9 +1,9 @@
 import { useQuery } from '@apollo/client/react';
-import { LogOut } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { LogOut } from '@/components/domain/app-icons';
 import { McpSettings } from '@/components/domain/mcp-settings';
 import { SsoSettings } from '@/components/domain/sso-pairing';
 import { VisionSettingsCard } from '@/components/domain/vision-settings';

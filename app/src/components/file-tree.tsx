@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
 import * as React from "react";
-import { ChevronRight, File, Folder } from "@/components/ui/icons";
 import { buildTree, isValidMove, type TreeEntry, type TreeNode } from "@/lib/tree";
 import { cn, type SlotNode } from "@/lib/utils";
+import { ChevronRight, File, Folder } from "@/components/ui/icons";
 
 type FileTreeProps<T extends TreeEntry> = {
   /** What the list is, for a screen reader: "Files", "Notes". Read, not drawn. */

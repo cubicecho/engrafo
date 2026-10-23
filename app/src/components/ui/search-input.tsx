@@ -1,7 +1,4 @@
 import { useCallback, useRef, useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
-import { Search, X } from "@/components/ui/icons";
-import { Input, type InputHandle, type InputProps } from "@/components/ui/input";
 import {
   SEARCH_CLEAR_LABEL,
   SEARCH_DEBOUNCE_MS,
@@ -11,6 +8,9 @@ import {
   useSettledText,
 } from "@/components/ui/search-input-base";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
+import { Search, X } from "@/components/ui/icons";
+import { Input, type InputHandle, type InputProps } from "@/components/ui/input";
 
 export type SearchInputProps = Omit<InputProps, "type" | "leadingSlot" | "trailingSlot"> &
   SearchInputOwnProps;

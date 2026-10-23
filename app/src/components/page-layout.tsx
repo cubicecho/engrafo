@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 import { HeaderContentFooter, type HeaderContentFooterProps } from "@/components/header-content-footer";
 import { PageHeader, type PageHeaderLevel } from "@/components/page-header";
-import { cn, type SlotNode } from "@/lib/utils";
 
 export type PageLayoutProps = {
   /** The page. The only slot that scrolls, unless `scroll` is off. */

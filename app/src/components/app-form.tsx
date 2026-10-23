@@ -2,20 +2,6 @@ import type { DeepKeys, DeepValue } from "@tanstack/react-form";
 import { createFormHook, createFormHookContexts, useStore } from "@tanstack/react-form";
 import type { ComponentProps, ComponentType, ReactNode } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import type {
-  ComboboxMultipleProps,
-  ComboboxSingleProps,
-  SelectEntry,
-  SelectOption,
-  SelectSeparatorEntry,
-} from "@/components/combobox";
-import { Combobox } from "@/components/combobox";
-import { FormField } from "@/components/form-field";
-import { Button, type ButtonPropsWithout } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { messageOf } from "@/lib/error-message";
 import {
   type BindableForm,
@@ -26,6 +12,20 @@ import {
 } from "@/lib/form-binding";
 import { numberText, parseNumber } from "@/lib/number-draft";
 import { menuValueOf, storedValueOf, withEmptyOption } from "@/lib/select-options";
+import { Button, type ButtonPropsWithout } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import type {
+  ComboboxMultipleProps,
+  ComboboxSingleProps,
+  SelectEntry,
+  SelectOption,
+  SelectSeparatorEntry,
+} from "@/components/combobox";
+import { Combobox } from "@/components/combobox";
+import { FormField } from "@/components/form-field";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 /** TanStack Form's contexts, which the bound fields read their field and form from. */
 export const { fieldContext, formContext, useFieldContext, useFormContext } =

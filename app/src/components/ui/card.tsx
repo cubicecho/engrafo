@@ -1,6 +1,6 @@
 import * as React from "react";
-import { ColorBar } from "@/components/ui/color-bar";
 import { cn } from "@/lib/utils";
+import { ColorBar } from "@/components/ui/color-bar";
 
 // `className` is re-declared rather than inherited: nativewind types it as
 // `className?: string`, which under `exactOptionalPropertyTypes` rejects the

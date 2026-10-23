@@ -1,7 +1,7 @@
 import { useContext } from "react";
+import { type CopyButtonProps, useCopy } from "@/components/ui/copy-button-base";
 import { Button } from "@/components/ui/button";
 import { CodeBlockTitleContext } from "@/components/ui/code";
-import { type CopyButtonProps, useCopy } from "@/components/ui/copy-button-base";
 import { Check, Copy } from "@/components/ui/icons";
 
 type CopyButtonViewProps = CopyButtonProps & {

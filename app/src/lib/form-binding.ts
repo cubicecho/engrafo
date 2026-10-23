@@ -1,5 +1,5 @@
-import type { AnyFieldApi, DeepKeys, DeepValue } from '@tanstack/react-form';
-import type { ComponentType, ReactNode } from 'react';
+import type { AnyFieldApi, DeepKeys, DeepValue } from "@tanstack/react-form";
+import type { ComponentType, ReactNode } from "react";
 
 /**
  * What a bound field needs off a form, and nothing else. Structural, so a plain `useForm` binds as
@@ -23,7 +23,11 @@ export type ValuesOf<TForm extends BindableForm> = TForm extends {
  * A validator, with `value` narrowed to the field's own type. Anything falsy passes; a string is
  * the message, and `messageOf` reads an object's `message`, so a schema issue can be returned whole.
  */
-export type Validate<TValue> = (context: { value: TValue; fieldApi: AnyFieldApi; signal: AbortSignal }) => unknown;
+export type Validate<TValue> = (context: {
+  value: TValue;
+  fieldApi: AnyFieldApi;
+  signal: AbortSignal;
+}) => unknown;
 
 /**
  * The validators a field call site writes, spelled out rather than imported: TanStack's own
@@ -65,7 +69,9 @@ export type Listeners<TValues, TName extends DeepKeys<TValues>> = {
  * field. With `unknown` this is every key.
  */
 export type NamesOfType<TValues, TValue> = {
-  [TName in DeepKeys<TValues>]: NonNullable<DeepValue<TValues, TName>> extends TValue ? TName : never;
+  [TName in DeepKeys<TValues>]: NonNullable<DeepValue<TValues, TName>> extends TValue
+    ? TName
+    : never;
   // Intersected back so the result is provably a `DeepKeys`, which `Validators` requires.
 }[DeepKeys<TValues>] &
   DeepKeys<TValues>;

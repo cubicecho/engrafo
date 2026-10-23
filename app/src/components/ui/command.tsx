@@ -1,9 +1,9 @@
 import { Command as CommandPrimitive } from "cmdk";
 import type * as React from "react";
 import { COMMAND_DIALOG_DESCRIPTION, COMMAND_DIALOG_TITLE } from "@/components/ui/command-base";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search } from "@/components/ui/icons";
-import { cn } from "@/lib/utils";
 
 /** The root of a filtered list: it holds the search text and decides which items match. */
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {

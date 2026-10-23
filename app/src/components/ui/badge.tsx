@@ -12,8 +12,8 @@ import {
   badgeTextVariants,
   badgeVariants,
 } from "@/components/ui/badge-base";
-import { X } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
+import { X } from "@/components/ui/icons";
 
 export type { BadgeProps, BadgeVariant };
 

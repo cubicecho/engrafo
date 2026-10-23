@@ -1,9 +1,9 @@
 import { Switch as SwitchPrimitive } from "radix-ui";
 import { type ComponentPropsWithRef, useId } from "react";
 import { SWITCH_THUMB_CLASS, SWITCH_TRACK_CLASS } from "@/components/ui/switch-base";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TooltipSide } from "@/components/ui/tooltip-base";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type SwitchProps = Omit<ComponentPropsWithRef<typeof SwitchPrimitive.Root>, "className"> & {
   className?: string | undefined;

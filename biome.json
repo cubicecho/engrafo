@@ -52,11 +52,17 @@
         "app/src/lib/tree.ts",
         "app/src/lib/format.ts",
         "app/src/lib/color.ts",
+        "app/src/lib/error-message.ts",
+        "app/src/lib/form-binding.ts",
+        "app/src/lib/number-draft.ts",
+        "app/src/lib/readable-text-color.ts",
+        "app/src/lib/select-options.ts",
         "app/cubeui-*.css",
         "app/index.html"
       ],
       "linter": { "enabled": false },
-      "formatter": { "enabled": false }
+      "formatter": { "enabled": false },
+      "assist": { "enabled": false }
     },
     {
       "includes": ["**/*.test.ts", "**/*.test.tsx", "**/tests/**", "**/__tests__/**", "**/bench/**"],

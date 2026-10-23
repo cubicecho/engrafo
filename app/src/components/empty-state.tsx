@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { IconClassContext, type IconComponent } from "@/components/ui/icons-base";
 import { cn, type SlotNode } from "@/lib/utils";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 /**
  * The glyph, as an element, as every other shell takes it: `iconSlot={<Plug />}`. `icon`, the

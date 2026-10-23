@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import * as React from "react";
-import { ChevronRight } from "@/components/ui/icons";
 import { cn, type SlotNode } from "@/lib/utils";
+import { ChevronRight } from "@/components/ui/icons";
 
 type DisclosureProps = {
   /**

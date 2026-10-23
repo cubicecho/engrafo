@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { cloneElement, isValidElement, useId } from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 import { DescriptionHint, DescriptionHintText } from "@/components/ui/description-hint";
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, type SlotNode } from "@/lib/utils";
 
 /**
  * The box the absent control leaves behind while it is loading, per orientation: a `vertical`

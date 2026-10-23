@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 
 // `className` is re-declared rather than inherited — see `card.tsx`: nativewind types it as
 // `className?: string`, which under `exactOptionalPropertyTypes` rejects `cond ? "x" : undefined`.

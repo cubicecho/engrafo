@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import * as React from "react";
-import { type HeaderContentFooterProps, StickyHeaderContentFooter } from "@/components/header-content-footer";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight } from "@/components/ui/icons";
 import { IconClassContext } from "@/components/ui/icons-base";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, type SlotNode } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { type HeaderContentFooterProps, StickyHeaderContentFooter } from "@/components/header-content-footer";
+import { ChevronLeft, ChevronRight } from "@/components/ui/icons";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Hidden under the breakpoint, shown from it up. `flex` is what the root is on both platforms: a

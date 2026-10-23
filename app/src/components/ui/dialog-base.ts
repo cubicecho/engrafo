@@ -69,6 +69,6 @@ export type DialogSectionProps = {
   children?: ReactNode;
 };
 
-/** The dialog's card, on both platforms. */
+/** The dialog's card, on both platforms. `bg-secondary`, as a `Card` is, so it stands off the page behind the overlay. */
 export const DIALOG_CONTENT_CLASS =
-  "w-full max-w-lg gap-4 rounded-lg border border-foreground/10 bg-background p-6 shadow-lg";
+  "w-full max-w-lg gap-4 rounded-lg border border-foreground/10 bg-secondary p-6 shadow-lg";

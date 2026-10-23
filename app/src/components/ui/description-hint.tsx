@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
+import type { SlotNode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CircleQuestionMark } from "@/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { SlotNode } from "@/lib/utils";
 
 /** Where a description is drawn: under what it describes, or behind a button beside its title. */
 type DescriptionPlacement = "inline" | "popover";

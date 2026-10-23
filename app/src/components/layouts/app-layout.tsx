@@ -1,5 +1,5 @@
-import { LogOut } from 'lucide-react';
 import { useLinkClickHandler, useMatch } from 'react-router';
+import { LogOut } from '@/components/domain/app-icons';
 import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
