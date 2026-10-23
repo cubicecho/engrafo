@@ -2,11 +2,11 @@ import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 const alias = [
-  { find: '@', replacement: path.resolve(__dirname, './app/src') },
+  { find: '@', replacement: path.resolve(import.meta.dirname, './app/src') },
   // graphql ships no exports map: Vite follows `module` to index.mjs while
   // Node follows `main` to index.js, so a schema built on one copy fails the
   // instanceof checks of the other. Pin the bare specifier to Node's copy.
-  { find: /^graphql$/, replacement: path.resolve(__dirname, './node_modules/graphql/index.js') },
+  { find: /^graphql$/, replacement: path.resolve(import.meta.dirname, './node_modules/graphql/index.js') },
 ];
 
 // Three projects: server and db tests run a real Postgres in-process (PGlite) and

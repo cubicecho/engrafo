@@ -22,7 +22,7 @@ const config: CodegenConfig = {
         },
         useTypeImports: true,
         // A TypeScript `enum` is not erasable syntax; this emits an `as const` object and its union.
-        enumsAsConst: true,
+        enumType: 'const',
         defaultScalarType: 'unknown',
         skipTypeNameForRoot: true,
         scalars: {

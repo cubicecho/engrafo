@@ -16,8 +16,8 @@ const config: StorybookConfig = {
     '@storybook/addon-a11y',
     '@storybook/addon-themes',
     '@storybook/addon-vitest',
-    // Only a panel: since v10 the addon ships no decorator, so `preview.tsx` provides the
-    // MockedProvider and feeds this the mocks it is showing.
+    // The panel, and the decorator that feeds it a story's `mocks`. The client itself is
+    // `preview.tsx`'s: a `resolvers` story runs a mock server this addon does not know about.
     'storybook-addon-apollo-client',
   ],
 

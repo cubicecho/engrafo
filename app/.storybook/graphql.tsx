@@ -75,8 +75,9 @@ function handlerLink(resolvers: ResolverMap, delay: number): ApolloLink {
 }
 
 /**
- * The decorator half of the Apollo parameter. Storybook's Apollo addon ships only a panel since
- * v10 — the provider is the app's to supply, which is what this is.
+ * The decorator half of the Apollo parameter. The Apollo addon's own `withApolloClient` makes one
+ * client from the parameter and skips a story without one; this serves `resolvers` too, and gives
+ * every story a client.
  *
  * @param story - The rendered story.
  * @param parameters - The story's `apolloClient` parameter, if it set one.
