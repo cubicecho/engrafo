@@ -10,6 +10,8 @@ export interface FolderRow {
   id: string;
   name: string;
   parentId?: string | null | undefined;
+  /** Whether MCP clients may read it and every folder inside it. */
+  mcpEnabled?: boolean | null | undefined;
 }
 
 /** What a document needs to be placed in the tree. */
@@ -111,6 +113,28 @@ export function folderAndDescendants(folders: readonly FolderRow[], id: string):
     }
   }
   return found;
+}
+
+/**
+ * The folder that shares a folder with MCP clients: itself when its own switch is on, else the
+ * nearest folder above it whose switch is, as the server decides it.
+ *
+ * @param folders - All of the caller's folders.
+ * @param id - The folder asked about.
+ * @returns The sharing folder, or undefined when MCP clients cannot read it.
+ */
+export function mcpSharedBy(folders: readonly FolderRow[], id: string): FolderRow | undefined {
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const seen = new Set<string>();
+  let current = byId.get(id);
+  while (current && seen.has(current.id) === false) {
+    if (current.mcpEnabled) {
+      return current;
+    }
+    seen.add(current.id);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+  return undefined;
 }
 
 /**

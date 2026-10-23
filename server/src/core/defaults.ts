@@ -108,6 +108,43 @@ export const FOLDER_DEFAULTS: Readonly<FolderSettings> = Object.freeze({
   nameMaxLength: 64,
 });
 
+/** API keys, which MCP clients send instead of a session. */
+export interface ApiKeySettings {
+  /** Characters of a key kept after its prefix, so the settings page can tell keys apart. */
+  shownCharacters: number;
+  /** The longest name a key may be given, in characters. */
+  nameMaxLength: number;
+}
+
+/** The shipped values of `ApiKeySettings`. */
+export const API_KEY_DEFAULTS: Readonly<ApiKeySettings> = Object.freeze({
+  shownCharacters: 8,
+  nameMaxLength: 60,
+});
+
+/** The MCP door: what one tool call may hand an agent. */
+export interface McpSettings {
+  /** The largest JSON body `/mcp` accepts. Tool calls are small; this is only a ceiling. */
+  bodyLimit: string;
+  /** Documents `engrafo_search` returns when not told how many. */
+  defaultSearchResults: number;
+  /** Documents `engrafo_list` returns when not told how many. */
+  defaultListDocuments: number;
+  /** The most documents `engrafo_list` returns in one call. */
+  maxListDocuments: number;
+  /** The most characters of text `engrafo_read` returns in one call; the rest is a later call. */
+  readMaxChars: number;
+}
+
+/** The shipped values of `McpSettings`. */
+export const MCP_DEFAULTS: Readonly<McpSettings> = Object.freeze({
+  bodyLimit: '1mb',
+  defaultSearchResults: 8,
+  defaultListDocuments: 100,
+  maxListDocuments: 1000,
+  readMaxChars: 20_000,
+});
+
 /** The ocr step and the pipeline around it. */
 export interface OcrSettings {
   /** Whether OCR is allowed on this instance. `OCR_ENABLED` overrides it. */

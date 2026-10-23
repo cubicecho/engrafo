@@ -1,4 +1,4 @@
-import { FolderInput as FolderInputSource, FolderPlus as FolderPlusSource } from 'lucide-react';
+import { FolderInput as FolderInputSource, FolderPlus as FolderPlusSource, Unplug as UnplugSource } from 'lucide-react';
 import { icon } from '@/components/ui/icons';
 
 // Glyphs this app needs that `@cubeui/icons` does not carry, wrapped the way it
@@ -8,3 +8,5 @@ import { icon } from '@/components/ui/icons';
 export const FolderPlus = icon(FolderPlusSource);
 /** Move into a folder. */
 export const FolderInput = icon(FolderInputSource);
+/** Stop sharing with MCP clients. */
+export const Unplug = icon(UnplugSource);

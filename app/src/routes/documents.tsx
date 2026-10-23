@@ -1,40 +1,28 @@
 import { useQuery } from '@apollo/client/react';
-import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
-import { FolderPlus } from '@/components/domain/app-icons';
 import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
-import { isInProgress } from '@/components/domain/status-badge';
+import { NewFolderButton } from '@/components/domain/new-folder-button';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
-import { Button } from '@/components/ui/button';
 import { FileText } from '@/components/ui/icons';
 import { SearchInput } from '@/components/ui/search-input';
-import { DOCUMENT_LIST_DEFAULTS, POLLING_DEFAULTS } from '@/defaults';
+import { useArchive } from '@/lib/archive';
+import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
+import { UPLOAD_INTO_PARAM } from '@/lib/routes';
+import { cn } from '@/lib/utils';
 
 const DocumentsPage = graphql(`
-  query DocumentsPage($limit: Int!) {
+  query DocumentsPage {
     serverConfig {
       maxUploadBytes
       acceptedMimeTypes
       ocrAvailable
       ocrDefault
-    }
-    folders {
-      id
-      name
-      parentId
-    }
-    documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: $limit) {
-      id
-      title
-      folderId
-      sizeBytes
-      status
     }
   }
 `);
@@ -43,9 +31,10 @@ const DocumentsPage = graphql(`
 const SEARCH_PARAM = 'q';
 
 /**
- * The archive: the upload panel over the tree of folders and documents, and a
- * search box that swaps both for what it found. Polls while any document is
- * still being processed.
+ * The archive's front page: the upload panel and a search box that swaps it for what it found.
+ * The tree of folders and documents is in the sidebar (`ArchiveSidebarSection`), which is also
+ * what polls while a document is being processed; under `md`, where the sidebar is a bar, the
+ * tree is drawn here instead.
  */
 export function DocumentsRoute() {
   const [params, setParams] = useSearchParams();
@@ -65,43 +54,32 @@ export function DocumentsRoute() {
       { replace: true },
     );
 
-  const result = useQuery(DocumentsPage, { variables: { limit: DOCUMENT_LIST_DEFAULTS.limit } });
-  const { data, startPolling, stopPolling } = result;
-  const documents = data?.documents ?? [];
-  const folders = data?.folders ?? [];
-  // Where the upload panel files what it is given: the page's, so a folder's
-  // "Upload here" can point it there.
-  const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  const busy = documents.some((doc) => isInProgress(doc.status));
-
-  // There is no subscription: the pipeline runs in the server process and says
-  // nothing until it is asked. So the page asks, but only while something is
-  // actually moving: a quiet archive should sit still.
-  useEffect(() => {
-    if (busy) {
-      startPolling(POLLING_DEFAULTS.intervalMs);
-    } else {
-      stopPolling();
-    }
-    return () => stopPolling();
-  }, [busy, startPolling, stopPolling]);
+  const page = useQuery(DocumentsPage);
+  const { result, folders, documents } = useArchive();
+  // Where the upload panel files what it is given, kept in the URL so a folder's "Upload here"
+  // in the sidebar's tree, on any page, can point it there.
+  const uploadFolderId = params.get(UPLOAD_INTO_PARAM);
+  const setUploadFolderId = (folderId: string | null) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (folderId === null) {
+          next.delete(UPLOAD_INTO_PARAM);
+        } else {
+          next.set(UPLOAD_INTO_PARAM, folderId);
+        }
+        return next;
+      },
+      { replace: true },
+    );
 
   return (
     <PageLayout
       width="full"
       iconSlot={<FileText />}
       title="Documents"
-      description="Everything you have uploaded, in the folders you have filed it in."
-      actionSlot={
-        <Button
-          size="sm"
-          variant="outline"
-          iconSlot={<FolderPlus />}
-          content="New folder"
-          onClick={() => setCreatingFolder(true)}
-        />
-      }
+      description="Upload into a folder, or search everything you have uploaded. The folders are in the sidebar."
+      actionSlot={<NewFolderButton />}
       headerContentSlot={
         <SearchInput
           label="Search documents"
@@ -110,15 +88,15 @@ export function DocumentsRoute() {
           onSettledText={setSearch}
         />
       }
-      contentClassName="gap-6"
+      contentClassName={cn(FULL_WIDTH_BODY, 'gap-6')}
       contentSlot={
         search !== '' ? (
           <DocumentSearchResults query={search} />
         ) : (
           <>
-            {data?.serverConfig && (
+            {page.data?.serverConfig && (
               <UploadPanel
-                config={data.serverConfig}
+                config={page.data.serverConfig}
                 folders={folders}
                 folderId={uploadFolderId}
                 onFolderChange={setUploadFolderId}
@@ -139,15 +117,14 @@ export function DocumentsRoute() {
               }
             />
 
-            {/* Mounted with an empty archive too, so "New folder" in the header has its dialog. */}
-            {data && (
+            {/* From \`md\` up the tree is in the sidebar; below it the sidebar is a bar, so it is here. */}
+            {documents.length + folders.length > 0 && (
               <ArchiveTree
+                className="md:hidden"
                 folders={folders}
                 documents={documents}
                 onChanged={() => result.refetch()}
                 onUploadInto={setUploadFolderId}
-                newFolderRequested={creatingFolder}
-                onNewFolderClosed={() => setCreatingFolder(false)}
               />
             )}
           </>

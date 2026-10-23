@@ -24,6 +24,7 @@ export default defineConfig({
       '/graphql': SERVER_URL,
       '/sso': SERVER_URL,
       '/api/auth': SERVER_URL,
+      '/mcp': SERVER_URL,
     },
   },
 });

@@ -3,16 +3,17 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentStatusEnum } from '@/__generated__/graphql';
-import { FolderInput, FolderPlus } from '@/components/domain/app-icons';
+import { FolderInput, FolderPlus, Unplug } from '@/components/domain/app-icons';
 import { MoveDialog } from '@/components/domain/move-dialog';
 import { NameDialog } from '@/components/domain/name-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { DocumentStatusBadge } from '@/components/domain/status-badge';
 import { FileTree } from '@/components/file-tree';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Ellipsis, FolderPen, Pencil, Trash2, Upload } from '@/components/ui/icons';
+import { Ellipsis, FolderPen, Pencil, Plug, Trash2, Upload } from '@/components/ui/icons';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { messageOf } from '@/lib/error-message';
 import {
@@ -22,10 +23,12 @@ import {
   folderAndDescendants,
   folderNameError,
   folderPaths,
+  mcpSharedBy,
 } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { documentPath } from '@/lib/routes';
 import type { TreeNode } from '@/lib/tree';
+import { cn } from '@/lib/utils';
 
 const CreateFolder = graphql(`
   mutation CreateFolder($name: String!, $parentId: UUID) {
@@ -58,6 +61,15 @@ const MoveFolder = graphql(`
 const DeleteFolder = graphql(`
   mutation DeleteFolder($id: UUID!) {
     deleteFolder(id: $id)
+  }
+`);
+
+const SetFolderMcp = graphql(`
+  mutation SetFolderMcp($id: UUID!, $enabled: Boolean!) {
+    setFolderMcp(id: $id, enabled: $enabled) {
+      id
+      mcpEnabled
+    }
   }
 `);
 
@@ -98,7 +110,7 @@ type Entry = ArchiveEntry<TreeDocument>;
 
 /** The one dialog the tree has open, if any, and what it is about. */
 type OpenDialog =
-  | { kind: 'new-folder'; parentId: string | null }
+  | { kind: 'new-folder'; parentId: string }
   | { kind: 'rename-folder'; folder: FolderRow }
   | { kind: 'rename-document'; document: TreeDocument }
   | { kind: 'move'; entry: Entry }
@@ -112,10 +124,9 @@ interface ArchiveTreeProps {
   onChanged: () => Promise<unknown>;
   /** "Upload here" on a folder's menu: point the upload panel at it, or at the top level for null. */
   onUploadInto: (folderId: string | null) => void;
-  /** Ask the tree to open "New folder" at the top level, from the page header. */
-  newFolderRequested?: boolean | undefined;
-  /** Called when the requested "New folder" dialog closes, so the page can request it again. */
-  onNewFolderClosed?: (() => void) | undefined;
+  /** The document open beside the tree, which the tree marks. */
+  selectedDocumentId?: string | undefined;
+  className?: string | undefined;
 }
 
 /** "3 documents and 1 folder", for what a folder delete takes with it. */
@@ -138,8 +149,8 @@ export function ArchiveTree({
   documents,
   onChanged,
   onUploadInto,
-  newFolderRequested = false,
-  onNewFolderClosed,
+  selectedDocumentId,
+  className,
 }: ArchiveTreeProps) {
   const [dialog, setDialog] = useState<OpenDialog | null>(null);
   const [failure, setFailure] = useState<{ title: string; message: string } | null>(null);
@@ -148,6 +159,7 @@ export function ArchiveTree({
   const [moveFolder] = useMutation(MoveFolder);
   const [deleteFolder] = useMutation(DeleteFolder);
   const [moveDocument] = useMutation(MoveDocument);
+  const [setFolderMcp] = useMutation(SetFolderMcp);
   const [renameDocument] = useMutation(RenameTreeDocument);
   const [deleteDocument] = useMutation(DeleteTreeDocument);
 
@@ -187,6 +199,32 @@ export function ArchiveTree({
     }
   }
 
+  async function shareWithMcp(folder: FolderRow, enabled: boolean) {
+    setFailure(null);
+    try {
+      await setFolderMcp({ variables: { id: folder.id, enabled } });
+      await onChanged();
+    } catch (error) {
+      setFailure({
+        title: `Could not ${enabled ? 'share' : 'stop sharing'} “${folder.name}”`,
+        message: messageOf(error) ?? 'The server refused it',
+      });
+    }
+  }
+
+  /** The menu row that turns MCP access on or off, or says which folder above already shares it. */
+  function mcpItem(folder: FolderRow) {
+    const sharedBy = mcpSharedBy(folders, folder.id);
+    if (sharedBy && sharedBy.id !== folder.id) {
+      return <MenuItem iconSlot={<Plug />} label={`Shared with MCP through “${sharedBy.name}”`} disabled />;
+    }
+    return sharedBy ? (
+      <MenuItem iconSlot={<Unplug />} label="Stop sharing with MCP" onSelect={() => void shareWithMcp(folder, false)} />
+    ) : (
+      <MenuItem iconSlot={<Plug />} label="Share with MCP" onSelect={() => void shareWithMcp(folder, true)} />
+    );
+  }
+
   async function runDelete(title: string, run: () => Promise<unknown>) {
     setFailure(null);
     try {
@@ -223,6 +261,7 @@ export function ArchiveTree({
                 label="Rename"
                 onSelect={() => setDialog({ kind: 'rename-folder', folder: entry.folder })}
               />
+              {mcpItem(entry.folder)}
             </>
           ) : (
             <MenuItem
@@ -251,8 +290,7 @@ export function ArchiveTree({
   }
 
   const close = () => setDialog(null);
-  const newFolderParent = dialog?.kind === 'new-folder' ? dialog.parentId : null;
-  const showNewFolder = dialog?.kind === 'new-folder' || newFolderRequested;
+  const selected = entries.find((entry) => entry.kind === 'document' && entry.document.id === selectedDocumentId);
 
   return (
     <>
@@ -260,11 +298,18 @@ export function ArchiveTree({
 
       <FileTree
         label="Documents and folders"
+        className={className}
         entries={entries}
+        selected={selected?.path}
         linkSlot={(node) =>
           node.entry?.kind === 'document' ? <Link to={documentPath(node.entry.document.id)} /> : <span />
         }
         meta={(node) => {
+          if (node.entry?.kind === 'folder') {
+            // Only where the switch is on: a subfolder it covers says so in its menu, not with a
+            // badge on every row under it.
+            return node.entry.folder.mcpEnabled ? <Badge variant="info-soft">MCP</Badge> : null;
+          }
           if (node.entry?.kind !== 'document') {
             return null;
           }
@@ -273,7 +318,15 @@ export function ArchiveTree({
           return (
             <span className="flex items-center gap-2">
               {doc.status === 'ready' ? null : <DocumentStatusBadge status={doc.status} />}
-              <span className="text-foreground/60 text-xs tabular-nums">{formatBytes(doc.sizeBytes)}</span>
+              <span
+                className={cn(
+                  'text-xs tabular-nums',
+                  // The tree inks the selected row's own text this way, on the `active` fill.
+                  doc.id === selectedDocumentId ? 'text-active-foreground' : 'text-foreground/60',
+                )}
+              >
+                {formatBytes(doc.sizeBytes)}
+              </span>
             </span>
           );
         }}
@@ -281,20 +334,17 @@ export function ArchiveTree({
         onMove={moveByDrag}
       />
 
-      {showNewFolder && (
+      {dialog?.kind === 'new-folder' && (
         <NameDialog
-          title={newFolderParent ? `New folder in ${paths.get(newFolderParent) ?? 'this folder'}` : 'New folder'}
+          title={`New folder in ${paths.get(dialog.parentId) ?? 'this folder'}`}
           label="Name"
           submitLabel="Create"
           validate={folderNameError}
           onSave={async (name) => {
-            await createFolder({ variables: { name, parentId: newFolderParent } });
+            await createFolder({ variables: { name, parentId: dialog.parentId } });
             await onChanged();
           }}
-          onClose={() => {
-            close();
-            onNewFolderClosed?.();
-          }}
+          onClose={close}
         />
       )}
 

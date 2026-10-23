@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { PageLayout } from '@/components/page-layout';
 import { documentPath, ROUTES } from '@/lib/routes';
+import { archiveServer, document, TAXES } from '../../../.storybook/archive.ts';
 import { AppLayout } from './app-layout';
 
 /**
@@ -40,7 +41,16 @@ function Page({ title }: { title: string }) {
 const meta = {
   title: 'Layouts/AppLayout',
   component: AppLayout,
-  parameters: { layout: 'fullscreen' },
+  parameters: {
+    layout: 'fullscreen',
+    // The sidebar holds the archive's tree, so the shell asks for the archive on every page.
+    apolloClient: {
+      resolvers: archiveServer({
+        folders: [TAXES],
+        documents: [document({ title: 'Tax return', folderId: TAXES.id })],
+      }),
+    },
+  },
 } satisfies Meta<typeof AppLayout>;
 
 export default meta;

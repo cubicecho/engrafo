@@ -28,10 +28,12 @@ async function stagedMigrations(): Promise<{ before: string; all: string }> {
   workDir = await mkdtemp(path.join(tmpdir(), 'engrafo-migrations-'));
   const before = path.join(workDir, 'before');
   await cp(MIGRATIONS, before, { recursive: true });
-  for (const entry of await readdir(before)) {
-    if (FOLDERS_MIGRATION.test(entry)) {
-      await rm(path.join(before, entry), { recursive: true });
-    }
+  // Names start with a timestamp, so they sort in the order they run: the folders migration and
+  // everything after it, which may build on the tables it made, are what "before" leaves out.
+  const entries = (await readdir(before)).sort();
+  const first = entries.findIndex((entry) => FOLDERS_MIGRATION.test(entry));
+  for (const entry of entries.slice(first)) {
+    await rm(path.join(before, entry), { recursive: true });
   }
   return { before, all: MIGRATIONS };
 }

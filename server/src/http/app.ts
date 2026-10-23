@@ -5,6 +5,7 @@ import type { RateLimiter } from '../auth/rate-limit.ts';
 import { trustProxy } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
+import { mountMcp } from '../mcp/endpoint.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -55,6 +56,8 @@ export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
   // Before the static handler too: its SPA fallback would answer both paths with the app.
   // Always mounted, because a provider can be paired while the server runs.
   mountSso(app, graphqlDeps.authHost);
+  // Before the static handler as well, for the same reason.
+  mountMcp(app, graphqlDeps);
   if (staticDir !== undefined) {
     const serveStatic = createStaticHandler(staticDir);
     app.use((req, res) => serveStatic(req, res));
