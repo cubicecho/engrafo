@@ -1,3 +1,10 @@
+# [4.9.0](https://github.com/cubicecho/engrafo/compare/v4.8.0...v4.9.0) (2026-10-23)
+
+
+### Features
+
+* read scanned pages with a vision model, set up in the app ([1831d73](https://github.com/cubicecho/engrafo/commit/1831d7340d88f2d958edc52561e1a30aab25595e))
+
 # [4.8.0](https://github.com/cubicecho/engrafo/compare/v4.7.1...v4.8.0) (2026-10-23)
 
 
