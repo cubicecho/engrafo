@@ -6,6 +6,7 @@ import type { Context } from '../core/context.ts';
 import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
 import { requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
+import { notTrashed } from '../trash/trash.ts';
 
 // Which of the caller's documents hold the same bytes as another of theirs. A warning, never a
 // refusal: the same file filed twice is sometimes meant, and the pipeline processes both.
@@ -73,7 +74,7 @@ export async function findDuplicates(
   const asked = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.userId, userId), inArray(documents.id, wanted)));
+    .where(and(eq(documents.userId, userId), inArray(documents.id, wanted), notTrashed()));
 
   const checksums = [...new Set(asked.map((doc) => doc.checksumSha256).filter((sum): sum is string => Boolean(sum)))];
   // Served by idx_documents_user_checksum.
@@ -83,7 +84,7 @@ export async function findDuplicates(
       : await db
           .select()
           .from(documents)
-          .where(and(eq(documents.userId, userId), inArray(documents.checksumSha256, checksums)))
+          .where(and(eq(documents.userId, userId), inArray(documents.checksumSha256, checksums), notTrashed()))
           .orderBy(asc(documents.createdAt), asc(documents.id));
 
   const byChecksum = new Map<string, Document[]>();

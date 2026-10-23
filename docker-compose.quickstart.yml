@@ -122,6 +122,8 @@ services:
       # How a date like 03/04/2025 is read from a document: DMY (day first) or,
       # for a US archive, MDY.
       DATE_ORDER: DMY
+      # A deleted document waits in the Trash, restorable, for this many days.
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
       # The watched folder. On once WATCH_OWNER is set, at /consume inside the
       # container; the volume below says what that is on this machine.
       WATCH_DIR: ${WATCH_OWNER:+/consume}

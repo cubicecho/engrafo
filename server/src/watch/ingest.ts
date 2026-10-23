@@ -22,6 +22,7 @@ import {
   sniffMimeType,
 } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { notTrashed } from '../trash/trash.ts';
 import type { WatchedFile } from './files.ts';
 
 // One file from the watched directory into the archive, through the same two
@@ -188,7 +189,8 @@ export async function ingestFile(
   const known = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.userId, userId), eq(documents.checksumSha256, sha256)))
+    // A copy in the trash does not count: dropping the file in again is asking for it back.
+    .where(and(eq(documents.userId, userId), eq(documents.checksumSha256, sha256), notTrashed()))
     .orderBy(asc(documents.createdAt));
   const filed = known.find((doc) => doc.status !== DocumentStatus.PendingUpload);
   if (filed) {

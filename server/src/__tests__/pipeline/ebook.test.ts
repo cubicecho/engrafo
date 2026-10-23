@@ -55,6 +55,7 @@ function doc(values: Partial<Document> = {}): Document {
     visionRequested: false,
     status: 'processing',
     error: null,
+    deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...values,

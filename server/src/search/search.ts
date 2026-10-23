@@ -2,6 +2,7 @@ import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, DocumentStatus, documentChunks, documents } from '@cubicecho/engrafo-db/schema';
 import { and, cosineDistance, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { SEARCH_DEFAULTS } from '../core/defaults.ts';
+import { notTrashed } from '../trash/trash.ts';
 import type { Embedder } from './embedder.ts';
 import { filterConditions, matchesNothing, type SearchFilter } from './filters.ts';
 
@@ -62,15 +63,15 @@ export async function searchDocuments(
     return [];
   }
   const narrowed = and(folderIds ? inArray(documents.folderId, [...folderIds]) : undefined, filterConditions(filter));
-  const ownDocument = narrowed ? and(eq(documents.userId, userId), narrowed) : eq(documents.userId, userId);
-  // Passages carry their user and nothing else of their document's, so any narrowing is a
-  // subquery on documents, inside each read rather than over the fused list.
-  const ownChunk = narrowed
-    ? and(
-        eq(documentChunks.userId, userId),
-        inArray(documentChunks.documentId, db.select({ id: documents.id }).from(documents).where(ownDocument)),
-      )
-    : eq(documentChunks.userId, userId);
+  // A trashed document keeps its passages, so a restore is searchable at once; every read here
+  // leaves them out instead.
+  const ownDocument = and(eq(documents.userId, userId), notTrashed(), narrowed);
+  // Passages carry their user and nothing else of their document's, so the trash and any narrowing
+  // are a subquery on documents, inside each read rather than over the fused list.
+  const ownChunk = and(
+    eq(documentChunks.userId, userId),
+    inArray(documentChunks.documentId, db.select({ id: documents.id }).from(documents).where(ownDocument)),
+  );
   const pool = SEARCH_DEFAULTS.candidatePoolSize;
   const [queryVector = []] = await embedder.embed([query]);
   const tsQuery = toTsQuery(query);
@@ -152,7 +153,7 @@ export async function searchDocuments(
 
   return ranked.flatMap(([id, { score, best }]) => {
     const document = byId.get(id);
-    // Deleted between the two reads.
+    // Deleted or trashed between the two reads.
     if (document === undefined) {
       return [];
     }

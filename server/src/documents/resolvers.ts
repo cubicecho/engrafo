@@ -15,7 +15,7 @@ import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { assertNameFree, lockNames, ownedParent, type Tx } from '../folders/names.ts';
 import { ACCEPTED_MIME_TYPES } from '../pipeline/mime.ts';
-import type { StorageSet } from '../storage/s3.ts';
+import { deleteStoredFiles, notTrashed, trashDocument } from '../trash/trash.ts';
 import {
   completePendingDocument,
   createUploadSchema,
@@ -98,7 +98,10 @@ const DOCUMENTS_SDL = parse(`
     renameDocument(id: UUID!, title: String!): Document!
     "Files the document in another folder, or at the top level when \`folderId\` is null."
     moveDocument(id: UUID!, folderId: UUID): Document!
-    "Deletes the document and its stored files."
+    """
+    Puts the document in the trash, where it can be restored until it is purged. A document whose
+    upload never finished is deleted at once, with its file.
+    """
     deleteDocument(id: UUID!): Boolean!
   }
 `);
@@ -117,26 +120,10 @@ function documentNotFound(): GraphQLError {
 }
 
 /**
- * Deletes every object the documents have, in both buckets.
- *
- * @param storage - The buckets.
- * @param docs - The documents whose files go. Their rows are the caller's to delete, afterwards.
- *
- * @remarks
- * Objects before rows: a row without its file is visible and fixable by deleting again, while a
- * file without its row is invisible storage nobody pays attention to.
- */
-export async function deleteStoredFiles(storage: StorageSet, docs: readonly Document[]): Promise<void> {
-  await storage.files.delete(
-    docs.flatMap((doc) => [doc.originalKey, doc.archiveKey]).filter((key): key is string => Boolean(key)),
-  );
-  await storage.text.delete(docs.map((doc) => doc.contentKey).filter((key): key is string => Boolean(key)));
-}
-
-/**
- * A document the caller owns, or NOT_FOUND. Hand-written resolvers sit outside
+ * A filed document the caller owns, or NOT_FOUND. Hand-written resolvers sit outside
  * the generated ones, so they do not inherit `scope` and have to state ownership
- * themselves.
+ * themselves. A document in the trash is not found either: it is only restored or purged,
+ * and trash/resolvers.ts reads it itself.
  */
 export async function loadOwned(context: Context, id: string, db: Context['db'] | Tx = context.db): Promise<Document> {
   const userId = requireAuth(context);
@@ -146,7 +133,7 @@ export async function loadOwned(context: Context, id: string, db: Context['db'] 
   const [doc] = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.id, id), eq(documents.userId, userId)));
+    .where(and(eq(documents.id, id), eq(documents.userId, userId), notTrashed()));
   if (!doc) {
     throw documentNotFound();
   }
@@ -366,8 +353,13 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
 
   mutations.deleteDocument.resolve = async (_parent: unknown, args: { id: string }, context: Context) => {
     const doc = await loadOwned(context, args.id);
-    await deleteStoredFiles(context.storage, [doc]);
-    await context.db.delete(documents).where(eq(documents.id, doc.id));
+    if (doc.status === DocumentStatus.PendingUpload) {
+      // Not a document yet, so nothing to restore: its bytes may or may not have landed.
+      await deleteStoredFiles(context.storage, [doc]);
+      await context.db.delete(documents).where(eq(documents.id, doc.id));
+      return true;
+    }
+    await trashDocument(context.db, doc);
     return true;
   };
 

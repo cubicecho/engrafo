@@ -1,10 +1,10 @@
-import { documents, folders } from '@cubicecho/engrafo-db/schema';
+import { DocumentStatus, documents, folders } from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLSchema, parse } from 'graphql';
 import type { Context } from '../core/context.ts';
 import { badInput, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
-import { deleteStoredFiles } from '../documents/resolvers.ts';
+import { deleteStoredFiles, notTrashed, trashFolderContents } from '../trash/trash.ts';
 import {
   assertNameFree,
   folderAndDescendants,
@@ -30,7 +30,10 @@ const FOLDERS_SDL = parse(`
     Refused into itself or anything under it, and when something there already has its name.
     """
     moveFolder(id: UUID!, parentId: UUID): Folder!
-    "Deletes the folder, every folder under it and every document in them, with their stored files."
+    """
+    Deletes the folder and every folder under it, and puts every document in them in the trash.
+    Restored, a document from here is filed at the top level.
+    """
     deleteFolder(id: UUID!): Boolean!
     """
     Turns MCP access to a folder on or off. On, an MCP client with one of the caller's API keys
@@ -116,19 +119,29 @@ export function applyFoldersExtension(schema: GraphQLSchema): GraphQLSchema {
       await lockNames(tx, userId);
       const folder = await loadOwnedFolder(tx, userId, args.id);
       const ids = await folderAndDescendants(tx, userId, folder.id);
-      const filed = await tx
+      // An upload that never finished is not a document yet: it goes now, with whatever bytes landed.
+      const pending = await tx
         .select()
         .from(documents)
-        .where(and(eq(documents.userId, userId), inArray(documents.folderId, ids)));
-      await deleteStoredFiles(context.storage, filed);
-      if (filed.length > 0) {
+        .where(
+          and(
+            eq(documents.userId, userId),
+            inArray(documents.folderId, ids),
+            eq(documents.status, DocumentStatus.PendingUpload),
+            notTrashed(),
+          ),
+        );
+      await deleteStoredFiles(context.storage, pending);
+      if (pending.length > 0) {
         await tx.delete(documents).where(
           inArray(
             documents.id,
-            filed.map((doc) => doc.id),
+            pending.map((doc) => doc.id),
           ),
         );
       }
+      // Everything else goes to the trash, out of the folders, so the folder rows can go.
+      await trashFolderContents(tx, userId, ids);
       // Its subfolders go with it, by the parent's ON DELETE CASCADE.
       await tx.delete(folders).where(eq(folders.id, folder.id));
     });

@@ -273,9 +273,9 @@ export const DeleteRefused: Story = {
   play: async ({ canvas, canvasElement }) => {
     await userEvent.click(await canvas.findByRole('button', { name: 'Delete' }));
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
-      name: 'Delete this document?',
+      name: 'Move this document to the trash?',
     });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move to trash' }));
     await expect(await canvas.findByText('Could not delete this document')).toBeInTheDocument();
     // Found, not got: the page is hidden from the tree until the dialog has finished closing.
     await expect(await canvas.findByRole('heading', { level: 1 })).toBeInTheDocument();
@@ -559,9 +559,9 @@ export const Duplicate: Story = {
 
     await userEvent.click(within(alert).getByRole('button', { name: 'Delete this copy' }));
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
-      name: 'Delete this copy?',
+      name: 'Move this copy to the trash?',
     });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move to trash' }));
     await waitFor(() => expect(deleted).toEqual([ID]));
   },
 };

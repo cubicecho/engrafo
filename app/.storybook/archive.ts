@@ -49,6 +49,8 @@ export function archiveServer(start: { folders: Folder[]; documents: Document[] 
       serverConfig: () => SERVER_CONFIG,
       folders: () => folders,
       documents: () => documents,
+      // The shell asks for the trash's count on every page.
+      trash: () => ({ count: 0, retentionDays: 30, documents: [] }),
     },
     Mutation: {
       createFolder: (_parent: unknown, args: { name: string; parentId?: string | null }) => {

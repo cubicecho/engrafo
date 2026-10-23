@@ -14,6 +14,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { notTrashed } from '../trash/trash.ts';
 import { loadVisionConfig, type VisionConfig } from '../vision/settings.ts';
 import type { PipelineEvents } from './events.ts';
 import type { PipelineConfig, PipelineStep, RunConfig } from './types.ts';
@@ -132,8 +133,14 @@ export function createPipeline({
 
   async function execute(documentId: string): Promise<void> {
     const [found] = await db.select().from(documents).where(eq(documents.id, documentId));
-    // Deleted while queued, or still waiting on its upload: nothing to do.
-    if (!found || found.status === DocumentStatus.PendingUpload || found.status === DocumentStatus.Ready) {
+    // Deleted or trashed while queued, or still waiting on its upload: nothing to do. A restore
+    // emits a trashed document again if it had not finished.
+    if (
+      !found ||
+      found.deletedAt !== null ||
+      found.status === DocumentStatus.PendingUpload ||
+      found.status === DocumentStatus.Ready
+    ) {
       return;
     }
     let doc: Document = found;
@@ -243,7 +250,7 @@ export function createPipeline({
       const unfinished = await db
         .select({ id: documents.id })
         .from(documents)
-        .where(inArray(documents.status, [DocumentStatus.Uploaded, DocumentStatus.Processing]));
+        .where(and(inArray(documents.status, [DocumentStatus.Uploaded, DocumentStatus.Processing]), notTrashed()));
       for (const { id } of unfinished) {
         events.emit('document.uploaded', { documentId: id });
       }
@@ -264,6 +271,7 @@ export function createPipeline({
         .where(
           and(
             eq(documents.status, DocumentStatus.Ready),
+            notTrashed(),
             sql`(select count(*) from ${processingSteps}
                  where ${processingSteps.documentId} = ${documents.id}
                    and ${inArray(processingSteps.step, names)}) < ${names.length}`,
