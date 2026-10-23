@@ -25,6 +25,8 @@ export default defineConfig({
       '/sso': SERVER_URL,
       '/api/auth': SERVER_URL,
       '/mcp': SERVER_URL,
+      // An export link is followed by the browser itself, so it has to reach the server too.
+      '/export': SERVER_URL,
     },
   },
 });
