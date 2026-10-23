@@ -1,3 +1,10 @@
+# [4.7.0](https://github.com/cubicecho/engrafo/compare/v4.6.0...v4.7.0) (2026-10-23)
+
+
+### Features
+
+* file whatever lands in a watched folder ([0cacdc3](https://github.com/cubicecho/engrafo/commit/0cacdc3e59faca38666e4e1d808b790fbe05535a))
+
 # [4.6.0](https://github.com/cubicecho/engrafo/compare/v4.5.0...v4.6.0) (2026-10-23)
 
 
