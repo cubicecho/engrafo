@@ -307,6 +307,10 @@ export interface SearchSettings {
   snippetChars: number;
   /** How much of a snippet comes before the first word that matched, as a fraction of it. */
   snippetLeadFraction: number;
+  /** How many documents a filtered list with no search returns at a time when not told. */
+  browsePageSize: number;
+  /** The most a filtered list may ask for at a time. */
+  browseMaxPageSize: number;
 }
 
 /** The shipped values of `SearchSettings`. */
@@ -321,6 +325,8 @@ export const SEARCH_DEFAULTS: Readonly<SearchSettings> = Object.freeze({
   queryMaxChars: 500,
   snippetChars: 240,
   snippetLeadFraction: 0.3,
+  browsePageSize: 50,
+  browseMaxPageSize: 200,
 });
 
 /** The watched folder: a directory, such as a scanner's share, that files whatever lands in it. */

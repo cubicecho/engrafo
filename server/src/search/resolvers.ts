@@ -6,6 +6,7 @@ import { requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { folderAndDescendants } from '../folders/names.ts';
 import { calendarDaySchema } from '../metadata/schemas.ts';
+import { browseDocuments } from './browse.ts';
 import { DocumentKind, type SearchFilter } from './filters.ts';
 import { searchDocuments } from './search.ts';
 
@@ -24,7 +25,7 @@ const SEARCH_SDL = parse(`
     PDF
     "PNG, JPEG, TIFF: a scan or a photo."
     IMAGE
-    "Plain text and Markdown."
+    "Plain text, Markdown, CSV and HTML."
     TEXT
     EBOOK
   }
@@ -44,9 +45,18 @@ const SEARCH_SDL = parse(`
     hasReceipt: Boolean
   }
 
+  "One page of the caller's documents that match a filter."
+  type DocumentBrowsePage {
+    documents: [Document!]!
+    "Whether another page follows this one."
+    hasMore: Boolean!
+  }
+
   extend type Query {
     "Searches the caller's documents by meaning and by exact words, best match first."
     searchDocuments(query: String!, first: Int, filter: DocumentSearchFilter): [DocumentSearchHit!]!
+    "Lists the caller's documents that match a filter, with no search: newest by the date on the document first, then the undated ones, each by upload time. Paged by \`first\` and \`offset\`."
+    browseDocuments(filter: DocumentSearchFilter, first: Int, offset: Int): DocumentBrowsePage!
   }
 `);
 
@@ -79,6 +89,17 @@ const argsSchema = z.object({
   filter: filterSchema.nullish(),
 });
 
+const browseArgsSchema = z.object({
+  filter: filterSchema.nullish(),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(SEARCH_DEFAULTS.browseMaxPageSize, `Ask for at most ${SEARCH_DEFAULTS.browseMaxPageSize} at a time.`)
+    .nullish(),
+  offset: z.number().int().min(0).nullish(),
+});
+
 /**
  * The filter as the search reads it, with a folder turned into the folders it stands for.
  *
@@ -109,7 +130,7 @@ async function resolveFilter(
 }
 
 /**
- * Adds `searchDocuments` to the schema.
+ * Adds `searchDocuments` and `browseDocuments` to the schema.
  *
  * @param schema - The schema, which must already have the generated `Document` type.
  * @returns The extended schema.
@@ -123,6 +144,15 @@ export function applySearchExtension(schema: GraphQLSchema): GraphQLSchema {
     const { query, first, filter } = parseOrThrow(argsSchema, args);
     return searchDocuments(context, userId, query, first ?? SEARCH_DEFAULTS.defaultResults, {
       filter: await resolveFilter(context, userId, filter),
+    });
+  };
+
+  queries.browseDocuments.resolve = async (_parent: unknown, args: unknown, context: Context) => {
+    const userId = requireAuth(context);
+    const { filter, first, offset } = parseOrThrow(browseArgsSchema, args);
+    return browseDocuments(context, userId, await resolveFilter(context, userId, filter), {
+      first: first ?? SEARCH_DEFAULTS.browsePageSize,
+      offset: offset ?? 0,
     });
   };
 
