@@ -1,3 +1,10 @@
+# [4.8.0](https://github.com/cubicecho/engrafo/compare/v4.7.1...v4.8.0) (2026-10-23)
+
+
+### Features
+
+* list documents by filter alone, without a search ([270dbe5](https://github.com/cubicecho/engrafo/commit/270dbe55ac8ad7ae7140873ec860e0630620d6de)), closes [#43](https://github.com/cubicecho/engrafo/issues/43)
+
 ## [4.7.1](https://github.com/cubicecho/engrafo/compare/v4.7.0...v4.7.1) (2026-10-23)
 
 
