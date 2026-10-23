@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/cubicecho/engrafo/compare/v4.0.0...v4.1.0) (2026-10-23)
+
+
+### Features
+
+* **app:** move to the current cubeui registry and tidy the pages on it ([27df689](https://github.com/cubicecho/engrafo/commit/27df689ad68def014f9acfbeaeca474f7dfacafe))
+
 # [4.0.0](https://github.com/cubicecho/engrafo/compare/v3.3.0...v4.0.0) (2026-10-20)
 
 
