@@ -91,4 +91,14 @@ describe('preflight', () => {
     expect(status).toBe(1);
     expect(stderr).toContain('OIDC_CLIENT_AUTH must be one of');
   });
+
+  it('passes a known date order, in any case', () => {
+    expect(runPreflight({ DATE_ORDER: 'mdy' })).toEqual({ status: 0, stderr: '' });
+  });
+
+  it('refuses a date order it does not know', () => {
+    const { status, stderr } = runPreflight({ DATE_ORDER: 'DDMMYYYY' });
+    expect(status).toBe(1);
+    expect(stderr).toContain('DATE_ORDER must be one of DMY, MDY, YMD');
+  });
 });

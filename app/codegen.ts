@@ -28,6 +28,10 @@ const config: CodegenConfig = {
         scalars: {
           // Timestamps cross the wire as ISO strings; nothing here needs a Date.
           DateTime: 'string',
+          // A calendar day, `YYYY-MM-DD`: lib/calendar-day.ts turns it into a picker's Date.
+          Date: 'string',
+          // An exact decimal, sent as a numeric string so no amount is rounded by a float.
+          Decimal: 'string',
           UUID: 'string',
         },
       },

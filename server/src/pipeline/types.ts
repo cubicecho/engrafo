@@ -1,4 +1,5 @@
 import type { DB, Document } from '@cubicecho/engrafo-db';
+import type { DateOrder } from '../core/defaults.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 
@@ -12,6 +13,8 @@ export interface PipelineConfig {
   ocrLanguages: string;
   /** How many documents run at once. */
   concurrency: number;
+  /** How the metadata step reads an ambiguous numeric date. */
+  dateOrder: DateOrder;
 }
 
 /** What a step's `run` is given. */
@@ -29,7 +32,20 @@ export interface StepContext {
 
 /** The columns a step may write back onto its document. */
 export type DocumentPatch = Partial<
-  Pick<Document, 'checksumSha256' | 'mimeType' | 'archiveKey' | 'contentKey' | 'contentBytes'>
+  Pick<
+    Document,
+    | 'checksumSha256'
+    | 'mimeType'
+    | 'archiveKey'
+    | 'contentKey'
+    | 'contentBytes'
+    | 'documentDate'
+    | 'documentDateSource'
+    | 'vendor'
+    | 'total'
+    | 'currency'
+    | 'receiptSource'
+  >
 >;
 
 /**

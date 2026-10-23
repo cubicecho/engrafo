@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
+import { type DocumentDetailQuery, DocumentStatusEnum, FieldSourceEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
@@ -53,6 +53,12 @@ function document(overrides: Partial<Document>): Document {
     status: DocumentStatusEnum.Ready,
     error: null,
     createdAt: '2026-09-02T11:04:00.000Z',
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     processingSteps: [step({ step: 'store' }), step({ step: 'extract-text' })],
     ...overrides,
   };
@@ -244,6 +250,84 @@ export const Renaming: Story = {
   },
 };
 
+/**
+ * The date read from the text is shown with where it came from, and clearing it in its dialog
+ * makes it the user's: the card says so once the mutation answers.
+ */
+export const ClearingTheDate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ documentDate: '2025-03-12', documentDateSource: FieldSourceEnum.Extracted }),
+        },
+        Mutation: {
+          setDocumentDate: (_parent: unknown, args: { date?: string | null }) =>
+            document({ documentDate: args.date ?? null, documentDateSource: FieldSourceEnum.User }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText('Read from the text')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit the document date' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Document date' }));
+    await userEvent.click(dialog.getByRole('button', { name: /Date/ }));
+    await userEvent.click(await page.findByRole('button', { name: 'Clear' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Set by you')).toBeInTheDocument();
+  },
+};
+
+/**
+ * A receipt read from the text is edited in its dialog, and the card shows what the server kept,
+ * now marked as the user's.
+ */
+export const EditingTheReceipt: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () =>
+            document({
+              vendor: 'REWE',
+              total: '9.99',
+              currency: 'EUR',
+              receiptSource: FieldSourceEnum.Extracted,
+            }),
+        },
+        Mutation: {
+          setDocumentReceipt: (
+            _parent: unknown,
+            args: { input: { vendor?: string | null; total?: string | null; currency?: string | null } },
+          ) =>
+            document({
+              vendor: args.input.vendor ?? null,
+              total: args.input.total ?? null,
+              currency: args.input.currency ?? null,
+              receiptSource: FieldSourceEnum.User,
+            }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText(/Read from the text\. Check it/)).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit receipt details' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Receipt details' }));
+    const vendor = dialog.getByRole('textbox', { name: /Vendor/ });
+    await userEvent.clear(vendor);
+    await userEvent.type(vendor, 'REWE Markt');
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Set by you.')).toBeInTheDocument();
+    await expect(canvas.getByText('REWE Markt')).toBeInTheDocument();
+  },
+};
+
 const HOME = { id: '6b3a1c2d-4e5f-4a6b-8c7d-9e0f1a2b3c4d', name: 'Home', parentId: null };
 
 /**
@@ -379,5 +463,78 @@ export const Unreachable: Story = {
     await expect(alert).toHaveTextContent('Connection terminated unexpectedly');
     await expect(within(alert).getByRole('button', { name: /try again/i })).toBeInTheDocument();
     await expect(canvas.queryByText('No such document')).not.toBeInTheDocument();
+  },
+};
+
+const EARLIER_ID = '5c4b3a29-1807-4f6e-8d5c-4b3a29180716';
+const TAXES = { id: '7d1e0c55-8a2b-4f3c-9d4e-5f6a7b8c9d0e', name: 'Taxes', parentId: null, mcpEnabled: false };
+const deleted: string[] = [];
+
+/**
+ * The reader already has this file. The page says where the other copy is, by its path in the
+ * archive, and offers to delete this one through the same delete the header has.
+ */
+export const Duplicate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          documentDuplicates: () => [
+            {
+              document: document({}),
+              checked: true,
+              duplicates: [{ id: EARLIER_ID, title: 'Lease agreement', folderId: TAXES.id }],
+            },
+          ],
+          folders: () => [TAXES],
+          documents: () => [],
+        },
+        Mutation: {
+          deleteDocument: (_parent: unknown, args: { id: string }) => {
+            deleted.push(args.id);
+            return true;
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    deleted.length = 0;
+    const title = await canvas.findByText('You already have this file');
+    const alert = title.closest<HTMLElement>('[data-slot="alert"]');
+    if (alert === null) {
+      throw new Error('The duplicate warning is not an alert');
+    }
+    await expect(alert).toHaveAttribute('role', 'status');
+    const other = await within(alert).findByRole('link', { name: 'Taxes/Lease agreement' });
+    await expect(other).toHaveAttribute('href', documentPath(EARLIER_ID));
+
+    await userEvent.click(within(alert).getByRole('button', { name: 'Delete this copy' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
+      name: 'Delete this copy?',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleted).toEqual([ID]));
+  },
+};
+
+/** The only copy of a file draws no warning. */
+export const NotADuplicate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          documentDuplicates: () => [{ document: document({}), checked: true, duplicates: [] }],
+          folders: () => [],
+          documents: () => [],
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
+    await expect(canvas.queryByText('You already have this file')).not.toBeInTheDocument();
   },
 };

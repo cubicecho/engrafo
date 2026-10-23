@@ -8,7 +8,13 @@ import { pdfTextStep } from '../../pipeline/steps/pdf-text.ts';
 import type { PipelineConfig } from '../../pipeline/types.ts';
 import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: true,
+  pdfTextAvailable: true,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 
 function doc(values: Partial<Document> = {}): Document {
   return {
@@ -24,6 +30,12 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     ocrRequested: false,
     status: 'processing',
     error: null,

@@ -1,7 +1,13 @@
 import type { MockLink } from '@apollo/client/testing';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import { CompleteDocumentUploadDocument, CreateDocumentUploadDocument } from '@/__generated__/graphql';
+import {
+  CompleteDocumentUploadDocument,
+  CreateDocumentUploadDocument,
+  DocumentStatusEnum,
+  UploadDuplicatesDocument,
+} from '@/__generated__/graphql';
+import { documentPath } from '@/lib/routes';
 import { MOCK_BUCKET_DENIED, MOCK_BUCKET_OK } from '../../../.storybook/mock-bucket.ts';
 import { UploadPanel } from './upload-panel';
 
@@ -87,6 +93,21 @@ function uploadMocks(uploadUrl: string, folderId: string | null = null): MockLin
       request: { query: CompleteDocumentUploadDocument, variables: { id: DOCUMENT_ID } },
       result: { data: { completeDocumentUpload: { id: DOCUMENT_ID, status: 'uploaded' } } },
     },
+    // Once it is done the panel asks whether it was a duplicate; this one is not.
+    {
+      request: { query: UploadDuplicatesDocument, variables: { ids: [DOCUMENT_ID] } },
+      result: {
+        data: {
+          documentDuplicates: [
+            {
+              document: { id: DOCUMENT_ID, status: DocumentStatusEnum.Ready },
+              checked: true,
+              duplicates: [],
+            },
+          ],
+        },
+      },
+    },
   ];
 }
 
@@ -153,6 +174,7 @@ export const UploadsAFile: Story = {
     await userEvent.upload(input, file('scan.pdf', SCAN_BYTES));
 
     await waitFor(() => expect(canvas.getByRole('listitem')).toHaveTextContent('Uploaded'));
+    await expect(canvas.queryByText(/Already in your archive/)).not.toBeInTheDocument();
     // Twice: once when the row exists so the list can show it as pending, once when it is done.
     // The list has no subscription, so a missed call is a row that never appears.
     await expect(args.onChanged).toHaveBeenCalledTimes(2);
@@ -201,5 +223,62 @@ export const StorageRefusesTheUpload: Story = {
     await waitFor(() =>
       expect(canvas.getByRole('listitem')).toHaveTextContent(/Storage rejected the upload \(HTTP 403\)/i),
     );
+  },
+};
+
+const EARLIER_ID = '5c4b3a29-1807-4f6e-8d5c-4b3a29180716';
+// The pipeline's first step has to run before the server knows the checksum, so the panel's
+// first look finds nothing to say and it has to look again.
+let duplicateLooks = 0;
+
+/**
+ * The file is one the reader already has. The upload still stands, since that is sometimes
+ * meant, and the row says where the other copy is once the server has read the checksum: the
+ * first answer is "not checked yet", so this also proves the panel asks again.
+ */
+export const WarnsAboutADuplicate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Mutation: {
+          createDocumentUpload: () => ({
+            document: { id: DOCUMENT_ID },
+            uploadUrl: MOCK_BUCKET_OK,
+            uploadHeaders: [{ name: 'Content-Type', value: 'application/pdf' }],
+          }),
+          completeDocumentUpload: () => ({ id: DOCUMENT_ID, status: DocumentStatusEnum.Uploaded }),
+        },
+        Query: {
+          documentDuplicates: () => {
+            duplicateLooks += 1;
+            const checked = duplicateLooks > 1;
+            return [
+              {
+                document: {
+                  id: DOCUMENT_ID,
+                  status: checked ? DocumentStatusEnum.Processing : DocumentStatusEnum.Uploaded,
+                },
+                checked,
+                duplicates: checked ? [{ id: EARLIER_ID, title: 'scan', folderId: YEAR_ID }] : [],
+              },
+            ];
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    duplicateLooks = 0;
+    const canvas = within(canvasElement);
+    await userEvent.upload(fileInput(canvasElement), file('scan.pdf', SCAN_BYTES));
+    await waitFor(() => expect(canvas.getByRole('listitem')).toHaveTextContent('Uploaded'));
+
+    const other = await canvas.findByRole('link', { name: 'Taxes/2026/scan' }, { timeout: 10_000 });
+    await expect(other).toHaveAttribute('href', documentPath(EARLIER_ID));
+    await expect(canvas.getByRole('link', { name: 'Open this copy' })).toHaveAttribute(
+      'href',
+      documentPath(DOCUMENT_ID),
+    );
+    await expect(duplicateLooks).toBeGreaterThan(1);
   },
 };

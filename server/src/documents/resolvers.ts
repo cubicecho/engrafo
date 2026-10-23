@@ -171,7 +171,7 @@ export async function deleteStoredFiles(storage: StorageSet, docs: readonly Docu
  * the generated ones, so they do not inherit `scope` and have to state ownership
  * themselves.
  */
-async function loadOwned(context: Context, id: string, db: Context['db'] | Tx = context.db): Promise<Document> {
+export async function loadOwned(context: Context, id: string, db: Context['db'] | Tx = context.db): Promise<Document> {
   const userId = requireAuth(context);
   if (!z.uuid().safeParse(id).success) {
     throw documentNotFound();

@@ -1,5 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  check,
+  date,
+  index,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { folders } from './folders.ts';
 import { TOP_LEVEL } from './top-level.ts';
@@ -18,6 +31,13 @@ export const documentStatus = pgEnum('document_status', [
   'ready',
   'failed',
 ]);
+
+/**
+ * Who filled in a field read from a document's content. `extracted` is the pipeline's guess and
+ * is replaced whenever the document is processed again; `user` is an edit, which no run touches.
+ * Null while the field has never been filled in either way.
+ */
+export const fieldSource = pgEnum('field_source', ['extracted', 'user']);
 
 /**
  * One row per uploaded file: its metadata and the keys of its objects. The bytes and the
@@ -50,6 +70,20 @@ export const documents = pgTable(
     // and the size so a list stays cheap.
     contentKey: text('content_key'),
     contentBytes: bigint('content_bytes', { mode: 'number' }),
+    // The date on the document (a receipt's, a letter's), not when it was uploaded: a calendar
+    // day with no time and no zone, which is what is printed on paper.
+    documentDate: date('document_date', { mode: 'string' }),
+    documentDateSource: fieldSource('document_date_source'),
+    // A receipt's fields. The date is `documentDate`, not a column of its own.
+    vendor: text('vendor'),
+    // Exact decimal, as written: `numeric` with no fixed scale, so 12.50 EUR, 1200 JPY and
+    // 1.250 BHD all keep their digits. Not minor units, which need the currency to mean
+    // anything, and a receipt often names an amount and no currency. Never a float.
+    total: numeric('total'),
+    // ISO 4217, upper case.
+    currency: text('currency'),
+    // One source for all three: an edit to any of them is the user taking the receipt over.
+    receiptSource: fieldSource('receipt_source'),
     ocrRequested: boolean('ocr_requested').notNull().default(true),
     status: documentStatus('status').notNull().default('pending_upload'),
     error: text('error'),
@@ -65,6 +99,9 @@ export const documents = pgTable(
     index('idx_documents_user_checksum').on(t.userId, t.checksumSha256),
     index('idx_documents_status').on(t.status),
     index('idx_documents_folder_id').on(t.folderId),
+    index('idx_documents_user_document_date').on(t.userId, t.documentDate),
+    check('ck_documents_currency', sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    check('ck_documents_total', sql`${t.total} >= 0`),
     uniqueIndex('uq_documents_user_folder_title').on(
       t.userId,
       sql`coalesce(${t.folderId}, ${TOP_LEVEL})`,
@@ -77,6 +114,13 @@ export const documents = pgTable(
 export type Document = typeof documents.$inferSelect;
 /** A document row as inserted. */
 export type NewDocument = typeof documents.$inferInsert;
+/** One value of the `fieldSource` enum. */
+export type FieldSource = (typeof fieldSource.enumValues)[number];
+/** The sources by name. */
+export const FieldSource = {
+  Extracted: 'extracted',
+  User: 'user',
+} as const satisfies Record<string, FieldSource>;
 /** One value of the `documentStatus` enum. */
 export type DocumentStatus = (typeof documentStatus.enumValues)[number];
 /** The statuses by name, for code that sets or compares one. */
