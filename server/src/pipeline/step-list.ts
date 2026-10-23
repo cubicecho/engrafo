@@ -1,6 +1,7 @@
 import { ebookStep } from './steps/ebook.ts';
 import { indexStep } from './steps/index.ts';
 import { inspectStep } from './steps/inspect.ts';
+import { metadataStep } from './steps/metadata.ts';
 import { ocrStep } from './steps/ocr.ts';
 import { pdfTextStep } from './steps/pdf-text.ts';
 import { textStep } from './steps/text.ts';
@@ -18,4 +19,8 @@ import type { PipelineStep } from './types.ts';
 // ebook breaks that rule because it has to: it produces text, so it goes before
 // index. A document mid-pipeline when it lands gets its row at index's position,
 // which only ties the two in the timeline, and no document there is an ebook.
-export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, ebookStep, indexStep];
+// metadata breaks it the same way: it reads the text every step before it may have produced, so
+// it goes after them and before index. A document mid-pipeline when it lands, or a finished one
+// caught up at boot, gets its row at index's position too, and runs it before index regardless:
+// the runner goes by this list, and positions only order the timeline.
+export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, ebookStep, metadataStep, indexStep];

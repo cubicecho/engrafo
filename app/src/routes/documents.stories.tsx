@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { ROUTES } from '@/lib/routes';
 import { archiveServer, document, EMPTY_FOLDER, SERVER_CONFIG, TAXES, YEAR } from '../../.storybook/archive.ts';
 import { DocumentsRoute } from './documents';
@@ -98,6 +98,42 @@ export const RefusesATakenFolderName: Story = {
   },
 };
 
+const exported: Array<Record<string, unknown>> = [];
+
+/**
+ * "Export receipts" in the header asks the server for the CSV with what the dialog was given,
+ * and closes once the file is saved.
+ */
+export const ExportingReceipts: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        ...archiveServer({ folders: [TAXES, YEAR], documents: [] }),
+        Query: {
+          ...archiveServer({ folders: [TAXES, YEAR], documents: [] }).Query,
+          receiptsCsv: (_parent: unknown, args: Record<string, unknown>) => {
+            exported.push(args);
+            return 'date,vendor,total,currency,title,folder\r\n';
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    exported.length = 0;
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Export receipts' }));
+    const dialog = await page.findByRole('dialog', { name: 'Export receipts' });
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Folder' }));
+    await userEvent.click(await page.findByRole('option', { name: 'Taxes' }));
+    // The select's popover hides the rest of the page until it has closed.
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Download CSV' }));
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await expect(exported).toEqual([expect.objectContaining({ folderId: TAXES.id })]);
+  },
+};
+
 /** The other empty-looking state, so the two can be compared side by side in the sidebar. */
 export const Unreachable: Story = {
   parameters: {
@@ -128,6 +164,7 @@ const SEARCH_HITS = [
       ...document({ title: 'Lease agreement' }),
       originalFilename: 'lease.pdf',
       createdAt: '2026-09-02T11:04:00.000Z',
+      documentDate: '2024-05-01',
     },
   },
   {
@@ -166,8 +203,58 @@ export const Searching: Story = {
     await expect(rows).toHaveLength(2);
     await expect(rows[0]).toHaveTextContent('Lease agreement');
     await expect(rows[0]).toHaveTextContent('950 EUR on the first day');
+    // The date on the document is the one shown, when it has one, rather than the upload's.
+    await expect(rows[0]).toHaveTextContent('2024');
+    await expect(rows[1]).toHaveTextContent('2026');
     // A hit on the title alone shows which file it is instead of an empty line.
     await expect(rows[1]).toHaveTextContent('receipts.pdf');
+  },
+};
+
+const searchedWith: Array<Record<string, unknown> | null> = [];
+
+/**
+ * The filters show only while there is a search to narrow. Read from the URL, they go to the
+ * server with the query; changing one asks again with it.
+ */
+export const SearchingWithFilters: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?q=rent&receipts=1`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          folders: () => [TAXES],
+          documents: () => [],
+          searchDocuments: (_parent: unknown, args: { filter?: Record<string, unknown> | null }) => {
+            searchedWith.push(args.filter ?? null);
+            return SEARCH_HITS;
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(await canvas.findByRole('switch', { name: 'Receipts only' })).toBeChecked();
+    await canvas.findByRole('list', { name: 'Documents matching “rent”' });
+    // The first search may have gone out before this ran, so it is looked for rather than reset.
+    await waitFor(() => expect(searchedWith.at(-1)).toMatchObject({ hasReceipt: true }));
+
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Kind' }));
+    await userEvent.click(await within(canvasElement.ownerDocument.body).findByRole('option', { name: 'PDF' }));
+    await waitFor(() => expect(searchedWith.at(-1)).toMatchObject({ hasReceipt: true, kinds: ['PDF'] }));
+    await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Folder' })).not.toHaveAttribute('aria-hidden'));
+  },
+};
+
+/** With nothing typed there is nothing to narrow, so there are no filters either. */
+export const NoFiltersWithoutASearch: Story = {
+  parameters: {
+    apolloClient: { resolvers: archiveServer({ folders: [], documents: [] }) },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('searchbox', { name: 'Search documents' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('switch', { name: 'Receipts only' })).not.toBeInTheDocument();
   },
 };
 

@@ -22,13 +22,30 @@ whole product.
   text and title, with the passage that matched. Runs on this machine: a small
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
-  person searches only their own documents.
+  person searches only their own documents. A search can be narrowed to a
+  folder (and everything in it), a kind of file (PDF, image, text, ebook), a
+  range of document dates, or receipts only.
+- **Document dates** — the date printed on a receipt, letter or invoice is read
+  from its text (ISO, `12.03.2025`, `03/12/2025`, `12 March 2025`), shown on the
+  document, and yours to correct. A date you set or clear is never replaced
+  when the document is processed again.
+- **Receipts** — a receipt's vendor, total and currency are read from its text
+  by plain rules (no AI model), shown on the document and editable there, and
+  exported as a CSV (`date,vendor,total,currency,title,folder`) for a date
+  range or a folder. Fields it is unsure of are left empty rather than guessed:
+  a bare `$` is several currencies, and a document with no labelled total is
+  not taken for a receipt.
 - **Folders** — file documents into folders, nested as deep as you like, and
   see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way
   files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
   move onto a taken name is refused rather than overwriting. Deleting a folder
   deletes everything in it, once you have typed its name.
+- **Duplicate warnings** — upload a file you already have and Engrafo says so,
+  on the upload's row and on the document's page, with a link to the other
+  copy and a way to delete this one. It warns rather than refuses, since the
+  same file in two folders is sometimes what you meant. Files are compared by
+  their SHA-256, and only against your own documents.
 - **MCP for AI agents** — share a folder from its menu, make an API key in
   Settings, and an MCP client (Claude Code, Claude Desktop, any other) can
   list, search and read what is in it. Sharing a folder shares the folders
@@ -169,6 +186,7 @@ domain.
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR and indexing are CPU-bound. |
+| `DATE_ORDER` | `DMY` | How a numeric date that reads either way (`03/04/2025`) is read from a document's text: `DMY`, `MDY` (US) or `YMD`. A dotted date is always day first, and a part over 12 is always the day. |
 | `MODELS_DIR` | `/models` in the image | Where the search model is cached. Unset on a dev host, it is downloaded (about 50 MB) on first use. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |

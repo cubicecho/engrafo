@@ -11,7 +11,13 @@ import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } f
 
 const exec = promisify(execFile);
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: true,
+  pdfTextAvailable: true,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 
 function doc(values: Partial<Document> = {}): Document {
   return {
@@ -27,6 +33,12 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     ocrRequested: true,
     status: 'processing',
     error: null,

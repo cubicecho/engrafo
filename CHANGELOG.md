@@ -1,3 +1,35 @@
+# [4.6.0](https://github.com/cubicecho/engrafo/compare/v4.5.0...v4.6.0) (2026-10-23)
+
+
+### Features
+
+* accept CSV, HTML, WebP and GIF uploads ([3b008b0](https://github.com/cubicecho/engrafo/commit/3b008b0d42c909d7868c18679ebf6d118a82c2cb))
+
+# [4.5.0](https://github.com/cubicecho/engrafo/compare/v4.4.0...v4.5.0) (2026-10-23)
+
+
+### Features
+
+* accept Markdown uploads, searched by heading ([c92602c](https://github.com/cubicecho/engrafo/commit/c92602cc2086d9d4a76a2bede000e331b50eacc7))
+* narrow a search by folder, kind, document date and receipts ([15a9107](https://github.com/cubicecho/engrafo/commit/15a91078c503bf3d8cf308a878bf609c71dee297))
+* read a receipt's vendor, total and currency, edit them, and export them as CSV ([933e341](https://github.com/cubicecho/engrafo/commit/933e3419c1618a832d1c45122eae5bcfe9879874))
+* read the date on a document from its text, and let the user correct it ([b7a1345](https://github.com/cubicecho/engrafo/commit/b7a1345c32e028df489933af181fc300ceff74c2))
+* warn when an upload duplicates a document the user already has ([7cd42b8](https://github.com/cubicecho/engrafo/commit/7cd42b85a221410826b2b8fc7f5e6c47fbb5d9d9))
+
+# [4.4.0](https://github.com/cubicecho/engrafo/compare/v4.3.0...v4.4.0) (2026-10-23)
+
+
+### Features
+
+* read EPUB uploads, chapter by chapter ([2f7e758](https://github.com/cubicecho/engrafo/commit/2f7e758e33a7ff435ce3f451b2695913cc467939))
+
+# [4.3.0](https://github.com/cubicecho/engrafo/compare/v4.2.0...v4.3.0) (2026-10-23)
+
+
+### Features
+
+* serve shared folders over MCP, and move the archive tree to the sidebar ([224d68c](https://github.com/cubicecho/engrafo/commit/224d68cb1e103ca1490279663eec71388c26feb5))
+
 # [4.2.0](https://github.com/cubicecho/engrafo/compare/v4.1.0...v4.2.0) (2026-10-23)
 
 

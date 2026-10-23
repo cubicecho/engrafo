@@ -2,7 +2,7 @@
 // token. Imported for its side effects as the very first import of index.ts, so
 // a misconfigured instance fails with a sentence rather than a stack trace.
 
-import { DEV_SECRET, OIDC_CLIENT_AUTH_METHODS, PLACEHOLDER_SECRET } from './config.ts';
+import { DATE_ORDERS, DEV_SECRET, OIDC_CLIENT_AUTH_METHODS, PLACEHOLDER_SECRET } from './config.ts';
 import { AUTH_DEFAULTS } from './defaults.ts';
 
 function fatal(message: string): never {
@@ -51,4 +51,11 @@ const oidcClientAuth = process.env.OIDC_CLIENT_AUTH?.trim() ?? '';
 const isKnownClientAuth = (OIDC_CLIENT_AUTH_METHODS as readonly string[]).includes(oidcClientAuth);
 if (oidcClientAuth !== '' && isKnownClientAuth === false) {
   fatal(`OIDC_CLIENT_AUTH must be one of ${OIDC_CLIENT_AUTH_METHODS.join(', ')}.`);
+}
+
+// Read the wrong way round, every 03/04 in the archive is a month off, and nothing says so.
+const dateOrderSetting = process.env.DATE_ORDER?.trim().toUpperCase() ?? '';
+const isKnownDateOrder = (DATE_ORDERS as readonly string[]).includes(dateOrderSetting);
+if (dateOrderSetting !== '' && isKnownDateOrder === false) {
+  fatal(`DATE_ORDER must be one of ${DATE_ORDERS.join(', ')}.`);
 }
