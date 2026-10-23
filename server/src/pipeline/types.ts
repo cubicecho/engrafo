@@ -2,6 +2,7 @@ import type { DB, Document } from '@cubicecho/engrafo-db';
 import type { DateOrder } from '../core/defaults.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import type { VisionConfig } from '../vision/settings.ts';
 
 /** The settings every run is handed, decided once at boot. */
 export interface PipelineConfig {
@@ -17,13 +18,22 @@ export interface PipelineConfig {
   dateOrder: DateOrder;
 }
 
+/**
+ * What one run's steps see: the boot settings, and what the admin has set in the app, read as the
+ * run starts so a change reaches the next document without a restart.
+ */
+export interface RunConfig extends PipelineConfig {
+  /** The vision model, or null when none is set up. */
+  vision: VisionConfig | null;
+}
+
 /** What a step's `run` is given. */
 export interface StepContext {
   /** The document as earlier steps left it. */
   doc: Document;
   db: DB;
   storage: StorageSet;
-  config: PipelineConfig;
+  config: RunConfig;
   /** Turns passages into vectors for the search index. */
   embedder: Embedder;
   /** Scratch space for this run, removed when the run ends however it ends. */
@@ -56,6 +66,6 @@ export type DocumentPatch = Partial<
 export interface PipelineStep {
   name: string;
   /** False marks the step `skipped` rather than running it. Sees the document as earlier steps left it. */
-  enabled(doc: Document, config: PipelineConfig): boolean;
+  enabled(doc: Document, config: RunConfig): boolean;
   run(context: StepContext): Promise<DocumentPatch | undefined>;
 }

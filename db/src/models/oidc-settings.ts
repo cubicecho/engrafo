@@ -33,4 +33,4 @@ export const oidcSettings = pgTable(
 export type OidcSettings = typeof oidcSettings.$inferSelect;
 
 /** The Drizzle keys of tables only the server reads, which the GraphQL schema leaves out. */
-export const SERVER_TABLES = ['oidcSettings'] as const;
+export const SERVER_TABLES = ['oidcSettings', 'visionSettings'] as const;

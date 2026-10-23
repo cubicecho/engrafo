@@ -1,15 +1,16 @@
 import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { metadataPatch, metadataStep } from '../../pipeline/steps/metadata.ts';
-import type { PipelineConfig } from '../../pipeline/types.ts';
+import type { RunConfig } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, type TestDb } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = {
+const CONFIG: RunConfig = {
   ocrAvailable: false,
   pdfTextAvailable: false,
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
+  vision: null,
 };
 const TODAY = '2026-10-23';
 
@@ -34,6 +35,7 @@ function doc(values: Partial<Document> = {}): Document {
     currency: null,
     receiptSource: null,
     ocrRequested: false,
+    visionRequested: false,
     status: 'processing',
     error: null,
     createdAt: new Date(),

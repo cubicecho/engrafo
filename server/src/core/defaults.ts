@@ -196,6 +196,61 @@ export const OCR_DEFAULTS: Readonly<OcrSettings> = Object.freeze({
   pngTimeoutMinutes: 5,
 });
 
+/**
+ * The vision step: an OpenAI-compatible vision model re-reading a PDF's or an image's pages. Where
+ * the model is and which one it is are not here: the admin sets them in the app (vision/settings.ts).
+ */
+export interface VisionSettings {
+  /**
+   * How long one page may take, when the admin has not said. A page is a prefill of several
+   * thousand image tokens: seconds on a GPU, minutes on a CPU build, and a timeout sized for chat
+   * abandons the prefill just before it pays off.
+   */
+  requestTimeoutSeconds: number;
+  /** The shortest per-page timeout the settings accept. */
+  minRequestTimeoutSeconds: number;
+  /** The longest per-page timeout the settings accept: an hour, past which a page is wedged. */
+  maxRequestTimeoutSeconds: number;
+  /**
+   * Resolution pages are rasterised at. Not the 300 ocrmypdf hands Tesseract: a vision model is
+   * billed and prefilled by pixel count, and 300 DPI on US Letter is 8.4 megapixels, which most
+   * servers downscale back below this before the encoder sees it.
+   */
+  pageDpi: number;
+  /**
+   * The most a page's answer may run to. A dense A4 page of prose is around 1,500 tokens, and a
+   * page truncated at the ceiling is silently half a page, so this is set where a page cannot
+   * plausibly reach it.
+   */
+  pageMaxTokens: number;
+  /**
+   * Past this many pages the step declines rather than spending hours on one document. The
+   * pipeline has no queue, so a 600-page scan at half a minute a page is the whole archive stalled
+   * for an afternoon. It declines rather than truncating: half a document's text written over text
+   * that was complete is worse than not running at all.
+   */
+  maxPages: number;
+  /** When Ghostscript rasterising one document, or Pillow splitting a TIFF, is given up on as wedged. */
+  rasterTimeoutMinutes: number;
+  /** How long an endpoint has to answer the settings page's request for its models. */
+  modelsTimeoutSeconds: number;
+  /** The most models the settings page is offered from one listing. */
+  maxModels: number;
+}
+
+/** The shipped values of `VisionSettings`. */
+export const VISION_DEFAULTS: Readonly<VisionSettings> = Object.freeze({
+  requestTimeoutSeconds: 600,
+  minRequestTimeoutSeconds: 10,
+  maxRequestTimeoutSeconds: 3600,
+  pageDpi: 200,
+  pageMaxTokens: 8192,
+  maxPages: 200,
+  rasterTimeoutMinutes: 10,
+  modelsTimeoutSeconds: 5,
+  maxModels: 500,
+});
+
 /** Reading the text layer a PDF already has, with pdftotext. */
 export interface PdfTextSettings {
   /** When pdftotext is given up on. It reads a text layer and renders nothing, so this is generous. */

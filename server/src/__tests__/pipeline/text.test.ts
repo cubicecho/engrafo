@@ -5,15 +5,16 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import { textStep } from '../../pipeline/steps/text.ts';
-import type { PipelineConfig, StepContext } from '../../pipeline/types.ts';
+import type { RunConfig, StepContext } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, createTestDb, type FakeStorage } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = {
+const CONFIG: RunConfig = {
   ocrAvailable: true,
   pdfTextAvailable: true,
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
+  vision: null,
 };
 const NOTES = '# Server\n\nIt runs on the NAS.\n';
 
@@ -38,6 +39,7 @@ function doc(values: Partial<Document> = {}): Document {
     currency: null,
     receiptSource: null,
     ocrRequested: false,
+    visionRequested: false,
     status: 'processing',
     error: null,
     createdAt: new Date(),

@@ -39,10 +39,12 @@ export const Succeeded: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('heading', { level: 2, name: 'Pipeline' })).toBeInTheDocument();
-    await expect(canvas.getByText('Uploaded without OCR.')).toBeInTheDocument();
+    await expect(canvas.getByText('OCR not requested')).toBeInTheDocument();
     const [inspect, text] = canvas.getAllByRole('listitem');
-    await expect(inspect).toHaveTextContent('inspect');
-    await expect(text).toHaveTextContent('text');
+    // Named in the reader's words, with a line on what each step does.
+    await expect(inspect).toHaveTextContent('Inspect');
+    await expect(inspect).toHaveTextContent('Checks the file type and its checksum');
+    await expect(text).toHaveTextContent('Text');
     await expect(text).toHaveTextContent('Done');
     await expect(text).not.toHaveTextContent('attempts');
   },
@@ -64,7 +66,7 @@ export const FailedStep: Story = {
     ],
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('OCR was requested for this document.')).toBeInTheDocument();
+    await expect(canvas.getByText('OCR requested')).toBeInTheDocument();
     const [, ocr] = canvas.getAllByRole('listitem');
     await expect(ocr).toHaveTextContent('ocrmypdf exited with code 2');
     await expect(ocr).toHaveTextContent('3 attempts');
@@ -80,8 +82,54 @@ export const Queued: Story = {
   },
   play: async ({ canvas }) => {
     const [ocr] = canvas.getAllByRole('listitem');
-    await expect(within(ocr).getByText('ocr')).toBeInTheDocument();
+    await expect(within(ocr).getByText('OCR')).toBeInTheDocument();
     await expect(ocr).toHaveTextContent('Queued');
     await expect(ocr).not.toHaveTextContent('ago');
+  },
+};
+
+/**
+ * The vision step, skipped: the row says why in words, since "Skipped" alone reads as something
+ * that went wrong. The card's line says when the history starts and what was asked for.
+ */
+export const VisionSkipped: Story = {
+  args: {
+    ocrRequested: true,
+    uploadedAt: '2026-09-02T11:04:00.000Z',
+    steps: [
+      step({ step: 'ocr' }),
+      step({ id: '5b0e4d0a-6a55-4a43-9b0a-2f2a3b4c5d04', step: 'vision', status: StepStatusEnum.Skipped }),
+    ],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/^Uploaded .+ · OCR requested$/)).toBeInTheDocument();
+    const [, vision] = canvas.getAllByRole('listitem');
+    await expect(within(vision).getByText('Vision model')).toBeInTheDocument();
+    await expect(vision).toHaveTextContent('No vision model is set up, or it was not asked for');
+    await expect(vision).toHaveTextContent('Skipped');
+  },
+};
+
+/** Read with the vision model: the card says it was asked for, and the step says what it did. */
+export const VisionRead: Story = {
+  args: {
+    ocrRequested: false,
+    visionRequested: true,
+    steps: [step({ step: 'vision' })],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Vision model requested/)).toBeInTheDocument();
+    const [vision] = canvas.getAllByRole('listitem');
+    await expect(vision).toHaveTextContent('Reads the pages with a vision model');
+    await expect(vision).toHaveTextContent('Done');
+  },
+};
+
+/** A step this bundle has never heard of, from a newer server, is shown by its stored name. */
+export const UnknownStep: Story = {
+  args: { ocrRequested: false, steps: [step({ step: 'translate' })] },
+  play: async ({ canvas }) => {
+    const [row] = canvas.getAllByRole('listitem');
+    await expect(within(row).getByText('translate')).toBeInTheDocument();
   },
 };

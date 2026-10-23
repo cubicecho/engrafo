@@ -5,3 +5,4 @@ export * from './models/folders.ts';
 export * from './models/oidc-settings.ts';
 export * from './models/processing-steps.ts';
 export * from './models/users.ts';
+export * from './models/vision-settings.ts';

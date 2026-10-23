@@ -10,6 +10,8 @@ export const SERVER_CONFIG = {
   acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
   ocrAvailable: true,
   ocrDefault: true,
+  visionAvailable: false,
+  visionAuto: false,
 };
 
 export type Document = ArchiveQuery['documents'][number];

@@ -5,6 +5,7 @@ import { metadataStep } from './steps/metadata.ts';
 import { ocrStep } from './steps/ocr.ts';
 import { pdfTextStep } from './steps/pdf-text.ts';
 import { textStep } from './steps/text.ts';
+import { visionStep } from './steps/vision.ts';
 import type { PipelineStep } from './types.ts';
 
 /**
@@ -23,4 +24,18 @@ import type { PipelineStep } from './types.ts';
 // it goes after them and before index. A document mid-pipeline when it lands, or a finished one
 // caught up at boot, gets its row at index's position too, and runs it before index regardless:
 // the runner goes by this list, and positions only order the timeline.
-export const STEPS: PipelineStep[] = [inspectStep, textStep, ocrStep, pdfTextStep, ebookStep, metadataStep, indexStep];
+// vision breaks it for the reason ebook does: it produces text, replacing what ocr or pdf-text
+// read, so it goes after them and before metadata and index, which read that text. A document
+// mid-pipeline when it lands gets its row at index's position and runs it in this list's order.
+// A finished one caught up at boot has its row marked skipped, since no model is set up until the
+// admin sets one after the upgrade, so turning "auto" on later does not re-read the archive.
+export const STEPS: PipelineStep[] = [
+  inspectStep,
+  textStep,
+  ocrStep,
+  pdfTextStep,
+  ebookStep,
+  visionStep,
+  metadataStep,
+  indexStep,
+];

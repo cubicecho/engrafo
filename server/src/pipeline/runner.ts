@@ -14,8 +14,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { loadVisionConfig, type VisionConfig } from '../vision/settings.ts';
 import type { PipelineEvents } from './events.ts';
-import type { PipelineConfig, PipelineStep } from './types.ts';
+import type { PipelineConfig, PipelineStep, RunConfig } from './types.ts';
 
 /** What a pipeline is built from. */
 export interface PipelineOptions {
@@ -28,6 +29,11 @@ export interface PipelineOptions {
   config: PipelineConfig;
   /** Handed to every step; the index step embeds with it. */
   embedder: Embedder;
+  /**
+   * Reads the vision model's settings, once at the start of every run, so the admin changing them
+   * reaches the next document without a restart. Defaults to the `vision_settings` row.
+   */
+  loadVision?: () => Promise<VisionConfig | null>;
   /** Reports a run whose bookkeeping broke, as opposed to a step that failed. */
   log?: (message: string, error?: unknown) => void;
 }
@@ -101,6 +107,7 @@ export function createPipeline({
   steps,
   config,
   embedder,
+  loadVision = () => loadVisionConfig(db),
   log = console.error,
 }: PipelineOptions): Pipeline {
   const limit = createLimiter(config.concurrency);
@@ -130,6 +137,7 @@ export function createPipeline({
       return;
     }
     let doc: Document = found;
+    const runConfig: RunConfig = { ...config, vision: await loadVision() };
 
     // Rows are normally written by completeDocumentUpload. Inserting any that
     // are missing here is what lets a step added in a later release reach
@@ -158,7 +166,7 @@ export function createPipeline({
           continue;
         }
 
-        if (!step.enabled(doc, config)) {
+        if (!step.enabled(doc, runConfig)) {
           await setStep(documentId, step.name, { status: StepStatus.Skipped, error: null, finishedAt: new Date() });
           continue;
         }
@@ -173,7 +181,7 @@ export function createPipeline({
         });
 
         try {
-          const patch = await step.run({ doc, db, storage, config, embedder, tmpDir });
+          const patch = await step.run({ doc, db, storage, config: runConfig, embedder, tmpDir });
           if (patch && Object.keys(patch).length > 0) {
             const [updated] = await db.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
             if (!updated) {

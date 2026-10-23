@@ -7,6 +7,7 @@ import { createPipeline } from '../../pipeline/runner.ts';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import { textStep } from '../../pipeline/steps/text.ts';
 import type { PipelineConfig, PipelineStep } from '../../pipeline/types.ts';
+import { saveVisionSettings } from '../../vision/settings.ts';
 import {
   createFakeEmbedder,
   createFakeStorage,
@@ -282,5 +283,37 @@ describe('pipeline runner', () => {
     ]);
     // Nothing left behind: a second boot finds nothing to do.
     expect(await pipeline.catchUp()).toBe(0);
+  });
+
+  it('reads the vision settings as each run starts, so a change reaches the next document', async () => {
+    const seen: Array<string | null> = [];
+    const probe: PipelineStep = {
+      name: 'probe',
+      enabled: (_doc, config) => {
+        seen.push(config.vision?.model ?? null);
+        return false;
+      },
+      run: async () => undefined,
+    };
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [probe],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
+
+    await pipeline.run((await insertDocument()).id);
+    await saveVisionSettings(db, {
+      baseUrl: 'http://gpu.lan/v1',
+      model: 'reader',
+      apiKey: undefined,
+      auto: false,
+      requestTimeoutSeconds: null,
+    });
+    await pipeline.run((await insertDocument()).id);
+
+    expect(seen).toEqual([null, 'reader']);
   });
 });

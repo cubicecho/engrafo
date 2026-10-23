@@ -19,6 +19,17 @@ import { DocumentFileUrl } from './document-file';
 // text card shows what the page said, and the download button has the file.
 const NOT_PREVIEWABLE = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html', 'application/epub+zip']);
 
+/**
+ * Whether a document of this type gets a preview frame at all, so a page can leave out the place
+ * one would go.
+ *
+ * @param mimeType - The document's type.
+ * @returns False for text, Markdown, CSV, a web page and an ebook.
+ */
+export function isPreviewable(mimeType: string): boolean {
+  return NOT_PREVIEWABLE.has(mimeType) === false;
+}
+
 interface DocumentPreviewCardProps {
   /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
   doc: { id: string; mimeType: string; archiveKey: string | null };
@@ -27,7 +38,7 @@ interface DocumentPreviewCardProps {
 /**
  * A document's file in a frame: the searchable PDF once OCR has produced one, the upload before.
  * Draws nothing for plain text, Markdown, CSV, a web page or an ebook, which the text card
- * already shows, and nothing until the presigned URL has arrived — or has failed to, which it says.
+ * already shows, and a loading card until the presigned URL has arrived — or has failed to, which it says.
  */
 export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
   const client = useApolloClient();
@@ -40,7 +51,7 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
   // than cached with the document. The archive is the searchable PDF; before
   // OCR has run there is only the original.
   const variant = doc.archiveKey ? DocumentFileVariant.Archive : DocumentFileVariant.Original;
-  const previewable = NOT_PREVIEWABLE.has(doc.mimeType) === false;
+  const previewable = isPreviewable(doc.mimeType);
   useEffect(() => {
     setFailed(false);
     if (!previewable) {
@@ -88,8 +99,14 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
     );
   }
 
-  if (!previewUrl) {
+  if (!previewable) {
     return null;
+  }
+
+  // A card waiting for its address, rather than nothing: on the document page the preview is a
+  // tab of its own, and an empty tab reads as a document with no preview.
+  if (!previewUrl) {
+    return <CardLayout level={2} title="Preview" loading />;
   }
 
   return (

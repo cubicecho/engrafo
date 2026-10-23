@@ -10,6 +10,7 @@ import { applyFoldersExtension } from '../folders/resolvers.ts';
 import { applyMetadataExtension } from '../metadata/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
+import { applyVisionExtension } from '../vision/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
 // Reads are generated from the Drizzle schema; every write is hand-written (see
@@ -62,6 +63,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applySearchExtension(schema);
   schema = applySsoExtension(schema);
   schema = applyApiKeysExtension(schema);
+  schema = applyVisionExtension(schema);
 
   return { schema, entities };
 }
