@@ -214,6 +214,44 @@ export const EBOOK_DEFAULTS: Readonly<EbookSettings> = Object.freeze({
   maxUnpackedBytes: 268_435_456,
 });
 
+/** How a numeric date with nothing to tell its parts apart is read: `03/04/2025`. */
+export type DateOrder = 'DMY' | 'MDY' | 'YMD';
+
+/** The fields read from a document's text: its date, and a receipt's vendor, total and currency. */
+export interface MetadataSettings {
+  /**
+   * How an ambiguous numeric date is read. `DATE_ORDER` overrides it. Day first is Paperless's
+   * default and most of the world's; a US archive wants `MDY`.
+   */
+  dateOrder: DateOrder;
+  /** A date before this year is not taken for the document's: a birth date, a founding year. */
+  oldestYear: number;
+  /**
+   * How far past today a date may be and still be the document's, in days. One, for a receipt
+   * printed in a zone ahead of the server's; a due date further out is not the document's date.
+   */
+  futureToleranceDays: number;
+  /** How much of the text is read for a date, in characters. The date on a document is near its top. */
+  dateScanChars: number;
+  /** How much of the text is read for a receipt's fields, in characters. A receipt is short. */
+  receiptScanChars: number;
+  /** The longest vendor kept, in characters. A longer first line is a sentence, not a shop's name. */
+  vendorMaxLength: number;
+  /** How many of the first lines are looked at for a vendor's name. */
+  vendorScanLines: number;
+}
+
+/** The shipped values of `MetadataSettings`. */
+export const METADATA_DEFAULTS: Readonly<MetadataSettings> = Object.freeze({
+  dateOrder: 'DMY',
+  oldestYear: 1900,
+  futureToleranceDays: 1,
+  dateScanChars: 20_000,
+  receiptScanChars: 20_000,
+  vendorMaxLength: 80,
+  vendorScanLines: 5,
+});
+
 /** The search index and the queries over it. The retrieval numbers are mcp-ragdown's, measured there. */
 export interface SearchSettings {
   /** The longest passage embedded, in characters: about 400 tokens, inside the model's window. */

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { type DocumentDetailQuery, DocumentStatusEnum, StepStatusEnum } from '@/__generated__/graphql';
+import { type DocumentDetailQuery, DocumentStatusEnum, FieldSourceEnum, StepStatusEnum } from '@/__generated__/graphql';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { DocumentRoute } from './document';
@@ -53,6 +53,12 @@ function document(overrides: Partial<Document>): Document {
     status: DocumentStatusEnum.Ready,
     error: null,
     createdAt: '2026-09-02T11:04:00.000Z',
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     processingSteps: [step({ step: 'store' }), step({ step: 'extract-text' })],
     ...overrides,
   };
@@ -241,6 +247,84 @@ export const Renaming: Story = {
     await expect(within(dialog).getByRole('textbox', { name: /Title/ })).toHaveValue('Lease agreement');
     await expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
     await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  },
+};
+
+/**
+ * The date read from the text is shown with where it came from, and clearing it in its dialog
+ * makes it the user's: the card says so once the mutation answers.
+ */
+export const ClearingTheDate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ documentDate: '2025-03-12', documentDateSource: FieldSourceEnum.Extracted }),
+        },
+        Mutation: {
+          setDocumentDate: (_parent: unknown, args: { date?: string | null }) =>
+            document({ documentDate: args.date ?? null, documentDateSource: FieldSourceEnum.User }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText('Read from the text')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit the document date' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Document date' }));
+    await userEvent.click(dialog.getByRole('button', { name: /Date/ }));
+    await userEvent.click(await page.findByRole('button', { name: 'Clear' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Set by you')).toBeInTheDocument();
+  },
+};
+
+/**
+ * A receipt read from the text is edited in its dialog, and the card shows what the server kept,
+ * now marked as the user's.
+ */
+export const EditingTheReceipt: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () =>
+            document({
+              vendor: 'REWE',
+              total: '9.99',
+              currency: 'EUR',
+              receiptSource: FieldSourceEnum.Extracted,
+            }),
+        },
+        Mutation: {
+          setDocumentReceipt: (
+            _parent: unknown,
+            args: { input: { vendor?: string | null; total?: string | null; currency?: string | null } },
+          ) =>
+            document({
+              vendor: args.input.vendor ?? null,
+              total: args.input.total ?? null,
+              currency: args.input.currency ?? null,
+              receiptSource: FieldSourceEnum.User,
+            }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText(/Read from the text\. Check it/)).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit receipt details' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Receipt details' }));
+    const vendor = dialog.getByRole('textbox', { name: /Vendor/ });
+    await userEvent.clear(vendor);
+    await userEvent.type(vendor, 'REWE Markt');
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Set by you.')).toBeInTheDocument();
+    await expect(canvas.getByText('REWE Markt')).toBeInTheDocument();
   },
 };
 

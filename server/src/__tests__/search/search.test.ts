@@ -1,7 +1,8 @@
-import { documentChunks, documents } from '@cubicecho/engrafo-db/schema';
+import { documentChunks, documents, folders, type NewDocument } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
+import type { SearchFilter } from '../../search/filters.ts';
 import { indexDocument } from '../../search/index-document.ts';
 import { searchDocuments, snippet } from '../../search/search.ts';
 import {
@@ -38,7 +39,13 @@ describe('document search', () => {
   });
 
   /** A ready document with this text, indexed. */
-  async function indexed(userId: string, title: string, text: string, mimeType = 'application/pdf') {
+  async function indexed(
+    userId: string,
+    title: string,
+    text: string,
+    mimeType = 'application/pdf',
+    values: Partial<NewDocument> = {},
+  ) {
     const contentKey = `text/${userId}/${title}`;
     storage.text.objects.set(contentKey, { body: Buffer.from(text), contentType: 'text/plain' });
     const [doc] = await db
@@ -52,14 +59,15 @@ describe('document search', () => {
         originalKey: `originals/${userId}/${title}`,
         contentKey,
         status: 'ready',
+        ...values,
       })
       .returning();
     await indexDocument({ db, storage, embedder }, doc);
     return doc;
   }
 
-  const search = (userId: string, query: string, minCosine = 0.3) =>
-    searchDocuments({ db, embedder }, userId, query, 10, { minCosine });
+  const search = (userId: string, query: string, minCosine = 0.3, filter: SearchFilter = {}) =>
+    searchDocuments({ db, embedder }, userId, query, 10, { minCosine, filter });
 
   it("cuts an ebook's passages by chapter and embeds each under its chapter's name", async () => {
     const novel = await indexed(
@@ -163,6 +171,117 @@ describe('document search', () => {
     expect((await client.expectError(SEARCH, { query: 'x', first: 500 })).code).toBe(ErrorCode.BadUserInput);
     const signedOut = createClient(db, null, { storage, embedder });
     expect((await signedOut.expectError(SEARCH, { query: 'deposit' })).code).toBe(ErrorCode.Unauthenticated);
+  });
+});
+
+describe('search filters', () => {
+  let db: TestDb;
+  let storage: FakeStorage;
+  let alice: string;
+  const embedder = createFakeEmbedder();
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    storage = createFakeStorage();
+    alice = await createUser(db, 'alice@example.com');
+  });
+
+  async function indexed(title: string, text: string, values: Partial<NewDocument> = {}) {
+    const contentKey = `text/${alice}/${title}`;
+    storage.text.objects.set(contentKey, { body: Buffer.from(text), contentType: 'text/plain' });
+    const [doc] = await db
+      .insert(documents)
+      .values({
+        userId: alice,
+        title,
+        originalFilename: `${title}.pdf`,
+        mimeType: 'application/pdf',
+        sizeBytes: 1,
+        originalKey: `originals/${alice}/${title}`,
+        contentKey,
+        status: 'ready',
+        ...values,
+      })
+      .returning();
+    await indexDocument({ db, storage, embedder }, doc);
+    return doc;
+  }
+
+  const search = (query: string, filter: SearchFilter) =>
+    searchDocuments({ db, embedder }, alice, query, 10, { minCosine: 0.3, filter });
+  const found = async (query: string, filter: SearchFilter) =>
+    (await search(query, filter)).map((hit) => hit.document.title).sort();
+
+  it('narrows by kind', async () => {
+    await indexed('Scan', 'Rent receipt', { mimeType: 'image/png' });
+    await indexed('Note', 'Rent notes', { mimeType: 'text/markdown' });
+    await indexed('Lease', 'Rent lease');
+    expect(await found('rent', { kinds: ['IMAGE', 'TEXT'] })).toEqual(['Note', 'Scan']);
+    expect(await found('rent', { kinds: ['PDF'] })).toEqual(['Lease']);
+    expect(await found('rent', { kinds: [] })).toEqual([]);
+  });
+
+  it('narrows by the date on the document, inclusive, leaving undated ones out', async () => {
+    await indexed('March', 'Rent', { documentDate: '2026-03-01' });
+    await indexed('April', 'Rent', { documentDate: '2026-04-30' });
+    await indexed('May', 'Rent', { documentDate: '2026-05-01' });
+    await indexed('Undated', 'Rent');
+    expect(await found('rent', { dateFrom: '2026-03-01', dateTo: '2026-04-30' })).toEqual(['April', 'March']);
+    expect(await found('rent', { dateFrom: '2026-04-01' })).toEqual(['April', 'May']);
+  });
+
+  it('narrows to receipts, or away from them', async () => {
+    await indexed('Receipt', 'Rent paid', { total: '950.00' });
+    await indexed('Vendor only', 'Rent paid', { vendor: 'Landlord' });
+    await indexed('Letter', 'Rent paid');
+    expect(await found('rent', { hasReceipt: true })).toEqual(['Receipt', 'Vendor only']);
+    expect(await found('rent', { hasReceipt: false })).toEqual(['Letter']);
+  });
+
+  it('narrows the title read too', async () => {
+    await indexed('Rent', '', { mimeType: 'image/png' });
+    await indexed('Rent 2', '');
+    expect(await found('rent', { kinds: ['IMAGE'] })).toEqual(['Rent']);
+  });
+
+  it('filters inside each read, so a narrow search is not starved by better matches outside it', async () => {
+    // More documents than each read hands the fusion, all matching better than the one asked for.
+    // Filtering the fused list afterwards would find nothing.
+    for (let i = 0; i < 55; i++) {
+      await indexed(`Lease ${i}`, 'deposit deposit deposit deposit');
+    }
+    await indexed('Photo', 'deposit', { mimeType: 'image/jpeg' });
+    expect(await found('deposit', { kinds: ['IMAGE'] })).toEqual(['Photo']);
+  });
+
+  it('narrows to a folder and everything inside it over GraphQL, or to the folder alone', async () => {
+    const [taxes] = await db.insert(folders).values({ userId: alice, name: 'Taxes' }).returning();
+    const [year] = await db.insert(folders).values({ userId: alice, name: '2026', parentId: taxes?.id }).returning();
+    await indexed('Top', 'Rent', { folderId: taxes?.id });
+    await indexed('Inside', 'Rent', { folderId: year?.id });
+    await indexed('Outside', 'Rent');
+
+    const client = createClient(db, alice, { storage, embedder });
+    const titles = (data: { searchDocuments: Array<{ document: { title: string } }> }) =>
+      data.searchDocuments.map((hit) => hit.document.title).sort();
+    const query = `query ($filter: DocumentSearchFilter) {
+      searchDocuments(query: "rent", filter: $filter) { document { title } }
+    }`;
+    expect(titles(await client.expectOk(query, { filter: { folderId: taxes?.id } }))).toEqual(['Inside', 'Top']);
+    const alone = await client.expectOk(query, { filter: { folderId: taxes?.id, includeSubfolders: false } });
+    expect(titles(alone)).toEqual(['Top']);
+    const pdfs = await client.expectOk(query, { filter: { kinds: ['PDF'], dateFrom: '2000-01-01' } });
+    expect(titles(pdfs)).toEqual([]);
+
+    const backwards = await client.expectError(query, { filter: { dateFrom: '2026-02-01', dateTo: '2026-01-01' } });
+    expect(backwards.code).toBe(ErrorCode.BadUserInput);
+  });
+
+  it("finds nothing in someone else's folder", async () => {
+    const bob = await createUser(db, 'bob@example.com');
+    const [theirs] = await db.insert(folders).values({ userId: bob, name: 'Bob' }).returning();
+    await indexed('Mine', 'Rent');
+    expect(await found('rent', { folderIds: theirs ? [theirs.id] : [] })).toEqual([]);
   });
 });
 

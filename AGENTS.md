@@ -77,7 +77,8 @@ engrafo/
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
-│       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
+│       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
+│       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -87,7 +88,7 @@ engrafo/
 │       │   ├── mime.ts      # The upload allowlist
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
 │       │   ├── epub.ts      # readEpub: an EPUB's text, chapter by chapter, in-process
-│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, index
+│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, metadata, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -350,6 +351,78 @@ mcp-ragdown embeds it), ignores a `#` inside a fenced code block, and leaves
 YAML front matter out of the passages. It does not read Setext headings
 (`===` underlines), tags, wikilinks or anything else mcp-ragdown does: a
 Markdown document here is a file you filed, not a note an agent edits.
+
+**A field read from the content says who filled it in, and an edit is never
+overwritten.** `documentDate` (a SQL `date`, the day printed on the document,
+not `createdAt`) has `documentDateSource`, a `field_source` of `extracted` or
+`user`. The `metadata` step, after every step that produces text and before
+`index` (it breaks "new steps go last" the way `ebook` does, and step-list.ts
+says why that is safe), fills in only fields whose source is not `user`, and
+always writes them, null when the new text has none, so a re-run does not keep
+the last run's guess. `setDocumentDate` sets or clears the date and marks it
+`user`, so a cleared date stays cleared: null with source `user` means "the
+user says there is none". `metadataPatch` is where the rule is written.
+
+**The date parser is pure and takes the first plausible date.**
+`findDocumentDate` in `metadata/document-date.ts` reads ISO (`2025-03-12`),
+year-last numerics (`12.03.2025`, `03/12/2025`, `12/03/25`) and month names in
+English and German (`12 March 2025`, `March 12, 2025`, `3. März 2025`), in text
+order, and takes the first that is a real day, not before
+`METADATA_DEFAULTS.oldestYear` and not more than `futureToleranceDays` past
+today, so a due date or an expiry is skipped. Ambiguity is `DATE_ORDER`
+(`DMY` by default, as Paperless): a part over 12 settles it whatever the order
+says, a dot is always day first, and `YMD` only means something for a
+two-digit year last. It has no clock: the step hands it today.
+
+**A receipt is three fields with one source, and a total is never a float.**
+`vendor`, `total` and `currency` share `receiptSource`: an edit to any of them
+(`setDocumentReceipt` sets all three at once) takes the whole receipt over, and
+the step leaves it alone from then on. The receipt's date is `documentDate`,
+not a column of its own. `total` is Postgres `numeric` with no fixed scale,
+written and read as a decimal string (`12.50`, `1.250` for a three-decimal
+currency) and exposed as drizzle-graphql's `Decimal` scalar: not minor units,
+which mean nothing without a currency, and a receipt often names an amount and
+no currency. The app keeps it a string too (`lib/money.ts`); only drawing it
+goes through a number. `currency` is ISO 4217, checked by a constraint.
+
+**Receipt extraction is rules, behind a seam, and errs towards empty.**
+`extractReceipt` in `metadata/receipt.ts` is pure and is the
+`ReceiptExtractor` the step calls; a model-based extractor replaces it there
+and nowhere else. No labelled total, no receipt: vendor and currency are only
+filled beside a total, so a letter's first line is never a vendor. The total
+is the *largest* amount on a line labelled `Total`, `Amount due`, `Grand
+total`, `Summe`, `Gesamt` and the like, after dropping subtotal, tax, net,
+tendered and change lines (largest, because every part of a total is smaller
+than it, wherever it is printed); a label with nothing after it takes the next
+line's bare amount, as OCR splits columns. A whole number with no currency
+beside it is a count, not money. Either separator is the decimal point when one
+or two digits follow it. Currency is the total line's code or unambiguous
+symbol, else the one currency the text names; a bare `$`, `¥` or `kr` is
+several currencies and gives none. Ebooks and Markdown are never receipts.
+
+**The receipts export is a query, not a route.** `receiptsCsv(from, to,
+folderId)` returns the CSV text and the app saves it (`downloadBlob`), because
+a session is a bearer token and a plain link would arrive signed out. A receipt
+is a document with a vendor or a total; a range filters by `documentDate`,
+inclusive, so an undated receipt is only in an export with no range; a folder
+takes everything inside it. Cells go through `csvCell`, which quotes and
+defuses a leading `=`, `+`, `-` or `@` (CSV injection), except the total.
+
+**Search filters go inside each read, never over the fused list.**
+`searchDocuments` takes a `filter` (folder with its subfolders unless
+`includeSubfolders: false`, `kinds` of PDF / IMAGE / TEXT / EBOOK, a
+`documentDate` range, `hasReceipt`), and `filterConditions` in
+`search/filters.ts` turns it into conditions on `documents` that are ANDed
+into all three reads: the title read directly, the two passage reads through
+the same `document_id IN (select … from documents …)` subquery the MCP door's
+`folderIds` already used. Each read keeps only its best
+`candidatePoolSize`, so a filter applied after the fusion would leave a narrow
+search with whatever survived the cut, usually nothing; `search.test.ts`
+holds one search that only finds its document because of this. A folder
+that is not the caller's has no descendants of theirs and matches nothing.
+The MCP tool passes `folderIds` and no filter, and is unchanged. The app keeps
+the filters in the query string beside `q` (`lib/search-filters.ts`) and draws
+them only while there is a search to narrow.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

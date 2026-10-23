@@ -8,7 +8,13 @@ import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import type { PipelineConfig, StepContext } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, createTestDb, epubFile, type FakeStorage } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: true,
+  pdfTextAvailable: true,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 
 const BOOK = epubFile({
   'OEBPS/content.opf': `<?xml version="1.0"?>
@@ -38,6 +44,12 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     ocrRequested: true,
     status: 'processing',
     error: null,
