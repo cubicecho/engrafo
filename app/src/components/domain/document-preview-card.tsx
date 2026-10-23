@@ -5,10 +5,19 @@ import { CardLayout } from '@/components/card-layout';
 import { Alert } from '@/components/ui/alert';
 import { DocumentFileUrl } from './document-file';
 
-// Plain text and Markdown get no frame of their own: the text card already shows
-// them. Nor does an ebook: a browser cannot draw one, and a frame pointed at it
-// only starts a download. Its text card shows the book's text.
-const NOT_PREVIEWABLE = new Set(['text/plain', 'text/markdown', 'application/epub+zip']);
+// Plain text, Markdown and CSV get no frame of their own: the text card already
+// shows them, and a frame pointed at a CSV only starts a download. Nor does an
+// ebook, for the same reason. Its text card shows the book's text.
+//
+// Nor does a web page, and that one is about safety. The presigned URL is on
+// the bucket's origin, not the app's, so the page's scripts could not reach the
+// session token in this origin's storage — but nothing makes a self-hoster put
+// the bucket on another origin, and behind one reverse proxy it is this one. A
+// sandbox with neither allow-scripts nor allow-same-origin would hold either
+// way, yet it still lets the page fetch its images, fonts and tracking pixels
+// from wherever it names, so opening a saved receipt would tell the shop. The
+// text card shows what the page said, and the download button has the file.
+const NOT_PREVIEWABLE = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html', 'application/epub+zip']);
 
 interface DocumentPreviewCardProps {
   /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
@@ -17,8 +26,8 @@ interface DocumentPreviewCardProps {
 
 /**
  * A document's file in a frame: the searchable PDF once OCR has produced one, the upload before.
- * Draws nothing for plain text, Markdown or an ebook, which the text card already shows, and nothing until the
- * presigned URL has arrived — or has failed to, which it says.
+ * Draws nothing for plain text, Markdown, CSV, a web page or an ebook, which the text card
+ * already shows, and nothing until the presigned URL has arrived — or has failed to, which it says.
  */
 export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
   const client = useApolloClient();

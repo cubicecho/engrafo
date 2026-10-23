@@ -87,6 +87,8 @@ engrafo/
 │       │   ├── mime.ts      # The upload allowlist
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
 │       │   ├── epub.ts      # readEpub: an EPUB's text, chapter by chapter, in-process
+│       │   ├── html-text.ts # walkHtml: markup off, for EPUB chapters and HTML uploads
+│       │   ├── image.ts     # toOpaquePng: a WebP's or GIF's first frame, for ocrmypdf
 │       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
@@ -350,6 +352,41 @@ mcp-ragdown embeds it), ignores a `#` inside a fenced code block, and leaves
 YAML front matter out of the passages. It does not read Setext headings
 (`===` underlines), tags, wikilinks or anything else mcp-ragdown does: a
 Markdown document here is a file you filed, not a note an agent edits.
+
+**A CSV is text, cut by rows.** Bank and card statements, stored as they are by
+the text step; no magic bytes, so `isText` covers it. `chunkText` would read it
+as one paragraph (no blank lines), turn its line breaks into spaces and cut
+wherever a cell ends in a full stop, so the index step uses `chunkRows`
+instead: whole rows packed to the limit (a quoted line break stays in its row;
+only a quote that opens a cell quotes it, so `24" monitor` does not swallow the
+file), each passage embedded under the first row, since that is the column
+names. The header is assumed, not detected. Windows calls a `.csv`
+`application/vnd.ms-excel` when Excel is installed; `uploadMimeType` renames
+that for a `.csv` only, since it is a real `.xls`'s type too.
+
+**An HTML upload is stored as its text and never shown as a page.** The text
+step takes the markup off with the walker EPUB uses (`walkHtml` in
+`pipeline/html-text.ts`: scripts, styles, `hidden` and inline `display:none`
+left out), writes h1-h6 as Markdown headings at their depth, and `hasHeadings`
+covers it, so a passage is embedded under `Order 1234 › Items`. HTML comes to
+the text step rather than a step of its own because a new step puts every
+finished document back through the pipeline at upgrade. file-type does not
+know HTML, so the claim is taken (`hasNoMagicBytes`); XHTML opening with
+`<?xml` sniffs as `application/xml`, which is read as HTML only when the upload
+said HTML. **The preview card never frames it** (`NOT_PREVIEWABLE`): the
+presigned URL is the bucket's origin, but nothing stops a self-hoster serving
+the bucket from the app's origin behind one proxy, and even a fully sandboxed
+frame still fetches the page's remote images and pixels. The text card shows
+what the page said, and downloads are `attachment`.
+
+**WebP and GIF reach OCR as a PNG.** ocrmypdf reads an opaque one of either, but
+refuses any image with an alpha channel (common in WebP) and makes every frame
+of an animated GIF a page. So `toOpaquePng` (`pipeline/image.ts`) writes the
+first frame laid on white into the run's tmpDir first, with Pillow through
+`python3 -c` (`OCR_DEFAULTS.pngConverter`): ocrmypdf is Python and depends on
+Pillow, and Debian's Pillow reads WebP, so the image gained no package. With OCR
+off they are stored with no text, like any image, and the browser previews the
+original itself.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

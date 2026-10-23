@@ -16,6 +16,22 @@ describe('uploadMimeType', () => {
     expect(uploadMimeType({ name: 'notes.md', type: 'text/x-markdown' })).toBe('text/markdown');
   });
 
+  it("calls a .csv a CSV when Windows says it is Excel's, and leaves a real .xls alone", () => {
+    expect(uploadMimeType({ name: 'statement.CSV', type: 'application/vnd.ms-excel' })).toBe('text/csv');
+    expect(uploadMimeType({ name: 'statement.xls', type: 'application/vnd.ms-excel' })).toBe(
+      'application/vnd.ms-excel',
+    );
+    expect(uploadMimeType({ name: 'statement.csv', type: 'text/x-csv' })).toBe('text/csv');
+    expect(uploadMimeType({ name: 'statement.csv', type: '' })).toBe('text/csv');
+  });
+
+  it('knows HTML, WebP and GIF by their extensions', () => {
+    expect(uploadMimeType({ name: 'order.htm', type: '' })).toBe('text/html');
+    expect(uploadMimeType({ name: 'order.xhtml', type: 'application/xhtml+xml' })).toBe('text/html');
+    expect(uploadMimeType({ name: 'receipt.webp', type: '' })).toBe('image/webp');
+    expect(uploadMimeType({ name: 'receipt.gif', type: '' })).toBe('image/gif');
+  });
+
   it('leaves anything else to the allowlist to refuse', () => {
     expect(uploadMimeType({ name: 'notes.xyz', type: '' })).toBe('application/octet-stream');
     expect(uploadMimeType({ name: 'README', type: '' })).toBe('application/octet-stream');

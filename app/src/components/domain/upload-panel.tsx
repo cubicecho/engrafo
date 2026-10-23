@@ -134,7 +134,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
         <>
           <FilePicker
             label="Drop files here, or click to choose"
-            hint={`PDF, images, text, Markdown or EPUB · up to ${formatBytes(config.maxUploadBytes)} each`}
+            hint={`PDF, images, text, Markdown, CSV, HTML or EPUB · up to ${formatBytes(config.maxUploadBytes)} each`}
             // No `accept`: the picker skips a file that does not match without a word, where the
             // server's allowlist refuses it on the file's own row and says why.
             multiple

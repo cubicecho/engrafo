@@ -98,6 +98,60 @@ export const Ebook: Story = {
   },
 };
 
+/**
+ * A saved web page is never framed: its scripts and the requests it makes are the user's
+ * receipt, not this app's. Its text card shows what it said.
+ */
+export const WebPage: Story = {
+  args: { doc: { id: ID, mimeType: 'text/html', archiveKey: null } },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentFileUrl: () => {
+            throw new Error('A web page must not ask for a preview');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole('heading', { name: 'Preview' })).not.toBeInTheDocument();
+    await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
+  },
+};
+
+/** A frame pointed at a CSV only starts a download. Its text card shows the rows. */
+export const Csv: Story = {
+  args: { doc: { id: ID, mimeType: 'text/csv', archiveKey: null } },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentFileUrl: () => {
+            throw new Error('A CSV must not ask for a preview');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole('heading', { name: 'Preview' })).not.toBeInTheDocument();
+    await expect(canvas.queryByTitle('Document preview')).not.toBeInTheDocument();
+  },
+};
+
+/** A browser draws WebP and GIF itself, so an image with OCR off is framed like any other. */
+export const WebpImage: Story = {
+  args: { doc: { id: ID, mimeType: 'image/webp', archiveKey: null } },
+  parameters: {
+    apolloClient: { resolvers: { Query: { documentFileUrl: fileUrlFor(DocumentFileVariant.Original) } } },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByTitle('Document preview')).toHaveAttribute('src', PAGE);
+  },
+};
+
 /** The server would not sign an address. A missing frame would read as "this file has no preview". */
 export const AddressRefused: Story = {
   args: { doc: { id: ID, mimeType: 'application/pdf', archiveKey: null } },

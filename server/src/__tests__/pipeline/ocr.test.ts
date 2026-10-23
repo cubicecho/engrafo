@@ -81,26 +81,31 @@ const font = await exec('magick', ['-list', 'font']).then(
 
 const isOcrMissing = hasOcr === false || !font;
 
+/** A PNG of one line of large black text on white, which Tesseract reads without trouble. */
+async function drawText(path: string, text: string) {
+  await exec('magick', [
+    '-size',
+    '1200x300',
+    'xc:white',
+    '-fill',
+    'black',
+    '-font',
+    font ?? '',
+    '-pointsize',
+    '96',
+    '-annotate',
+    '+60+190',
+    text,
+    path,
+  ]);
+}
+
 describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
   it('turns an image of text into a searchable PDF and its text', { timeout: 120_000 }, async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-ocr-test-'));
     try {
       const image = join(tmpDir, 'scan.png');
-      await exec('magick', [
-        '-size',
-        '1200x300',
-        'xc:white',
-        '-fill',
-        'black',
-        '-font',
-        font ?? '',
-        '-pointsize',
-        '96',
-        '-annotate',
-        '+60+190',
-        'Invoice 4821',
-        image,
-      ]);
+      await drawText(image, 'Invoice 4821');
       const storage = createFakeStorage();
       const document = doc();
       storage.files.objects.set(document.originalKey, { body: await readFile(image), contentType: 'image/png' });
@@ -118,6 +123,61 @@ describe.skipIf(isOcrMissing)('ocrmypdf integration', () => {
       expect(text?.body.toString()).toMatch(/Invoice\s+4821/);
       const archive = storage.files.objects.get(patch?.archiveKey ?? '');
       expect(archive?.body.subarray(0, 5).toString()).toBe('%PDF-');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // ocrmypdf refuses an image with an alpha channel, which a WebP often has, and
+  // reads every frame of an animated GIF as a page. Both go in as a PNG of the first frame.
+  it('reads a transparent WebP, and only the first frame of an animated GIF', { timeout: 240_000 }, async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-ocr-test-'));
+    try {
+      const first = join(tmpDir, 'first.png');
+      const second = join(tmpDir, 'second.png');
+      await drawText(first, 'Invoice 4821');
+      await drawText(second, 'Refund 9907');
+      const webp = join(tmpDir, 'scan.webp');
+      const gif = join(tmpDir, 'scan.gif');
+      // Pillow, which is wherever ocrmypdf is: the white made see-through, and the two pages as frames.
+      await exec('python3', [
+        '-c',
+        [
+          'import sys',
+          'from PIL import Image',
+          'first, second = Image.open(sys.argv[1]).convert("RGBA"), Image.open(sys.argv[2]).convert("RGB")',
+          'first.putalpha(first.convert("L").point(lambda v: 255 - v))',
+          'first.save(sys.argv[3], "WEBP", lossless=True)',
+          'frames = [Image.open(sys.argv[1]).convert("RGB"), second]',
+          'frames[0].save(sys.argv[4], save_all=True, append_images=frames[1:], duration=500, loop=0)',
+        ].join('\n'),
+        first,
+        second,
+        webp,
+        gif,
+      ]);
+
+      for (const [path, mimeType] of [
+        [webp, 'image/webp'],
+        [gif, 'image/gif'],
+      ] as const) {
+        const storage = createFakeStorage();
+        const document = doc({ mimeType });
+        storage.files.objects.set(document.originalKey, { body: await readFile(path), contentType: mimeType });
+
+        const patch = await ocrStep.run({
+          doc: document,
+          db: await createTestDb(),
+          storage,
+          config: CONFIG,
+          embedder: createFakeEmbedder(),
+          tmpDir,
+        });
+
+        const text = storage.text.objects.get(patch?.contentKey ?? '')?.body.toString();
+        expect(text, mimeType).toMatch(/Invoice\s+4821/);
+        expect(text, mimeType).not.toMatch(/9907/);
+      }
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

@@ -15,12 +15,28 @@ const TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
   // Most browsers have none for Markdown, and some call it text/x-markdown.
   md: 'text/markdown',
   markdown: 'text/markdown',
+  csv: 'text/csv',
+  htm: 'text/html',
+  html: 'text/html',
+  webp: 'image/webp',
+  gif: 'image/gif',
 };
 
 /** What a browser calls a type that the server knows by another name. */
 const TYPE_ALIASES: Readonly<Record<string, string>> = {
   'text/x-markdown': 'text/markdown',
+  'application/csv': 'text/csv',
+  'text/x-csv': 'text/csv',
+  'application/x-csv': 'text/csv',
+  'text/comma-separated-values': 'text/csv',
+  'application/xhtml+xml': 'text/html',
 };
+
+/**
+ * Windows names a type by the program that opens the extension, and with Excel installed a
+ * `.csv` is Excel's. That type is also a real `.xls`'s, so it is renamed only for a `.csv`.
+ */
+const EXCEL_MIME_TYPE = 'application/vnd.ms-excel';
 
 /**
  * The type an upload is declared as.
@@ -30,11 +46,14 @@ const TYPE_ALIASES: Readonly<Record<string, string>> = {
  *   file's bytes afterwards either way, so this only has to get past the allowlist.
  */
 export function uploadMimeType(file: { name: string; type: string }): string {
+  const dot = file.name.lastIndexOf('.');
+  const extension = dot === -1 ? '' : file.name.slice(dot + 1).toLowerCase();
+  if (file.type === EXCEL_MIME_TYPE && extension === 'csv') {
+    return 'text/csv';
+  }
   if (file.type !== '') {
     return TYPE_ALIASES[file.type] ?? file.type;
   }
-  const dot = file.name.lastIndexOf('.');
-  const extension = dot === -1 ? '' : file.name.slice(dot + 1).toLowerCase();
   return TYPES_BY_EXTENSION[extension] ?? UNKNOWN_MIME_TYPE;
 }
 
