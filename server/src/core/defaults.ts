@@ -223,6 +223,23 @@ export const EBOOK_DEFAULTS: Readonly<EbookSettings> = Object.freeze({
   maxUnpackedBytes: 268_435_456,
 });
 
+/** How a text upload that is not UTF-8 is read. */
+export interface TextSettings {
+  /**
+   * How many bytes from the start of a file the encoding is guessed from. The guess is
+   * statistical and costs time in proportion; a file's first 64 KiB says as much as all of it.
+   */
+  encodingSampleBytes: number;
+  /** The encoding taken when nothing else says: what Windows writes for Western languages. */
+  fallbackEncoding: string;
+}
+
+/** The shipped values of `TextSettings`. */
+export const TEXT_DEFAULTS: Readonly<TextSettings> = Object.freeze({
+  encodingSampleBytes: 65_536,
+  fallbackEncoding: 'windows-1252',
+});
+
 /** The search index and the queries over it. The retrieval numbers are mcp-ragdown's, measured there. */
 export interface SearchSettings {
   /** The longest passage embedded, in characters: about 400 tokens, inside the model's window. */

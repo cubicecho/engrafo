@@ -18,6 +18,7 @@
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@vantreeseba/drizzle-graphql": "^13.0.0",
     "better-auth": "^1.7.12",
+    "chardet": "^2.2.0",
     "domhandler": "^6.0.1",
     "drizzle-orm": "1.0.0-rc.4",
     "express": "^5.2.1",

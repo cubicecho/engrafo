@@ -90,6 +90,15 @@ describe('text step', () => {
     expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe(csv);
   });
 
+  it('stores a CSV written in a Windows code page as UTF-8', async () => {
+    // "Café,£4.50" as windows-1252 writes it.
+    const bytes = Buffer.from([0x43, 0x61, 0x66, 0xe9, 0x2c, 0xa3, 0x34, 0x2e, 0x35, 0x30]);
+    storage.files.objects.set(doc().originalKey, { body: bytes, contentType: 'text/csv' });
+
+    const patch = await textStep.run(await context(doc({ mimeType: 'text/csv' })));
+    expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe('Café,£4.50');
+  });
+
   it("stores a web page's text, not its markup", async () => {
     const html = '<html><head><script>steal()</script></head><body><h1>Order 1234</h1><p>One kettle.</p></body></html>';
     storage.files.objects.set(doc().originalKey, { body: Buffer.from(html), contentType: 'text/html' });
