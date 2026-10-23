@@ -5,6 +5,7 @@ import { graphql } from '@/__generated__';
 import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
 import { ConfirmButton } from '@/components/confirm-button';
 import { FolderInput } from '@/components/domain/app-icons';
+import { DocumentDateDialog } from '@/components/domain/document-date-dialog';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
@@ -49,6 +50,8 @@ const DocumentDetail = graphql(`
       status
       error
       createdAt
+      documentDate
+      documentDateSource
       processingSteps(orderBy: { position: { direction: asc, priority: 1 } }) {
         id
         step
@@ -130,6 +133,16 @@ const MoveDocumentHere = graphql(`
   }
 `);
 
+const SetDocumentDate = graphql(`
+  mutation SetDocumentDate($id: UUID!, $date: String) {
+    setDocumentDate(id: $id, date: $date) {
+      id
+      documentDate
+      documentDateSource
+    }
+  }
+`);
+
 const DeleteDocument = graphql(`
   mutation DeleteDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -185,6 +198,8 @@ export function DocumentRoute() {
   });
   const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
   const [rename] = useMutation(RenameDocument);
+  const [editingDate, setEditingDate] = useState(false);
+  const [setDate] = useMutation(SetDocumentDate);
   // The sidebar's tree still lists it until the archive is read again.
   const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -321,6 +336,13 @@ export function DocumentRoute() {
               onClose={() => setRenaming(false)}
             />
           ) : null}
+          {editingDate ? (
+            <DocumentDateDialog
+              date={doc.documentDate ?? null}
+              onSave={(date) => setDate({ variables: { id: doc.id, date } })}
+              onClose={() => setEditingDate(false)}
+            />
+          ) : null}
           {moving && moveTargets.data ? (
             <MoveDialog
               name={doc.title}
@@ -380,7 +402,13 @@ export function DocumentRoute() {
           <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
           <DocumentPreviewCard doc={doc} />
           <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
-          <DocumentDetailsCard createdAt={doc.createdAt} checksumSha256={doc.checksumSha256} />
+          <DocumentDetailsCard
+            createdAt={doc.createdAt}
+            checksumSha256={doc.checksumSha256}
+            documentDate={doc.documentDate ?? null}
+            documentDateSource={doc.documentDateSource ?? null}
+            onEditDate={() => setEditingDate(true)}
+          />
         </>
       }
     />

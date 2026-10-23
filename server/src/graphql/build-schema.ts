@@ -6,6 +6,7 @@ import { applyApiKeysExtension } from '../api-keys/resolvers.ts';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
+import { applyMetadataExtension } from '../metadata/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
@@ -55,6 +56,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyAuthExtension(schema);
   schema = applyDocumentsExtension(schema);
   schema = applyFoldersExtension(schema);
+  schema = applyMetadataExtension(schema);
   schema = applySearchExtension(schema);
   schema = applySsoExtension(schema);
   schema = applyApiKeysExtension(schema);

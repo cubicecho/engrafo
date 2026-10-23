@@ -23,6 +23,10 @@ whole product.
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
   person searches only their own documents.
+- **Document dates** — the date printed on a receipt, letter or invoice is read
+  from its text (ISO, `12.03.2025`, `03/12/2025`, `12 March 2025`), shown on the
+  document, and yours to correct. A date you set or clear is never replaced
+  when the document is processed again.
 - **Folders** — file documents into folders, nested as deep as you like, and
   see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way
@@ -169,6 +173,7 @@ domain.
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR and indexing are CPU-bound. |
+| `DATE_ORDER` | `DMY` | How a numeric date that reads either way (`03/04/2025`) is read from a document's text: `DMY`, `MDY` (US) or `YMD`. A dotted date is always day first, and a part over 12 is always the day. |
 | `MODELS_DIR` | `/models` in the image | Where the search model is cached. Unset on a dev host, it is downloaded (about 50 MB) on first use. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |

@@ -128,6 +128,7 @@ const SEARCH_HITS = [
       ...document({ title: 'Lease agreement' }),
       originalFilename: 'lease.pdf',
       createdAt: '2026-09-02T11:04:00.000Z',
+      documentDate: '2024-05-01',
     },
   },
   {
@@ -166,6 +167,9 @@ export const Searching: Story = {
     await expect(rows).toHaveLength(2);
     await expect(rows[0]).toHaveTextContent('Lease agreement');
     await expect(rows[0]).toHaveTextContent('950 EUR on the first day');
+    // The date on the document is the one shown, when it has one, rather than the upload's.
+    await expect(rows[0]).toHaveTextContent('2024');
+    await expect(rows[1]).toHaveTextContent('2026');
     // A hit on the title alone shows which file it is instead of an empty line.
     await expect(rows[1]).toHaveTextContent('receipts.pdf');
   },

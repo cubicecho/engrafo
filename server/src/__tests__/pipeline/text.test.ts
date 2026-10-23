@@ -8,7 +8,13 @@ import { textStep } from '../../pipeline/steps/text.ts';
 import type { PipelineConfig, StepContext } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, createTestDb, type FakeStorage } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: true,
+  pdfTextAvailable: true,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 const NOTES = '# Server\n\nIt runs on the NAS.\n';
 
 function doc(values: Partial<Document> = {}): Document {
@@ -25,6 +31,12 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     ocrRequested: false,
     status: 'processing',
     error: null,

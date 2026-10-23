@@ -77,6 +77,7 @@ engrafo/
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
+│       ├── metadata/        # document-date (the parser), schemas, resolvers (the edits)
 │       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -87,7 +88,7 @@ engrafo/
 │       │   ├── mime.ts      # The upload allowlist
 │       │   ├── pdf-text.ts  # pdftotext: the text layer a PDF already has
 │       │   ├── epub.ts      # readEpub: an EPUB's text, chapter by chapter, in-process
-│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, index
+│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, metadata, index
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
@@ -350,6 +351,28 @@ mcp-ragdown embeds it), ignores a `#` inside a fenced code block, and leaves
 YAML front matter out of the passages. It does not read Setext headings
 (`===` underlines), tags, wikilinks or anything else mcp-ragdown does: a
 Markdown document here is a file you filed, not a note an agent edits.
+
+**A field read from the content says who filled it in, and an edit is never
+overwritten.** `documentDate` (a SQL `date`, the day printed on the document,
+not `createdAt`) has `documentDateSource`, a `field_source` of `extracted` or
+`user`. The `metadata` step, after every step that produces text and before
+`index` (it breaks "new steps go last" the way `ebook` does, and step-list.ts
+says why that is safe), fills in only fields whose source is not `user`, and
+always writes them, null when the new text has none, so a re-run does not keep
+the last run's guess. `setDocumentDate` sets or clears the date and marks it
+`user`, so a cleared date stays cleared: null with source `user` means "the
+user says there is none". `metadataPatch` is where the rule is written.
+
+**The date parser is pure and takes the first plausible date.**
+`findDocumentDate` in `metadata/document-date.ts` reads ISO (`2025-03-12`),
+year-last numerics (`12.03.2025`, `03/12/2025`, `12/03/25`) and month names in
+English and German (`12 March 2025`, `March 12, 2025`, `3. März 2025`), in text
+order, and takes the first that is a real day, not before
+`METADATA_DEFAULTS.oldestYear` and not more than `futureToleranceDays` past
+today, so a due date or an expiry is skipped. Ambiguity is `DATE_ORDER`
+(`DMY` by default, as Paperless): a part over 12 settles it whatever the order
+says, a dot is always day first, and `YMD` only means something for a
+two-digit year last. It has no clock: the step hands it today.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
