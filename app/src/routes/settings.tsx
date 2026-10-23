@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { BackupSettings } from '@/components/domain/backup-settings';
 import { McpSettings } from '@/components/domain/mcp-settings';
 import { SsoSettings } from '@/components/domain/sso-pairing';
 import { VisionSettingsCard } from '@/components/domain/vision-settings';
@@ -31,6 +32,7 @@ const SettingsPage = graphql(`
     serverConfig {
       version
       maxUploadBytes
+      maxImportBytes
       acceptedMimeTypes
       ocrAvailable
       ocrDefault
@@ -48,6 +50,7 @@ export const SETTINGS_TABS = [
   { value: 'account', label: 'Account', adminOnly: false },
   { value: 'processing', label: 'Processing', adminOnly: false },
   { value: 'mcp', label: 'MCP', adminOnly: false },
+  { value: 'backup', label: 'Backup', adminOnly: false },
   { value: 'sign-in', label: 'Sign-in', adminOnly: true },
   { value: 'about', label: 'About', adminOnly: false },
 ] as const;
@@ -194,6 +197,10 @@ export function SettingsRoute() {
 
                 <TabsContent value="mcp" className="flex flex-col gap-6">
                   <McpSettings />
+                </TabsContent>
+
+                <TabsContent value="backup" className="flex flex-col gap-6">
+                  <BackupSettings maxImportBytes={data.serverConfig.maxImportBytes} />
                 </TabsContent>
 
                 {data.me.isAdmin ? (
