@@ -1,3 +1,5 @@
+import { fileTypeFromBuffer } from 'file-type';
+
 /** An EPUB: a zip of XHTML chapters, read here without any outside tool. */
 export const EPUB_MIME_TYPE = 'application/epub+zip';
 /** Plain text with no markup to take off. */
@@ -100,4 +102,30 @@ export function hasNoMagicBytes(mimeType: string): boolean {
  */
 export function hasHeadings(mimeType: string): boolean {
   return mimeType === MARKDOWN_MIME_TYPE || mimeType === EPUB_MIME_TYPE || mimeType === HTML_MIME_TYPE;
+}
+
+/** How many leading bytes file-type needs, at most, to recognise any format it knows. */
+export const SNIFF_BYTES = 4100;
+
+/**
+ * A file's real type, read from its magic bytes.
+ *
+ * @param head - The file's first bytes; at least `SNIFF_BYTES` of them when it is that long.
+ * @param claimed - The type the uploader said, or guessed from the file's extension.
+ * @returns The type the bytes say, or `claimed` when the bytes say nothing and it is a text type,
+ *   or null when neither can be believed.
+ *
+ * @remarks
+ * Text types and HTML have no magic bytes, so "no match" is only taken for one of them when
+ * the uploader also said so (`hasNoMagicBytes`). Whether the type is accepted is the caller's question.
+ */
+export async function sniffMimeType(head: Uint8Array, claimed: string): Promise<string | null> {
+  const sniffed = await fileTypeFromBuffer(head.subarray(0, SNIFF_BYTES));
+  // XHTML may open with an XML declaration, which is all file-type sees of it. Any XML that
+  // claims to be a web page is read as one: the walker is lenient, and markup is markup.
+  const isXhtml = sniffed?.mime === XML_MIME_TYPE && claimed === HTML_MIME_TYPE;
+  if (sniffed && isXhtml === false) {
+    return sniffed.mime;
+  }
+  return hasNoMagicBytes(claimed) ? claimed : null;
 }

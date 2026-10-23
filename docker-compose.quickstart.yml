@@ -46,6 +46,20 @@
 # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and, for the button, OIDC_NAME. The login
 # page then shows "Sign in with <OIDC_NAME>".
 #
+# A watched folder (optional): Engrafo can file whatever a scanner saves to a
+# network share, then delete it from the share, as Paperless's consume folder
+# does. Two changes, then redeploy:
+#
+#   1. Set WATCH_OWNER to the email address of the account the files go to,
+#      e.g. WATCH_OWNER=you@example.com. Sign in with it once first; until that
+#      account exists, the log says so and nothing is filed.
+#   2. Under the engrafo service, uncomment the two `volumes` lines and put the
+#      share's path on this machine (e.g. /mnt/tank/scans) before `:/consume`.
+#
+# Subfolders of the share become folders in Engrafo, and Engrafo needs
+# permission to delete files there. A file is taken once it has stopped
+# changing for WATCH_STABLE_SECONDS (10); raise it for a slow scanner.
+#
 # Registration is open to anyone who can reach the page, so keep this on a
 # network you trust, or put a reverse proxy with real auth in front of it.
 # Read the "Before you expose it" section of the README before giving it a
@@ -108,10 +122,18 @@ services:
       # How a date like 03/04/2025 is read from a document: DMY (day first) or,
       # for a US archive, MDY.
       DATE_ORDER: DMY
+      # The watched folder. On once WATCH_OWNER is set, at /consume inside the
+      # container; the volume below says what that is on this machine.
+      WATCH_DIR: ${WATCH_OWNER:+/consume}
+      WATCH_OWNER: ${WATCH_OWNER:-}
+      WATCH_STABLE_SECONDS: ${WATCH_STABLE_SECONDS:-10}
       TZ: ${TZ:-UTC}
       NODE_ENV: production
     ports:
       - "${ENGRAFO_PORT:-3004}:3004"
+    # The watched folder's directory on this machine. See the top of this file.
+    # volumes:
+    #   - /mnt/tank/scans:/consume
     # No healthcheck block: the image ships its own, on /healthz.
 
   postgres:
