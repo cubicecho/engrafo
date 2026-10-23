@@ -1,3 +1,10 @@
+# [4.4.0](https://github.com/cubicecho/engrafo/compare/v4.3.0...v4.4.0) (2026-10-23)
+
+
+### Features
+
+* read EPUB uploads, chapter by chapter ([2f7e758](https://github.com/cubicecho/engrafo/commit/2f7e758e33a7ff435ce3f451b2695913cc467939))
+
 # [4.3.0](https://github.com/cubicecho/engrafo/compare/v4.2.0...v4.3.0) (2026-10-23)
 
 
