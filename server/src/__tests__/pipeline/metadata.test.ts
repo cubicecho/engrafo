@@ -71,14 +71,54 @@ describe('the metadata step', () => {
     expect(metadataPatch(cleared, 'Dated 12.03.2025', CONFIG, TODAY)).not.toHaveProperty('documentDate');
   });
 
+  const RECEIPT = { vendor: 'REWE', total: '12.67', currency: 'EUR' };
+
+  it('fills in the receipt fields, as extracted', () => {
+    expect(metadataPatch(doc(), '', CONFIG, TODAY, RECEIPT)).toMatchObject({
+      ...RECEIPT,
+      receiptSource: 'extracted',
+    });
+  });
+
+  it('clears extracted receipt fields when the new text has none', () => {
+    const before = doc({ ...RECEIPT, receiptSource: 'extracted' });
+    expect(metadataPatch(before, '', CONFIG, TODAY)).toMatchObject({
+      vendor: null,
+      total: null,
+      currency: null,
+      receiptSource: null,
+    });
+  });
+
+  it('never touches a receipt the user edited, any field of it', () => {
+    const edited = doc({ vendor: 'My shop', total: null, currency: null, receiptSource: 'user' });
+    const patch = metadataPatch(edited, '', CONFIG, TODAY, RECEIPT);
+    expect(patch).not.toHaveProperty('vendor');
+    expect(patch).not.toHaveProperty('total');
+    expect(patch).not.toHaveProperty('receiptSource');
+  });
+
+  it('does not take an ebook or a Markdown note for a receipt', () => {
+    expect(metadataPatch(doc({ mimeType: 'text/markdown' }), '', CONFIG, TODAY, RECEIPT)).toMatchObject({
+      total: null,
+      receiptSource: null,
+    });
+  });
+
   it('reads the text from the text bucket, and runs for a document with none', async () => {
     const storage = createFakeStorage();
-    storage.text.objects.set('text/u/d', { body: Buffer.from('Issued 1 March 2024'), contentType: 'text/plain' });
+    const receipt = 'Bäckerei Müller\nIssued 1 March 2024\nBrot 3,50\nSumme EUR 3,50';
+    storage.text.objects.set('text/u/d', { body: Buffer.from(receipt), contentType: 'text/plain' });
     const context = { db: {} as TestDb, storage, config: CONFIG, embedder: createFakeEmbedder(), tmpDir: '/tmp' };
 
     expect(metadataStep.enabled(doc(), CONFIG)).toBe(true);
-    expect(await metadataStep.run({ ...context, doc: doc({ contentKey: 'text/u/d' }) })).toMatchObject({
+    expect(await metadataStep.run({ ...context, doc: doc({ contentKey: 'text/u/d' }) })).toEqual({
       documentDate: '2024-03-01',
+      documentDateSource: 'extracted',
+      vendor: 'Bäckerei Müller',
+      total: '3.50',
+      currency: 'EUR',
+      receiptSource: 'extracted',
     });
     expect(await metadataStep.run({ ...context, doc: doc() })).toMatchObject({ documentDate: null });
   });

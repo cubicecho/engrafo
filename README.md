@@ -27,6 +27,12 @@ whole product.
   from its text (ISO, `12.03.2025`, `03/12/2025`, `12 March 2025`), shown on the
   document, and yours to correct. A date you set or clear is never replaced
   when the document is processed again.
+- **Receipts** — a receipt's vendor, total and currency are read from its text
+  by plain rules (no AI model), shown on the document and editable there, and
+  exported as a CSV (`date,vendor,total,currency,title,folder`) for a date
+  range or a folder. Fields it is unsure of are left empty rather than guessed:
+  a bare `$` is several currencies, and a document with no labelled total is
+  not taken for a receipt.
 - **Folders** — file documents into folders, nested as deep as you like, and
   see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way

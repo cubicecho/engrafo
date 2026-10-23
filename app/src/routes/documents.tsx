@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
+import { ExportReceiptsButton } from '@/components/domain/export-receipts';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
@@ -79,7 +80,12 @@ export function DocumentsRoute() {
       iconSlot={<FileText />}
       title="Documents"
       description="Upload into a folder, or search everything you have uploaded. The folders are in the sidebar."
-      actionSlot={<NewFolderButton />}
+      actionSlot={
+        <>
+          <ExportReceiptsButton folders={folders} />
+          <NewFolderButton />
+        </>
+      }
       headerContentSlot={
         <SearchInput
           label="Search documents"

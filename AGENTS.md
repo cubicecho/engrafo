@@ -77,7 +77,7 @@ engrafo/
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
-│       ├── metadata/        # document-date (the parser), schemas, resolvers (the edits)
+│       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -373,6 +373,40 @@ today, so a due date or an expiry is skipped. Ambiguity is `DATE_ORDER`
 (`DMY` by default, as Paperless): a part over 12 settles it whatever the order
 says, a dot is always day first, and `YMD` only means something for a
 two-digit year last. It has no clock: the step hands it today.
+
+**A receipt is three fields with one source, and a total is never a float.**
+`vendor`, `total` and `currency` share `receiptSource`: an edit to any of them
+(`setDocumentReceipt` sets all three at once) takes the whole receipt over, and
+the step leaves it alone from then on. The receipt's date is `documentDate`,
+not a column of its own. `total` is Postgres `numeric` with no fixed scale,
+written and read as a decimal string (`12.50`, `1.250` for a three-decimal
+currency) and exposed as drizzle-graphql's `Decimal` scalar: not minor units,
+which mean nothing without a currency, and a receipt often names an amount and
+no currency. The app keeps it a string too (`lib/money.ts`); only drawing it
+goes through a number. `currency` is ISO 4217, checked by a constraint.
+
+**Receipt extraction is rules, behind a seam, and errs towards empty.**
+`extractReceipt` in `metadata/receipt.ts` is pure and is the
+`ReceiptExtractor` the step calls; a model-based extractor replaces it there
+and nowhere else. No labelled total, no receipt: vendor and currency are only
+filled beside a total, so a letter's first line is never a vendor. The total
+is the *largest* amount on a line labelled `Total`, `Amount due`, `Grand
+total`, `Summe`, `Gesamt` and the like, after dropping subtotal, tax, net,
+tendered and change lines (largest, because every part of a total is smaller
+than it, wherever it is printed); a label with nothing after it takes the next
+line's bare amount, as OCR splits columns. A whole number with no currency
+beside it is a count, not money. Either separator is the decimal point when one
+or two digits follow it. Currency is the total line's code or unambiguous
+symbol, else the one currency the text names; a bare `$`, `¥` or `kr` is
+several currencies and gives none. Ebooks and Markdown are never receipts.
+
+**The receipts export is a query, not a route.** `receiptsCsv(from, to,
+folderId)` returns the CSV text and the app saves it (`downloadBlob`), because
+a session is a bearer token and a plain link would arrive signed out. A receipt
+is a document with a vendor or a total; a range filters by `documentDate`,
+inclusive, so an undated receipt is only in an export with no range; a folder
+takes everything inside it. Cells go through `csvCell`, which quotes and
+defuses a leading `=`, `+`, `-` or `@` (CSV injection), except the total.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.

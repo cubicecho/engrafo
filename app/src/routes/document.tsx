@@ -10,8 +10,10 @@ import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
 import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
+import { DocumentReceiptCard } from '@/components/domain/document-receipt-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
 import { MoveDialog } from '@/components/domain/move-dialog';
+import { ReceiptDialog } from '@/components/domain/receipt-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
@@ -52,6 +54,10 @@ const DocumentDetail = graphql(`
       createdAt
       documentDate
       documentDateSource
+      vendor
+      total
+      currency
+      receiptSource
       processingSteps(orderBy: { position: { direction: asc, priority: 1 } }) {
         id
         step
@@ -143,6 +149,18 @@ const SetDocumentDate = graphql(`
   }
 `);
 
+const SetDocumentReceipt = graphql(`
+  mutation SetDocumentReceipt($id: UUID!, $input: DocumentReceiptInput!) {
+    setDocumentReceipt(id: $id, input: $input) {
+      id
+      vendor
+      total
+      currency
+      receiptSource
+    }
+  }
+`);
+
 const DeleteDocument = graphql(`
   mutation DeleteDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -200,6 +218,8 @@ export function DocumentRoute() {
   const [rename] = useMutation(RenameDocument);
   const [editingDate, setEditingDate] = useState(false);
   const [setDate] = useMutation(SetDocumentDate);
+  const [editingReceipt, setEditingReceipt] = useState(false);
+  const [setReceipt] = useMutation(SetDocumentReceipt);
   // The sidebar's tree still lists it until the archive is read again.
   const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -343,6 +363,13 @@ export function DocumentRoute() {
               onClose={() => setEditingDate(false)}
             />
           ) : null}
+          {editingReceipt ? (
+            <ReceiptDialog
+              receipt={{ vendor: doc.vendor, total: doc.total, currency: doc.currency }}
+              onSave={(input) => setReceipt({ variables: { id: doc.id, input } })}
+              onClose={() => setEditingReceipt(false)}
+            />
+          ) : null}
           {moving && moveTargets.data ? (
             <MoveDialog
               name={doc.title}
@@ -402,6 +429,13 @@ export function DocumentRoute() {
           <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
           <DocumentPreviewCard doc={doc} />
           <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
+          <DocumentReceiptCard
+            vendor={doc.vendor}
+            total={doc.total}
+            currency={doc.currency}
+            source={doc.receiptSource}
+            onEdit={() => setEditingReceipt(true)}
+          />
           <DocumentDetailsCard
             createdAt={doc.createdAt}
             checksumSha256={doc.checksumSha256}

@@ -55,6 +55,10 @@ function document(overrides: Partial<Document>): Document {
     createdAt: '2026-09-02T11:04:00.000Z',
     documentDate: null,
     documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     processingSteps: [step({ step: 'store' }), step({ step: 'extract-text' })],
     ...overrides,
   };
@@ -274,6 +278,53 @@ export const ClearingTheDate: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
 
     await expect(await canvas.findByText('Set by you')).toBeInTheDocument();
+  },
+};
+
+/**
+ * A receipt read from the text is edited in its dialog, and the card shows what the server kept,
+ * now marked as the user's.
+ */
+export const EditingTheReceipt: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () =>
+            document({
+              vendor: 'REWE',
+              total: '9.99',
+              currency: 'EUR',
+              receiptSource: FieldSourceEnum.Extracted,
+            }),
+        },
+        Mutation: {
+          setDocumentReceipt: (
+            _parent: unknown,
+            args: { input: { vendor?: string | null; total?: string | null; currency?: string | null } },
+          ) =>
+            document({
+              vendor: args.input.vendor ?? null,
+              total: args.input.total ?? null,
+              currency: args.input.currency ?? null,
+              receiptSource: FieldSourceEnum.User,
+            }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText(/Read from the text\. Check it/)).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit receipt details' }));
+    const dialog = within(await page.findByRole('dialog', { name: 'Receipt details' }));
+    const vendor = dialog.getByRole('textbox', { name: /Vendor/ });
+    await userEvent.clear(vendor);
+    await userEvent.type(vendor, 'REWE Markt');
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Set by you.')).toBeInTheDocument();
+    await expect(canvas.getByText('REWE Markt')).toBeInTheDocument();
   },
 };
 

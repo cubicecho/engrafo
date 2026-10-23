@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { ROUTES } from '@/lib/routes';
 import { archiveServer, document, EMPTY_FOLDER, SERVER_CONFIG, TAXES, YEAR } from '../../.storybook/archive.ts';
 import { DocumentsRoute } from './documents';
@@ -95,6 +95,42 @@ export const RefusesATakenFolderName: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Create' }));
 
     await expect(await dialog.findByRole('alert')).toHaveTextContent('Something called "taxes" is already there.');
+  },
+};
+
+const exported: Array<Record<string, unknown>> = [];
+
+/**
+ * "Export receipts" in the header asks the server for the CSV with what the dialog was given,
+ * and closes once the file is saved.
+ */
+export const ExportingReceipts: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        ...archiveServer({ folders: [TAXES, YEAR], documents: [] }),
+        Query: {
+          ...archiveServer({ folders: [TAXES, YEAR], documents: [] }).Query,
+          receiptsCsv: (_parent: unknown, args: Record<string, unknown>) => {
+            exported.push(args);
+            return 'date,vendor,total,currency,title,folder\r\n';
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    exported.length = 0;
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Export receipts' }));
+    const dialog = await page.findByRole('dialog', { name: 'Export receipts' });
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Folder' }));
+    await userEvent.click(await page.findByRole('option', { name: 'Taxes' }));
+    // The select's popover hides the rest of the page until it has closed.
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Download CSV' }));
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await expect(exported).toEqual([expect.objectContaining({ folderId: TAXES.id })]);
   },
 };
 
