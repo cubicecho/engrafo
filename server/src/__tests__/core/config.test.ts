@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { envPositiveInteger, s3Config, watchConfig } from '../../core/config.ts';
-import { STORAGE_DEFAULTS, WATCH_DEFAULTS } from '../../core/defaults.ts';
+import { dateOrder, envPositiveInteger, s3Config, watchConfig } from '../../core/config.ts';
+import { METADATA_DEFAULTS, STORAGE_DEFAULTS, WATCH_DEFAULTS } from '../../core/defaults.ts';
 
 const FALLBACK = 7;
 
@@ -41,6 +41,22 @@ describe('s3Config forcePathStyle', () => {
   it('ignores a value that is neither yes nor no', () => {
     vi.stubEnv('S3_FORCE_PATH_STYLE', 'maybe');
     expect(s3Config().forcePathStyle).toBe(STORAGE_DEFAULTS.forcePathStyle);
+  });
+});
+
+describe('dateOrder', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('defaults to day first', () => {
+    vi.stubEnv('DATE_ORDER', undefined);
+    expect(dateOrder()).toBe(METADATA_DEFAULTS.dateOrder);
+  });
+
+  it('reads an order in any case', () => {
+    vi.stubEnv('DATE_ORDER', ' mdy ');
+    expect(dateOrder()).toBe('MDY');
   });
 });
 

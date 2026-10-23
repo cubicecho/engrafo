@@ -8,7 +8,13 @@ import { textStep } from '../../pipeline/steps/text.ts';
 import type { PipelineConfig, StepContext } from '../../pipeline/types.ts';
 import { createFakeEmbedder, createFakeStorage, createTestDb, type FakeStorage } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: true, pdfTextAvailable: true, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: true,
+  pdfTextAvailable: true,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 const NOTES = '# Server\n\nIt runs on the NAS.\n';
 
 function doc(values: Partial<Document> = {}): Document {
@@ -25,6 +31,12 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    documentDate: null,
+    documentDateSource: null,
+    vendor: null,
+    total: null,
+    currency: null,
+    receiptSource: null,
     ocrRequested: false,
     status: 'processing',
     error: null,
@@ -57,14 +69,45 @@ describe('text step', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('runs for plain text and Markdown', () => {
+  it('runs for plain text, Markdown, CSV and HTML', () => {
     expect(textStep.enabled(doc(), CONFIG)).toBe(true);
     expect(textStep.enabled(doc({ mimeType: 'text/plain' }), CONFIG)).toBe(true);
+    expect(textStep.enabled(doc({ mimeType: 'text/csv' }), CONFIG)).toBe(true);
+    expect(textStep.enabled(doc({ mimeType: 'text/html' }), CONFIG)).toBe(true);
     expect(textStep.enabled(doc({ mimeType: 'application/pdf' }), CONFIG)).toBe(false);
   });
 
-  it('takes the upload at its word for Markdown, which has no magic bytes', async () => {
+  it('takes the upload at its word for Markdown, CSV and HTML, which have no magic bytes', async () => {
     expect((await inspectStep.run(await context(doc())))?.mimeType).toBe('text/markdown');
+    expect((await inspectStep.run(await context(doc({ mimeType: 'text/csv' }))))?.mimeType).toBe('text/csv');
+    expect((await inspectStep.run(await context(doc({ mimeType: 'text/html' }))))?.mimeType).toBe('text/html');
+  });
+
+  it('reads XHTML as a web page, though its bytes say only XML', async () => {
+    const xhtml = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><body/></html>';
+    storage.files.objects.set(doc().originalKey, { body: Buffer.from(xhtml), contentType: 'text/html' });
+
+    expect((await inspectStep.run(await context(doc({ mimeType: 'text/html' }))))?.mimeType).toBe('text/html');
+    // XML claiming anything else is still XML, which is not on the list.
+    await expect(inspectStep.run(await context(doc({ mimeType: 'text/plain' })))).rejects.toThrow(
+      'Unsupported file type (application/xml)',
+    );
+  });
+
+  it('stores a CSV as it is', async () => {
+    const csv = 'Date,Amount\n2024-01-02,-3.50';
+    storage.files.objects.set(doc().originalKey, { body: Buffer.from(csv), contentType: 'text/csv' });
+
+    const patch = await textStep.run(await context(doc({ mimeType: 'text/csv' })));
+    expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe(csv);
+  });
+
+  it("stores a web page's text, not its markup", async () => {
+    const html = '<html><head><script>steal()</script></head><body><h1>Order 1234</h1><p>One kettle.</p></body></html>';
+    storage.files.objects.set(doc().originalKey, { body: Buffer.from(html), contentType: 'text/html' });
+
+    const patch = await textStep.run(await context(doc({ mimeType: 'text/html' })));
+    expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe('# Order 1234\n\nOne kettle.');
   });
 
   it('still refuses a file with no magic bytes that claimed some other type', async () => {

@@ -16,7 +16,13 @@ import {
   type TestDb,
 } from '../helpers.ts';
 
-const CONFIG: PipelineConfig = { ocrAvailable: false, pdfTextAvailable: false, ocrLanguages: 'eng', concurrency: 1 };
+const CONFIG: PipelineConfig = {
+  ocrAvailable: false,
+  pdfTextAvailable: false,
+  ocrLanguages: 'eng',
+  concurrency: 1,
+  dateOrder: 'DMY',
+};
 
 describe('pipeline runner', () => {
   let db: TestDb;

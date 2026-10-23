@@ -13,6 +13,8 @@ import { assertNameFree, folderNameSchema, lockNames } from '../folders/names.ts
 import type { PipelineEvents } from '../pipeline/events.ts';
 import {
   ACCEPTED_MIME_TYPES,
+  CSV_MIME_TYPE,
+  HTML_MIME_TYPE,
   isAcceptedMimeType,
   MARKDOWN_MIME_TYPE,
   PLAIN_TEXT_MIME_TYPE,
@@ -56,11 +58,14 @@ export type IngestResult =
   /** Shutdown began before anything was written. */
   | { kind: 'stopped' };
 
-/** The two text types, which have no magic bytes, by the extension that says them. */
+/** The types with no magic bytes, by the extension that says them. */
 const TEXT_EXTENSIONS: Record<string, string> = {
   '.txt': PLAIN_TEXT_MIME_TYPE,
   '.md': MARKDOWN_MIME_TYPE,
   '.markdown': MARKDOWN_MIME_TYPE,
+  '.csv': CSV_MIME_TYPE,
+  '.html': HTML_MIME_TYPE,
+  '.htm': HTML_MIME_TYPE,
 };
 
 /**

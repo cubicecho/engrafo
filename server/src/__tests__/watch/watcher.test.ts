@@ -163,13 +163,20 @@ describe('the watched folder', () => {
     expect(titles).toEqual(['scan', 'scan (2)']);
   });
 
-  it('reads text and Markdown by their extension, since they have no magic bytes', async () => {
+  it('reads text, Markdown, CSV and HTML by their extension, since they have no magic bytes', async () => {
     await createUser(db, OWNER);
     await put('notes.md', '# Notes\n\nSome text.');
     await put('plain.txt', 'Just words.');
+    await put('statement.csv', 'Date,Amount\n2026-01-02,-3.50');
+    await put('order.htm', '<html><body><h1>Order 1234</h1></body></html>');
     await settle();
     const types = Object.fromEntries((await db.select().from(documents)).map((doc) => [doc.title, doc.mimeType]));
-    expect(types).toEqual({ notes: 'text/markdown', plain: 'text/plain' });
+    expect(types).toEqual({
+      notes: 'text/markdown',
+      plain: 'text/plain',
+      statement: 'text/csv',
+      order: 'text/html',
+    });
   });
 
   it('leaves dotfiles and temporary files alone, without a word', async () => {

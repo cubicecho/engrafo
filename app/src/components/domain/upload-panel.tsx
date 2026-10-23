@@ -1,8 +1,11 @@
-import { useMutation } from '@apollo/client/react';
-import { useId, useState } from 'react';
+import { useMutation, useQuery } from '@apollo/client/react';
+import { useEffect, useId, useState } from 'react';
+import { Link } from 'react-router';
 import { graphql } from '@/__generated__';
+import { DocumentStatusEnum } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { Combobox } from '@/components/combobox';
+import { DuplicateLinks } from '@/components/domain/duplicate-alert';
 import { FormField } from '@/components/form-field';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -12,9 +15,11 @@ import type { PickedFile } from '@/components/ui/file-picker-base';
 import { X } from '@/components/ui/icons';
 import { Progress } from '@/components/ui/progress';
 import { SwitchField } from '@/components/ui/switch-field';
+import { POLLING_DEFAULTS } from '@/defaults';
 import { type FolderRow, folderOptions, TOP_LEVEL } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { clientId } from '@/lib/id';
+import { documentPath } from '@/lib/routes';
 import { putFile, uploadMimeType } from '@/lib/upload';
 
 const CreateUpload = graphql(`
@@ -41,6 +46,26 @@ const CompleteUpload = graphql(`
   }
 `);
 
+// Asked about every finished upload at once, so a dropped folder is one request per poll, not
+// one per file. The checksum is the pipeline's first step and lands after the upload is done,
+// so this is polled until each one is in.
+const UploadDuplicates = graphql(`
+  query UploadDuplicates($ids: [UUID!]!) {
+    documentDuplicates(ids: $ids) {
+      document {
+        id
+        status
+      }
+      checked
+      duplicates {
+        id
+        title
+        folderId
+      }
+    }
+  }
+`);
+
 // A job's progress is a fraction; the bar and its label are in percent.
 const PERCENT = 100;
 
@@ -51,6 +76,8 @@ interface Job {
   progress: number;
   error: string | null;
   done: boolean;
+  /** The document the upload made, once the server has made it. */
+  documentId: string | null;
 }
 
 interface UploadPanelProps {
@@ -77,6 +104,31 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
   const [jobs, setJobs] = useState<Job[]>([]);
   const [createUpload] = useMutation(CreateUpload);
   const [completeUpload] = useMutation(CompleteUpload);
+
+  const uploadedIds = jobs.flatMap((job) => (job.done && job.documentId ? [job.documentId] : []));
+  const duplicatesResult = useQuery(UploadDuplicates, {
+    variables: { ids: uploadedIds },
+    skip: uploadedIds.length === 0,
+  });
+  const { startPolling, stopPolling } = duplicatesResult;
+  const checks = duplicatesResult.data?.documentDuplicates ?? [];
+  // Still waiting while a file has no checksum yet, unless the pipeline gave up on it before it had
+  // one. A lookup that failed stops too: the warning is a courtesy, not worth asking for every 3s.
+  const waiting =
+    uploadedIds.length > 0 &&
+    duplicatesResult.error === undefined &&
+    uploadedIds.some((id) => {
+      const check = checks.find((entry) => entry.document.id === id);
+      return check === undefined || (check.checked === false && check.document.status !== DocumentStatusEnum.Failed);
+    });
+  useEffect(() => {
+    if (waiting) {
+      startPolling(POLLING_DEFAULTS.intervalMs);
+    } else {
+      stopPolling();
+    }
+    return () => stopPolling();
+  }, [waiting, startPolling, stopPolling]);
 
   const update = (key: string, patch: Partial<Job>) =>
     setJobs((current) => current.map((job) => (job.key === key ? { ...job, ...patch } : job)));
@@ -109,7 +161,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
 
       await putFile(uploadUrl, file.blob, uploadHeaders, (progress) => update(job.key, { progress }));
       await completeUpload({ variables: { id: document.id } });
-      update(job.key, { done: true, progress: 1 });
+      update(job.key, { done: true, progress: 1, documentId: document.id });
       onChanged();
     } catch (error) {
       update(job.key, { error: error instanceof Error ? error.message : String(error) });
@@ -119,7 +171,15 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
   function start(files: PickedFile[]) {
     const added = files.map((file) => ({
       file,
-      job: { key: clientId(), name: file.name, size: file.size, progress: 0, error: null, done: false },
+      job: {
+        key: clientId(),
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        error: null,
+        done: false,
+        documentId: null,
+      },
     }));
     setJobs((current) => [...added.map(({ job }) => job), ...current.filter((job) => !job.done)]);
     for (const { file, job } of added) {
@@ -134,7 +194,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
         <>
           <FilePicker
             label="Drop files here, or click to choose"
-            hint={`PDF, images, text, Markdown or EPUB · up to ${formatBytes(config.maxUploadBytes)} each`}
+            hint={`PDF, images, text, Markdown, CSV, HTML or EPUB · up to ${formatBytes(config.maxUploadBytes)} each`}
             // No `accept`: the picker skips a file that does not match without a word, where the
             // server's allowlist refuses it on the file's own row and says why.
             multiple
@@ -168,28 +228,41 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
           <List
             label="Uploads"
             divided={false}
-            contentSlot={jobs.map((job) => (
-              <div key={job.key} className="flex flex-col gap-1">
-                <ListItem
-                  className="p-0"
-                  title={job.name}
-                  meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * PERCENT)}%`}
-                  actionSlot={
-                    job.done || job.error ? (
-                      <Button
-                        aria-label={`Dismiss ${job.name}`}
-                        variant="outline"
-                        size="icon-xs"
-                        iconSlot={<X />}
-                        onClick={() => setJobs((current) => current.filter((j) => j.key !== job.key))}
-                      />
-                    ) : null
-                  }
-                />
-                <Progress value={job.progress * PERCENT} label={`${job.name} upload progress`} />
-                {job.error && <p className="text-negative text-xs">{job.error}</p>}
-              </div>
-            ))}
+            contentSlot={jobs.map((job) => {
+              const duplicates = checks.find((entry) => entry.document.id === job.documentId)?.duplicates ?? [];
+              return (
+                <div key={job.key} className="flex flex-col gap-1">
+                  <ListItem
+                    className="p-0"
+                    title={job.name}
+                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * PERCENT)}%`}
+                    actionSlot={
+                      job.done || job.error ? (
+                        <Button
+                          aria-label={`Dismiss ${job.name}`}
+                          variant="outline"
+                          size="icon-xs"
+                          iconSlot={<X />}
+                          onClick={() => setJobs((current) => current.filter((j) => j.key !== job.key))}
+                        />
+                      ) : null
+                    }
+                  />
+                  <Progress value={job.progress * PERCENT} label={`${job.name} upload progress`} />
+                  {job.error && <p className="text-negative text-xs">{job.error}</p>}
+                  {job.documentId && duplicates.length > 0 ? (
+                    // A warning, not a failure: the upload stands, and the reader decides which to keep.
+                    <p className="text-warning text-xs">
+                      Already in your archive as <DuplicateLinks duplicates={duplicates} folders={folders} />.{' '}
+                      <Link className="underline underline-offset-2" to={documentPath(job.documentId)}>
+                        Open this copy
+                      </Link>{' '}
+                      to delete it.
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
           />
         </>
       }

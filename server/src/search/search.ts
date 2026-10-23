@@ -3,6 +3,7 @@ import { type Document, DocumentStatus, documentChunks, documents } from '@cubic
 import { and, cosineDistance, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { SEARCH_DEFAULTS } from '../core/defaults.ts';
 import type { Embedder } from './embedder.ts';
+import { filterConditions, matchesNothing, type SearchFilter } from './filters.ts';
 
 // Hybrid retrieval, as mcp-ragdown does it: the embedding finds a passage that
 // answers in other words, the words find an exact name or number an embedding
@@ -10,7 +11,8 @@ import type { Embedder } from './embedder.ts';
 // documents: a document ranks by its best passage, and a title match adds a vote.
 //
 // Every query here filters by the caller's id itself. The index is not in the
-// GraphQL schema, so tenancy.ts's row scope never sees it.
+// GraphQL schema, so tenancy.ts's row scope never sees it. A filter is ANDed
+// into all three reads the same way, so the fusion only ever sees allowed rows.
 
 /** One document a search found. */
 export interface SearchHit {
@@ -41,6 +43,8 @@ interface Candidate {
  * @param [options.minCosine] - The floor for a passage found by meaning alone.
  * @param [options.folderIds] - Only documents filed in these folders, as MCP reads only the shared
  *   ones. Left out, every document of the user's; empty, none.
+ * @param [options.filter] - What the caller narrowed the search to: a folder, kinds, a date range,
+ *   receipts. ANDed with `folderIds` when both are given.
  * @returns The documents, best first.
  */
 export async function searchDocuments(
@@ -48,16 +52,20 @@ export async function searchDocuments(
   userId: string,
   query: string,
   limit: number,
-  { minCosine = SEARCH_DEFAULTS.minCosine, folderIds }: { minCosine?: number; folderIds?: readonly string[] } = {},
+  {
+    minCosine = SEARCH_DEFAULTS.minCosine,
+    folderIds,
+    filter = {},
+  }: { minCosine?: number; folderIds?: readonly string[]; filter?: SearchFilter } = {},
 ): Promise<SearchHit[]> {
-  if (folderIds?.length === 0) {
+  if (folderIds?.length === 0 || matchesNothing(filter)) {
     return [];
   }
-  const ownDocument = folderIds
-    ? and(eq(documents.userId, userId), inArray(documents.folderId, [...folderIds]))
-    : eq(documents.userId, userId);
-  // Passages carry their user but not their folder, so a folder filter is a subquery on documents.
-  const ownChunk = folderIds
+  const narrowed = and(folderIds ? inArray(documents.folderId, [...folderIds]) : undefined, filterConditions(filter));
+  const ownDocument = narrowed ? and(eq(documents.userId, userId), narrowed) : eq(documents.userId, userId);
+  // Passages carry their user and nothing else of their document's, so any narrowing is a
+  // subquery on documents, inside each read rather than over the fused list.
+  const ownChunk = narrowed
     ? and(
         eq(documentChunks.userId, userId),
         inArray(documentChunks.documentId, db.select({ id: documents.id }).from(documents).where(ownDocument)),

@@ -22,13 +22,30 @@ whole product.
   text and title, with the passage that matched. Runs on this machine: a small
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
-  person searches only their own documents.
+  person searches only their own documents. A search can be narrowed to a
+  folder (and everything in it), a kind of file (PDF, image, text, ebook), a
+  range of document dates, or receipts only.
+- **Document dates** — the date printed on a receipt, letter or invoice is read
+  from its text (ISO, `12.03.2025`, `03/12/2025`, `12 March 2025`), shown on the
+  document, and yours to correct. A date you set or clear is never replaced
+  when the document is processed again.
+- **Receipts** — a receipt's vendor, total and currency are read from its text
+  by plain rules (no AI model), shown on the document and editable there, and
+  exported as a CSV (`date,vendor,total,currency,title,folder`) for a date
+  range or a folder. Fields it is unsure of are left empty rather than guessed:
+  a bare `$` is several currencies, and a document with no labelled total is
+  not taken for a receipt.
 - **Folders** — file documents into folders, nested as deep as you like, and
   see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way
   files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
   move onto a taken name is refused rather than overwriting. Deleting a folder
   deletes everything in it, once you have typed its name.
+- **Duplicate warnings** — upload a file you already have and Engrafo says so,
+  on the upload's row and on the document's page, with a link to the other
+  copy and a way to delete this one. It warns rather than refuses, since the
+  same file in two folders is sometimes what you meant. Files are compared by
+  their SHA-256, and only against your own documents.
 - **MCP for AI agents** — share a folder from its menu, make an API key in
   Settings, and an MCP client (Claude Code, Claude Desktop, any other) can
   list, search and read what is in it. Sharing a folder shares the folders
@@ -173,6 +190,7 @@ domain.
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
 | `OCR_CONCURRENCY` | `1` | Documents processed at once. OCR and indexing are CPU-bound. |
+| `DATE_ORDER` | `DMY` | How a numeric date that reads either way (`03/04/2025`) is read from a document's text: `DMY`, `MDY` (US) or `YMD`. A dotted date is always day first, and a part over 12 is always the day. |
 | `MODELS_DIR` | `/models` in the image | Where the search model is cached. Unset on a dev host, it is downloaded (about 50 MB) on first use. |
 | `WATCH_DIR` | — | A directory to file from, such as a scanner's share mounted into the container. Unset, there is no watched folder. See [The watched folder](#the-watched-folder). |
 | `WATCH_OWNER` | — | The email address of the account the watched folder files into. Required with `WATCH_DIR`; until that account exists, nothing is filed. |
@@ -189,10 +207,15 @@ domain.
 | `SESSION_STORE` | `memory` | Where sessions are kept. `memory` signs everyone out when the server restarts; `database` keeps them, and is what more than one replica needs. |
 | `TRUST_PROXY` | `false` | Which proxy hops may set `X-Forwarded-For`: a hop count (`1`) or a subnet list behind a reverse proxy. The sign-in throttle counts by client address. |
 
-Accepted uploads are PDF, PNG, JPEG, TIFF, plain text, Markdown and EPUB — what
-the pipeline can do something with. Markdown is searched section by section,
-under its headings. An EPUB's text is read chapter by chapter, and
-search knows which chapter a passage is from. DRM-protected books cannot be read.
+Accepted uploads are PDF, PNG, JPEG, TIFF, WebP, GIF, plain text, Markdown, CSV,
+HTML and EPUB — what the pipeline can do something with. Markdown is searched
+section by section, under its headings. An EPUB's text is read chapter by
+chapter, and search knows which chapter a passage is from. DRM-protected books
+cannot be read. A CSV (a bank or card statement, say) is searched row by row, with
+its header row kept with every passage. An HTML file (a saved order confirmation)
+is kept as uploaded, but what is searched and shown is its text; the page itself
+is never displayed in the app, since it could run scripts or load trackers. An
+animated GIF is read from its first frame.
 
 Engrafo ships no mail provider. With magic links on, the link is written to the
 server log, and that is the delivery channel — pipe the log somewhere you can

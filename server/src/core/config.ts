@@ -6,8 +6,10 @@ import { DATABASE_DEFAULTS } from '@cubicecho/engrafo-db/defaults';
 import {
   AUTH_DEFAULTS,
   type AuthSettings,
+  type DateOrder,
   DOCUMENT_DEFAULTS,
   HTTP_DEFAULTS,
+  METADATA_DEFAULTS,
   OCR_DEFAULTS,
   STORAGE_DEFAULTS,
   WATCH_DEFAULTS,
@@ -365,6 +367,20 @@ export function ocrLanguages(): string {
  */
 export function pipelineConcurrency(): number {
   return envPositiveInteger(process.env.OCR_CONCURRENCY, OCR_DEFAULTS.concurrency);
+}
+
+/** The values `DATE_ORDER` may take. */
+export const DATE_ORDERS: readonly DateOrder[] = ['DMY', 'MDY', 'YMD'];
+
+/**
+ * Reads how an ambiguous numeric date is read.
+ *
+ * @returns `DATE_ORDER` in any case, or `METADATA_DEFAULTS.dateOrder` when it is unset. Preflight
+ *   refuses any other value, so a typo does not quietly read every date the other way round.
+ */
+export function dateOrder(): DateOrder {
+  const value = (process.env.DATE_ORDER ?? '').trim().toUpperCase();
+  return DATE_ORDERS.find((order) => order === value) ?? METADATA_DEFAULTS.dateOrder;
 }
 
 /** How to reach the two buckets and sign for them. */

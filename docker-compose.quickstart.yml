@@ -119,6 +119,9 @@ services:
       OCR_ENABLED: "true"
       OCR_LANGUAGES: eng
       OCR_CONCURRENCY: "1"
+      # How a date like 03/04/2025 is read from a document: DMY (day first) or,
+      # for a US archive, MDY.
+      DATE_ORDER: DMY
       # The watched folder. On once WATCH_OWNER is set, at /consume inside the
       # container; the volume below says what that is on this machine.
       WATCH_DIR: ${WATCH_OWNER:+/consume}

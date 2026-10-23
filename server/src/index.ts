@@ -10,6 +10,7 @@ import { createRateLimiter } from './auth/rate-limit.ts';
 import {
   appUrl,
   databaseUrl,
+  dateOrder,
   dbConnectTimeoutMs,
   magicLinkExposed,
   magicLinkRequired,
@@ -101,7 +102,13 @@ const pipeline = createPipeline({
   storage,
   events,
   steps: STEPS,
-  config: { ocrAvailable, pdfTextAvailable, ocrLanguages: ocrLanguages(), concurrency: pipelineConcurrency() },
+  config: {
+    ocrAvailable,
+    pdfTextAvailable,
+    ocrLanguages: ocrLanguages(),
+    concurrency: pipelineConcurrency(),
+    dateOrder: dateOrder(),
+  },
   embedder,
 });
 

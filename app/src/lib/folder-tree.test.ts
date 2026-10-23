@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   archiveEntries,
+  documentPathIn,
   folderAndDescendants,
   folderNameError,
   folderOptions,
@@ -34,6 +35,19 @@ describe('folderPaths', () => {
     ]);
     expect(paths.get('orphan')).toBe('Orphan');
     expect(paths.get('a')).toMatch(/A$/);
+  });
+});
+
+describe('documentPathIn', () => {
+  const paths = folderPaths(FOLDERS);
+
+  it('puts the folder path before the title', () => {
+    expect(documentPathIn(paths, { id: 'd', title: 'scan', folderId: 'y2026' })).toBe('Taxes/2026/scan');
+  });
+
+  it('is the bare title at the top level or in a folder it does not know', () => {
+    expect(documentPathIn(paths, { id: 'd', title: 'scan', folderId: null })).toBe('scan');
+    expect(documentPathIn(paths, { id: 'd', title: 'scan', folderId: 'gone' })).toBe('scan');
   });
 });
 

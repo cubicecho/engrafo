@@ -5,12 +5,16 @@ import { graphql } from '@/__generated__';
 import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
 import { ConfirmButton } from '@/components/confirm-button';
 import { FolderInput } from '@/components/domain/app-icons';
+import { DocumentDateDialog } from '@/components/domain/document-date-dialog';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
 import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
+import { DocumentReceiptCard } from '@/components/domain/document-receipt-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
+import { DuplicateAlert } from '@/components/domain/duplicate-alert';
 import { MoveDialog } from '@/components/domain/move-dialog';
+import { ReceiptDialog } from '@/components/domain/receipt-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
@@ -21,7 +25,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
 import { POLLING_DEFAULTS } from '@/defaults';
-import { ARCHIVE_QUERY_NAME } from '@/lib/archive';
+import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
 import { formatBytes, joinStats } from '@/lib/format';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
@@ -49,6 +53,12 @@ const DocumentDetail = graphql(`
       status
       error
       createdAt
+      documentDate
+      documentDateSource
+      vendor
+      total
+      currency
+      receiptSource
       processingSteps(orderBy: { position: { direction: asc, priority: 1 } }) {
         id
         step
@@ -57,6 +67,24 @@ const DocumentDetail = graphql(`
         error
         startedAt
         finishedAt
+      }
+    }
+  }
+`);
+
+// Its own query, not a field of the page's: drizzle-graphql reads only the columns a selection
+// names, so a duplicates field on Document could not count on the checksum. Asked once the
+// checksum is in, which the page's own poll brings, and its failure costs only the warning.
+const DocumentDuplicatesOf = graphql(`
+  query DocumentDuplicatesOf($id: UUID!) {
+    documentDuplicates(ids: [$id]) {
+      document {
+        id
+      }
+      duplicates {
+        id
+        title
+        folderId
       }
     }
   }
@@ -130,6 +158,28 @@ const MoveDocumentHere = graphql(`
   }
 `);
 
+const SetDocumentDate = graphql(`
+  mutation SetDocumentDate($id: UUID!, $date: String) {
+    setDocumentDate(id: $id, date: $date) {
+      id
+      documentDate
+      documentDateSource
+    }
+  }
+`);
+
+const SetDocumentReceipt = graphql(`
+  mutation SetDocumentReceipt($id: UUID!, $input: DocumentReceiptInput!) {
+    setDocumentReceipt(id: $id, input: $input) {
+      id
+      vendor
+      total
+      currency
+      receiptSource
+    }
+  }
+`);
+
 const DeleteDocument = graphql(`
   mutation DeleteDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -172,6 +222,15 @@ export function DocumentRoute() {
   const result = useQuery(DocumentDetail, { variables: { id } });
   const { data, startPolling, stopPolling } = result;
   const doc = data?.document ?? null;
+  const duplicatesOf = useQuery(DocumentDuplicatesOf, {
+    variables: { id },
+    skip: !doc?.checksumSha256,
+    // Network as well as cache: the other copy may have been deleted since this page last asked.
+    fetchPolicy: 'cache-and-network',
+  });
+  const duplicates = duplicatesOf.data?.documentDuplicates[0]?.duplicates ?? [];
+  // The sidebar's query, answered from the cache, for the other copies' folder paths.
+  const { folders } = useArchive();
 
   const [renaming, setRenaming] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -185,6 +244,10 @@ export function DocumentRoute() {
   });
   const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
   const [rename] = useMutation(RenameDocument);
+  const [editingDate, setEditingDate] = useState(false);
+  const [setDate] = useMutation(SetDocumentDate);
+  const [editingReceipt, setEditingReceipt] = useState(false);
+  const [setReceipt] = useMutation(SetDocumentReceipt);
   // The sidebar's tree still lists it until the archive is read again.
   const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -218,6 +281,14 @@ export function DocumentRoute() {
       // Said on the page: left unsaid, a press that fails looks like a press that did nothing.
       setDownloadError(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  function deleteThis(documentId: string) {
+    // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
+    void remove({ variables: { id: documentId } }).then(
+      () => navigate(ROUTES.documents, { replace: true }),
+      () => undefined,
+    );
   }
 
   if (!doc) {
@@ -301,13 +372,7 @@ export function DocumentRoute() {
             title="Delete this document?"
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
-            onConfirm={() => {
-              // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
-              void remove({ variables: { id: doc.id } }).then(
-                () => navigate(ROUTES.documents, { replace: true }),
-                () => undefined,
-              );
-            }}
+            onConfirm={() => deleteThis(doc.id)}
           />
         </>
       }
@@ -319,6 +384,20 @@ export function DocumentRoute() {
               title={doc.title}
               onRename={(title) => rename({ variables: { id: doc.id, title } })}
               onClose={() => setRenaming(false)}
+            />
+          ) : null}
+          {editingDate ? (
+            <DocumentDateDialog
+              date={doc.documentDate ?? null}
+              onSave={(date) => setDate({ variables: { id: doc.id, date } })}
+              onClose={() => setEditingDate(false)}
+            />
+          ) : null}
+          {editingReceipt ? (
+            <ReceiptDialog
+              receipt={{ vendor: doc.vendor, total: doc.total, currency: doc.currency }}
+              onSave={(input) => setReceipt({ variables: { id: doc.id, input } })}
+              onClose={() => setEditingReceipt(false)}
             />
           ) : null}
           {moving && moveTargets.data ? (
@@ -377,10 +456,41 @@ export function DocumentRoute() {
             />
           )}
 
+          <DuplicateAlert
+            duplicates={duplicates}
+            folders={folders}
+            actionSlot={
+              // Plain outline: the destructive red does not reach 4.5:1 on the warning's tint, and
+              // the confirmation it opens is where the delete is marked as one.
+              <ConfirmButton
+                variant="outline"
+                iconSlot={<Trash2 />}
+                content="Delete this copy"
+                title="Delete this copy?"
+                description="This copy's uploaded file, its searchable PDF and its extracted text are deleted from storage. Your other copies are kept."
+                confirmLabel="Delete"
+                onConfirm={() => deleteThis(doc.id)}
+              />
+            }
+          />
+
           <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
           <DocumentPreviewCard doc={doc} />
           <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
-          <DocumentDetailsCard createdAt={doc.createdAt} checksumSha256={doc.checksumSha256} />
+          <DocumentReceiptCard
+            vendor={doc.vendor}
+            total={doc.total}
+            currency={doc.currency}
+            source={doc.receiptSource}
+            onEdit={() => setEditingReceipt(true)}
+          />
+          <DocumentDetailsCard
+            createdAt={doc.createdAt}
+            checksumSha256={doc.checksumSha256}
+            documentDate={doc.documentDate ?? null}
+            documentDateSource={doc.documentDateSource ?? null}
+            onEditDate={() => setEditingDate(true)}
+          />
         </>
       }
     />

@@ -6,19 +6,29 @@ export const EPUB_MIME_TYPE = 'application/epub+zip';
 export const PLAIN_TEXT_MIME_TYPE = 'text/plain';
 /** Markdown: stored as it is, and searched by its headings. */
 export const MARKDOWN_MIME_TYPE = 'text/markdown';
+/** A CSV, usually a bank or card statement: stored as it is, and searched by rows. */
+export const CSV_MIME_TYPE = 'text/csv';
+/** A saved web page, usually an order confirmation: stored as its text, not its markup. */
+export const HTML_MIME_TYPE = 'text/html';
+/** What file-type calls a page that opens with an XML declaration, as XHTML may. */
+export const XML_MIME_TYPE = 'application/xml';
 
 /**
  * What can be uploaded. Kept to what the pipeline can do something with: PDFs
- * and the raster formats ocrmypdf accepts (through img2pdf), plain text and
- * Markdown, whose content needs no OCR at all, and EPUB.
+ * and the raster formats ocrmypdf accepts, plain text, Markdown and CSV, whose
+ * content needs no OCR at all, web pages, and EPUB.
  */
 export const ACCEPTED_MIME_TYPES = [
   'application/pdf',
   'image/png',
   'image/jpeg',
   'image/tiff',
+  'image/webp',
+  'image/gif',
   PLAIN_TEXT_MIME_TYPE,
   MARKDOWN_MIME_TYPE,
+  CSV_MIME_TYPE,
+  HTML_MIME_TYPE,
   EPUB_MIME_TYPE,
 ] as const;
 
@@ -53,24 +63,45 @@ export function isOcrable(mimeType: string): boolean {
 }
 
 /**
+ * Whether an image is turned into a PNG before ocrmypdf sees it.
+ *
+ * @param mimeType - A MIME type.
+ * @returns true for WebP and GIF. ocrmypdf reads an opaque one of either, but refuses one with
+ *   an alpha channel, which a WebP often has, and makes an animated GIF a page per frame.
+ */
+export function needsPngForOcr(mimeType: string): boolean {
+  return mimeType === 'image/webp' || mimeType === 'image/gif';
+}
+
+/**
  * Whether a type is text already, so its content is the file itself.
  *
  * @param mimeType - A MIME type.
- * @returns true for plain text and Markdown. Neither has magic bytes, so these are also the
- *   types the inspect step takes the upload's word for.
+ * @returns true for plain text, Markdown and CSV.
  */
 export function isText(mimeType: string): boolean {
-  return mimeType === PLAIN_TEXT_MIME_TYPE || mimeType === MARKDOWN_MIME_TYPE;
+  return mimeType === PLAIN_TEXT_MIME_TYPE || mimeType === MARKDOWN_MIME_TYPE || mimeType === CSV_MIME_TYPE;
+}
+
+/**
+ * Whether a type has no magic bytes to know it by, so the inspect step takes the upload's word for it.
+ *
+ * @param mimeType - A MIME type.
+ * @returns true for the text types and HTML.
+ */
+export function hasNoMagicBytes(mimeType: string): boolean {
+  return isText(mimeType) || mimeType === HTML_MIME_TYPE;
 }
 
 /**
  * Whether a type's text is written with Markdown headings, which the index cuts it by.
  *
  * @param mimeType - A MIME type.
- * @returns true for Markdown, and for EPUB, whose chapters are stored as headings.
+ * @returns true for Markdown; EPUB, whose chapters are stored as headings; and HTML, whose
+ *   h1-h6 are.
  */
 export function hasHeadings(mimeType: string): boolean {
-  return mimeType === MARKDOWN_MIME_TYPE || mimeType === EPUB_MIME_TYPE;
+  return mimeType === MARKDOWN_MIME_TYPE || mimeType === EPUB_MIME_TYPE || mimeType === HTML_MIME_TYPE;
 }
 
 /** How many leading bytes file-type needs, at most, to recognise any format it knows. */
@@ -85,10 +116,16 @@ export const SNIFF_BYTES = 4100;
  *   or null when neither can be believed.
  *
  * @remarks
- * Plain text and Markdown have no magic bytes, so "no match" is only taken for one of them when
- * the uploader also said so. Whether the type is accepted is the caller's question.
+ * Text types and HTML have no magic bytes, so "no match" is only taken for one of them when
+ * the uploader also said so (`hasNoMagicBytes`). Whether the type is accepted is the caller's question.
  */
 export async function sniffMimeType(head: Uint8Array, claimed: string): Promise<string | null> {
   const sniffed = await fileTypeFromBuffer(head.subarray(0, SNIFF_BYTES));
-  return sniffed?.mime ?? (isText(claimed) ? claimed : null);
+  // XHTML may open with an XML declaration, which is all file-type sees of it. Any XML that
+  // claims to be a web page is read as one: the walker is lenient, and markup is markup.
+  const isXhtml = sniffed?.mime === XML_MIME_TYPE && claimed === HTML_MIME_TYPE;
+  if (sniffed && isXhtml === false) {
+    return sniffed.mime;
+  }
+  return hasNoMagicBytes(claimed) ? claimed : null;
 }
