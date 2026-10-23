@@ -1,3 +1,10 @@
+## [4.7.1](https://github.com/cubicecho/engrafo/compare/v4.7.0...v4.7.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* OCR a PNG with transparency, and read text uploads in their own encoding ([3a1d9f6](https://github.com/cubicecho/engrafo/commit/3a1d9f619fa819b3dc2512b4bdafc0569865a2a8))
+
 # [4.7.0](https://github.com/cubicecho/engrafo/compare/v4.6.0...v4.7.0) (2026-10-23)
 
 
