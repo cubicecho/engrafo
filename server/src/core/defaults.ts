@@ -87,6 +87,8 @@ export interface DocumentSettings {
   titleMaxLength: number;
   /** Longest original filename kept, in characters. */
   filenameMaxLength: number;
+  /** Most documents one `documentDuplicates` call may ask about: an upload panel's worth. */
+  duplicateLookupMaxIds: number;
 }
 
 /** The shipped values of `DocumentSettings`. */
@@ -95,6 +97,7 @@ export const DOCUMENT_DEFAULTS: Readonly<DocumentSettings> = Object.freeze({
   maxUploadBytes: 104_857_600,
   titleMaxLength: 500,
   filenameMaxLength: 1000,
+  duplicateLookupMaxIds: 200,
 });
 
 /** Folders and the names of what is filed in them. */

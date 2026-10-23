@@ -82,16 +82,27 @@ export function archiveEntries<D extends FiledDocument>(
         folder,
       }),
     ),
-    ...documents.map((document): ArchiveEntry<D> => {
-      const folderPath = document.folderId ? paths.get(document.folderId) : undefined;
-      return {
-        path: folderPath ? `${folderPath}/${document.title}` : document.title,
+    ...documents.map(
+      (document): ArchiveEntry<D> => ({
+        path: documentPathIn(paths, document),
         type: 'file',
         kind: 'document',
         document,
-      };
-    }),
+      }),
+    ),
   ];
+}
+
+/**
+ * A document's path, as the tree draws it and an MCP client asks for it.
+ *
+ * @param paths - Every folder's path, from {@link folderPaths}.
+ * @param document - The document.
+ * @returns `"Taxes/2026/scan"`, or the bare title at the top level or when its folder is unknown.
+ */
+export function documentPathIn(paths: ReadonlyMap<string, string>, document: FiledDocument): string {
+  const folderPath = document.folderId ? paths.get(document.folderId) : undefined;
+  return folderPath ? `${folderPath}/${document.title}` : document.title;
 }
 
 /**

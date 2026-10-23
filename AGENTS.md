@@ -73,7 +73,7 @@ engrafo/
 │       │   └── write-schema.ts # Prints the SDL for codegen
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
-│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
+│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
@@ -429,6 +429,24 @@ row exists, which is itself something the caller is not entitled to know.
 `loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
 a UUID, too. `FORBIDDEN` exists for one thing only: an instance-level setting the
 caller may not change (`pairSso`, `unpairSso`), where there is no row to hide.
+
+**A duplicate is a warning, matched only within one user's documents.**
+`documentDuplicates(ids)` in `documents/duplicates.ts` answers, for each of the
+caller's documents asked about, the caller's others with the same
+`checksum_sha256` (served by `idx_documents_user_checksum`). Never match across
+users: "someone has this file" is itself a leak. It is a root query over a list
+of ids, not a field on `Document`, because drizzle-graphql reads only the
+columns a selection names, so a field resolver cannot count on the parent's id
+or checksum, and a field would be one query per row in a list. The `Document`s
+it returns are plain rows, so their relation fields (`folder`) are not loaded:
+the app names a copy by `folderId` and the archive's folder paths. The checksum
+is written by `inspect`, after `completeDocumentUpload` has returned, so
+`checked` says whether the answer means anything yet, and the upload panel asks
+about every finished file in one query, polling until each is checked or its
+document failed. Nothing is refused and a duplicate is processed like any other
+document: the same file in two folders is sometimes meant, the upload already
+numbers a name clash, and a duplicate that skipped steps would be a document
+with no text and no search, which deleting the other copy would not repair.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
 means sign-in needs no link: `requestSignIn` returns a live session for

@@ -41,6 +41,11 @@ whole product.
   files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
   move onto a taken name is refused rather than overwriting. Deleting a folder
   deletes everything in it, once you have typed its name.
+- **Duplicate warnings** — upload a file you already have and Engrafo says so,
+  on the upload's row and on the document's page, with a link to the other
+  copy and a way to delete this one. It warns rather than refuses, since the
+  same file in two folders is sometimes what you meant. Files are compared by
+  their SHA-256, and only against your own documents.
 - **MCP for AI agents** — share a folder from its menu, make an API key in
   Settings, and an MCP client (Claude Code, Claude Desktop, any other) can
   list, search and read what is in it. Sharing a folder shares the folders
