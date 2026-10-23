@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { dateOrder, envPositiveInteger, s3Config } from '../../core/config.ts';
-import { METADATA_DEFAULTS, STORAGE_DEFAULTS } from '../../core/defaults.ts';
+import { dateOrder, envPositiveInteger, s3Config, watchConfig } from '../../core/config.ts';
+import { METADATA_DEFAULTS, STORAGE_DEFAULTS, WATCH_DEFAULTS } from '../../core/defaults.ts';
 
 const FALLBACK = 7;
 
@@ -57,5 +57,36 @@ describe('dateOrder', () => {
   it('reads an order in any case', () => {
     vi.stubEnv('DATE_ORDER', ' mdy ');
     expect(dateOrder()).toBe('MDY');
+  });
+});
+
+describe('watchConfig', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('is off without WATCH_DIR', () => {
+    vi.stubEnv('WATCH_DIR', '');
+    vi.stubEnv('WATCH_OWNER', 'me@example.com');
+    expect(watchConfig()).toBeNull();
+  });
+
+  it('reads the directory, the owner in lower case, and the intervals in milliseconds', () => {
+    vi.stubEnv('WATCH_DIR', '/consume');
+    vi.stubEnv('WATCH_OWNER', ' Me@Example.com ');
+    vi.stubEnv('WATCH_POLL_SECONDS', '2');
+    vi.stubEnv('WATCH_STABLE_SECONDS', undefined);
+    expect(watchConfig()).toEqual({
+      dir: '/consume',
+      owner: 'me@example.com',
+      pollMs: 2000,
+      stableMs: WATCH_DEFAULTS.stableSeconds * 1000,
+    });
+  });
+
+  it('leaves the owner null when WATCH_OWNER is unset, for the watcher to refuse', () => {
+    vi.stubEnv('WATCH_DIR', '/consume');
+    vi.stubEnv('WATCH_OWNER', undefined);
+    expect(watchConfig()?.owner).toBeNull();
   });
 });

@@ -73,12 +73,13 @@ engrafo/
 │       │   └── write-schema.ts # Prints the SDL for codegen
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
-│       ├── documents/       # resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
+│       ├── documents/       # create.ts (insertPendingDocument, completePendingDocument), resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), resolvers
+│       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
@@ -171,7 +172,10 @@ to the bucket; `completeDocumentUpload` is what turns it into a real document. I
 re-heads the object and refuses if the size does not match what was declared,
 because the row was written on the client's word and the object is the only
 evidence. It is idempotent — a document already past `pending_upload` is returned
-untouched, so a retried call does not queue a second run.
+untouched, so a retried call does not queue a second run. Both halves live in
+`documents/create.ts` (`insertPendingDocument`, `completePendingDocument`), and
+the watched folder calls the same two with a server-side `putFile` between
+them, so there is one way a document comes into being.
 
 **Folders are rows, and a name is unique in its folder.** `folders` nests by
 `parent_id` (null is the top level, where a document with no `folder_id` sits
@@ -293,6 +297,34 @@ off, and clears `archiveKey` and `contentKey` and deletes their objects before
 re-emitting, so a run that now produces no archive or no text does not leave
 the last one showing.
 
+**The watched folder files into one account, and deletes nothing it has not
+stored.** `WATCH_DIR` turns it on; `WATCH_OWNER` names the account by email, and
+the folder is per instance, not per user, because a scanner's share has no idea
+who is standing at the scanner. The owner is looked up on every pass, so a
+missing `WATCH_OWNER` or an address with no account is a `[watch]` line said
+once and no filing, never a crash, and setting it before the first sign-in
+works. `watch/watcher.ts` polls (`WATCH_POLL_SECONDS`) instead of `fs.watch`,
+which sees nothing an SMB client or a bind mount writes, and takes a file only
+once its size and mtime have held for `WATCH_STABLE_SECONDS`. Subdirectories are
+folders, found ignoring case or made under `lockNames`; a directory name that
+breaks the folder name rule, or is a document's, leaves its files alone. A
+title clash is numbered, as an upload is. `ingestFile` sniffs the type with
+`sniffMimeType` (the inspect step's own rule, with `.txt`, `.md`, `.csv` or `.html` as the claim)
+and checks `createUploadSchema`, so the allowlist and `MAX_UPLOAD_BYTES` are
+the browser's. A refusal (`Rejected`) is logged once and remembered by size and
+mtime, so it is tried again only when the file changes or the server restarts;
+anything else is retried on the next pass. **Never twice, never lost:** the
+file's sha256 goes into `checksumSha256` with the pending row, before the
+bytes are stored (the inspect step later writes the same value). A pending row
+with that checksum is resumed instead of a second one inserted, and a filed
+document with it means the file is already in — so a crash at any point is
+undone by the next pass, without a marker file or a table. The file is unlinked
+only after `completePendingDocument` has headed the object, and only if its
+size and mtime are what was read. `stop()` refuses new files and waits for the
+one in hand, and runs before `pipeline.stop()` in `stopOnSignals`. A file whose
+bytes are already in the owner's archive, uploaded from the browser included,
+is removed without a copy being added: Paperless refuses duplicates too.
+
 **The OCR integration test only really runs in the image.** `ocr.test.ts` skips
 itself without ocrmypdf and ImageMagick, which a dev host usually lacks — so the
 Dockerfile's `test` stage installs both and CI runs the suite there. That stage
@@ -354,54 +386,6 @@ mcp-ragdown embeds it), ignores a `#` inside a fenced code block, and leaves
 YAML front matter out of the passages. It does not read Setext headings
 (`===` underlines), tags, wikilinks or anything else mcp-ragdown does: a
 Markdown document here is a file you filed, not a note an agent edits.
-
-**A CSV is text, cut by rows.** Bank and card statements, stored as they are by
-the text step; no magic bytes, so `isText` covers it. `chunkText` would read it
-as one paragraph (no blank lines), turn its line breaks into spaces and cut
-wherever a cell ends in a full stop, so the index step uses `chunkRows`
-instead: whole rows packed to the limit (a quoted line break stays in its row;
-only a quote that opens a cell quotes it, so `24" monitor` does not swallow the
-file), each passage embedded under the first row, since that is the column
-names. The header is assumed, not detected. Windows calls a `.csv`
-`application/vnd.ms-excel` when Excel is installed; `uploadMimeType` renames
-that for a `.csv` only, since it is a real `.xls`'s type too.
-
-**An HTML upload is stored as its text and never shown as a page.** The text
-step takes the markup off with the walker EPUB uses (`walkHtml` in
-`pipeline/html-text.ts`: scripts, styles, `hidden` and inline `display:none`
-left out), writes h1-h6 as Markdown headings at their depth, and `hasHeadings`
-covers it, so a passage is embedded under `Order 1234 › Items`. HTML comes to
-the text step rather than a step of its own because a new step puts every
-finished document back through the pipeline at upgrade. file-type does not
-know HTML, so the claim is taken (`hasNoMagicBytes`); XHTML opening with
-`<?xml` sniffs as `application/xml`, which is read as HTML only when the upload
-said HTML. **The preview card never frames it** (`NOT_PREVIEWABLE`): the
-presigned URL is the bucket's origin, but nothing stops a self-hoster serving
-the bucket from the app's origin behind one proxy, and even a fully sandboxed
-frame still fetches the page's remote images and pixels. The text card shows
-what the page said, and downloads are `attachment`.
-
-**WebP, GIF and a see-through PNG reach OCR as an opaque PNG.** ocrmypdf reads
-an opaque one of any of them, but refuses any image with transparency (common
-in WebP, and in a PNG exported from a screenshot or a design tool) and makes
-every frame of an animated GIF a page. So `toOpaquePng` (`pipeline/image.ts`)
-writes the first frame laid on white into the run's tmpDir first, keeping a DPI
-the image states, with Pillow through `python3 -c` (`OCR_DEFAULTS.pngConverter`):
-ocrmypdf is Python and depends on Pillow, and Debian's Pillow reads WebP, so the
-image gained no package. A PNG goes through it only when `pngHasTransparency`
-finds an alpha colour type or a `tRNS` chunk in its headers; an opaque one goes
-in untouched. With OCR off they are stored with no text, like any image, and
-the browser previews the original itself.
-
-**A text upload is read in the encoding it was saved in.** Plain text,
-Markdown, CSV and HTML all reach the text step as bytes, and `decodeText`
-(`pipeline/decode.ts`) picks the encoding: a byte-order mark; then UTF-8 if the
-bytes are valid UTF-8 and hold no NUL (UTF-16 without a mark is valid UTF-8 too,
-so the NULs' side says which UTF-16 it is); then, for HTML only, the page's
-`<meta charset>`; then chardet's guess over the first
-`TEXT_DEFAULTS.encodingSampleBytes`; then windows-1252. UTF-8 is tried before a
-`<meta>` because an editor that re-saves a page rarely fixes its declaration.
-The stored text is always UTF-8, so nothing downstream knows.
 
 **A field read from the content says who filled it in, and an edit is never
 overwritten.** `documentDate` (a SQL `date`, the day printed on the document,
@@ -474,6 +458,53 @@ that is not the caller's has no descendants of theirs and matches nothing.
 The MCP tool passes `folderIds` and no filter, and is unchanged. The app keeps
 the filters in the query string beside `q` (`lib/search-filters.ts`) and draws
 them only while there is a search to narrow.
+**A CSV is text, cut by rows.** Bank and card statements, stored as they are by
+the text step; no magic bytes, so `isText` covers it. `chunkText` would read it
+as one paragraph (no blank lines), turn its line breaks into spaces and cut
+wherever a cell ends in a full stop, so the index step uses `chunkRows`
+instead: whole rows packed to the limit (a quoted line break stays in its row;
+only a quote that opens a cell quotes it, so `24" monitor` does not swallow the
+file), each passage embedded under the first row, since that is the column
+names. The header is assumed, not detected. Windows calls a `.csv`
+`application/vnd.ms-excel` when Excel is installed; `uploadMimeType` renames
+that for a `.csv` only, since it is a real `.xls`'s type too.
+
+**An HTML upload is stored as its text and never shown as a page.** The text
+step takes the markup off with the walker EPUB uses (`walkHtml` in
+`pipeline/html-text.ts`: scripts, styles, `hidden` and inline `display:none`
+left out), writes h1-h6 as Markdown headings at their depth, and `hasHeadings`
+covers it, so a passage is embedded under `Order 1234 › Items`. HTML comes to
+the text step rather than a step of its own because a new step puts every
+finished document back through the pipeline at upgrade. file-type does not
+know HTML, so the claim is taken (`hasNoMagicBytes`); XHTML opening with
+`<?xml` sniffs as `application/xml`, which is read as HTML only when the upload
+said HTML. **The preview card never frames it** (`NOT_PREVIEWABLE`): the
+presigned URL is the bucket's origin, but nothing stops a self-hoster serving
+the bucket from the app's origin behind one proxy, and even a fully sandboxed
+frame still fetches the page's remote images and pixels. The text card shows
+what the page said, and downloads are `attachment`.
+
+**WebP, GIF and a see-through PNG reach OCR as an opaque PNG.** ocrmypdf reads
+an opaque one of any of them, but refuses any image with transparency (common
+in WebP, and in a PNG exported from a screenshot or a design tool) and makes
+every frame of an animated GIF a page. So `toOpaquePng` (`pipeline/image.ts`)
+writes the first frame laid on white into the run's tmpDir first, keeping a DPI
+the image states, with Pillow through `python3 -c` (`OCR_DEFAULTS.pngConverter`):
+ocrmypdf is Python and depends on Pillow, and Debian's Pillow reads WebP, so the
+image gained no package. A PNG goes through it only when `pngHasTransparency`
+finds an alpha colour type or a `tRNS` chunk in its headers; an opaque one goes
+in untouched. With OCR off they are stored with no text, like any image, and
+the browser previews the original itself.
+
+**A text upload is read in the encoding it was saved in.** Plain text,
+Markdown, CSV and HTML all reach the text step as bytes, and `decodeText`
+(`pipeline/decode.ts`) picks the encoding: a byte-order mark; then UTF-8 if the
+bytes are valid UTF-8 and hold no NUL (UTF-16 without a mark is valid UTF-8 too,
+so the NULs' side says which UTF-16 it is); then, for HTML only, the page's
+`<meta charset>`; then chardet's guess over the first
+`TEXT_DEFAULTS.encodingSampleBytes`; then windows-1252. UTF-8 is tried before a
+`<meta>` because an editor that re-saves a page rarely fixes its declaration.
+The stored text is always UTF-8, so nothing downstream knows.
 
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
@@ -566,7 +597,8 @@ off in `graphql/handler.ts`.
 
 **Boot waits, shutdown drains.** `waitForDatabase` runs before `migrate`, so a
 compose stack whose Postgres is still starting does not crash-loop the server.
-On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, calls
+On SIGTERM or SIGINT, `stopOnSignals` stops accepting connections, waits for
+the watched folder to put down the file it is filing, calls
 `pipeline.stop()` — new runs resolve without starting, and a step cut off
 mid-run is not recorded as failed, so `resume()` picks it up on the next boot —
 then closes the database. `/healthz` answers 503 while the database is
@@ -580,7 +612,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
-`[pipeline]`, `[ocr]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[watch]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

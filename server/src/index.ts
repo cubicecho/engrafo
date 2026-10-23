@@ -22,6 +22,7 @@ import {
   port,
   s3Config,
   secureLocalNet,
+  watchConfig,
 } from './core/config.ts';
 import { SEARCH_DEFAULTS } from './core/defaults.ts';
 import { errorChainMessage, errorMessage } from './core/errors.ts';
@@ -34,6 +35,7 @@ import { STEPS } from './pipeline/step-list.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
 import { createLocalEmbedder } from './search/embedder.ts';
 import { createS3Storage } from './storage/s3.ts';
+import { createWatcher, type Watcher } from './watch/watcher.ts';
 
 export type { Context } from './core/context.ts';
 
@@ -110,6 +112,10 @@ const pipeline = createPipeline({
   embedder,
 });
 
+// Off unless WATCH_DIR is set. Started once the server listens, after the pipeline's own backlog.
+const watch = watchConfig();
+const watcher: Watcher | null = watch === null ? null : createWatcher({ db, storage, events, config: watch });
+
 // After migrate: the provider may be a pairing, which lives in the database.
 const authHost = await createAuthHost(db);
 const app = createApp({
@@ -154,6 +160,14 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
   if (caughtUp > 0) {
     console.log(`[pipeline] running new steps on ${caughtUp} finished document(s)`);
   }
+  watcher?.start();
 });
-// The pipeline first: a run the exit cuts off is not a failure, and the next boot resumes it.
-stopOnSignals(server, { before: pipeline.stop, after: closeDatabase });
+// The watcher first, and waited for, so the file it is filing is either filed and removed or
+// untouched. Then the pipeline: a run the exit cuts off is not a failure, and the next boot resumes it.
+stopOnSignals(server, {
+  before: async () => {
+    await watcher?.stop();
+    pipeline.stop();
+  },
+  after: closeDatabase,
+});

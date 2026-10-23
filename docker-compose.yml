@@ -39,10 +39,16 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_NAME: ${OIDC_NAME:-SSO}
+      # The watched folder: files whatever lands in it into WATCH_OWNER's archive,
+      # then deletes it. Uncomment these and the volume below to turn it on.
+      # WATCH_DIR: /consume
+      # WATCH_OWNER: you@example.com
       NODE_ENV: production
       PORT: 3004
     ports:
       - "${PORT:-3004}:3004"
+    # volumes:
+    #   - /path/to/scans:/consume
 
   postgres:
     # pgvector's build of Postgres 17, for document search. Replaces
