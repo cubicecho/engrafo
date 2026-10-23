@@ -1,9 +1,9 @@
 import { useQuery } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
+import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
-import { EmptyState } from '@/components/page';
 import { QueryState } from '@/components/query-state';
 import { Search } from '@/components/ui/icons';
 import { formatDate, joinStats } from '@/lib/format';
@@ -46,7 +46,7 @@ export function DocumentSearchResults({ query }: DocumentSearchResultsProps) {
         count={hits.length}
         emptySlot={
           <EmptyState
-            icon={Search}
+            iconSlot={<Search />}
             title="Nothing matches"
             description={`No document's title or text matches “${query}”.`}
           />

@@ -1,5 +1,5 @@
-import { type Ref, useImperativeHandle, useRef } from 'react';
-import { cn, type SlotNode } from '@/lib/utils';
+import { type Ref, useImperativeHandle, useRef } from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 
 /**
  * The column a page's chrome and its content share.
@@ -12,7 +12,7 @@ import { cn, type SlotNode } from '@/lib/utils';
  * The cap is the `2xl` breakpoint. The web reads it from the theme variable so it moves with the
  * app's own breakpoints; native has no such variable, so it spells the default (`96rem`) out.
  */
-export const PAGE_COLUMN = 'mx-auto w-full max-w-(--breakpoint-2xl)';
+export const PAGE_COLUMN = "mx-auto w-full max-w-(--breakpoint-2xl)";
 
 /**
  * The reading column: a page of prose, a settings screen, a form.
@@ -23,7 +23,7 @@ export const PAGE_COLUMN = 'mx-auto w-full max-w-(--breakpoint-2xl)';
  * `max-w-none`, both spelled `wide`. Naming the columns is what stops the third app inventing an
  * eleventh value: across these projects there are 51 capped page columns wearing 10 widths.
  */
-export const PROSE_COLUMN = 'mx-auto w-full max-w-3xl';
+export const PROSE_COLUMN = "mx-auto w-full max-w-3xl";
 
 const COLUMNS = {
   full: undefined,
@@ -61,7 +61,7 @@ export type ScrollHandle = {
 /** The part of the web's scrolling `<div>` that `scrollToEnd` uses. */
 type WebScroller = {
   scrollHeight: number;
-  scrollTo: (options: { top: number; behavior: 'smooth' | 'instant' }) => void;
+  scrollTo: (options: { top: number; behavior: "smooth" | "instant" }) => void;
 };
 
 /** The part of a DOM scroll event {@link Body} reads. */
@@ -122,9 +122,9 @@ type BodyProps = {
   contentSlot: SlotNode;
   scroll: boolean;
   column: string | undefined;
-  contentRef: HeaderContentFooterProps['contentRef'];
-  scrollRef: HeaderContentFooterProps['scrollRef'];
-  onScroll: HeaderContentFooterProps['onScroll'];
+  contentRef: HeaderContentFooterProps["contentRef"];
+  scrollRef: HeaderContentFooterProps["scrollRef"];
+  onScroll: HeaderContentFooterProps["onScroll"];
   className: string | undefined;
 };
 
@@ -134,14 +134,17 @@ type BodyProps = {
  */
 function toEnd(scroller: unknown, animated: boolean) {
   const box = scroller as WebScroller;
-  box.scrollTo({ top: box.scrollHeight, behavior: animated ? 'smooth' : 'instant' });
+  box.scrollTo({ top: box.scrollHeight, behavior: animated ? "smooth" : "instant" });
   return;
 }
 
 /** Hands a node to a caller's ref, whichever kind of ref it is. */
 function assign<T>(ref: Ref<T> | undefined, node: T | null) {
-  if (typeof ref === 'function') ref(node);
-  else if (ref) ref.current = node;
+  if (typeof ref === "function") {
+    ref(node);
+  } else if (ref) {
+    ref.current = node;
+  }
 }
 
 /**
@@ -152,7 +155,7 @@ function assign<T>(ref: Ref<T> | undefined, node: T | null) {
  * same body in the same dialog collapses to zero; there it starts from its content (`basis-auto`),
  * grows into a height it is given and shrinks under a cap.
  */
-const BODY = cn('relative min-h-0 min-w-0', 'flex-1');
+const BODY = cn("relative min-h-0 min-w-0", "flex-1");
 
 /**
  * The body, which is the one part that is a different element on each platform.
@@ -161,12 +164,22 @@ const BODY = cn('relative min-h-0 min-w-0', 'flex-1');
  * the compiler refuses an element chosen at runtime — it folds `Platform.OS === "web"` to `true`
  * and keeps the first arm, and the `ScrollView` below it is dropped as unreachable.
  */
-function Body({ contentSlot, scroll, column, contentRef, scrollRef, onScroll, className }: BodyProps) {
+function Body({
+  contentSlot,
+  scroll,
+  column,
+  contentRef,
+  scrollRef,
+  onScroll,
+  className,
+}: BodyProps) {
   // The scroller is kept here as well as handed to `contentRef`, for `scrollToEnd` to move.
   const scroller = useRef<unknown>(null);
   useImperativeHandle<ScrollHandle, ScrollHandle>(scrollRef, () => ({
     scrollToEnd: ({ animated = true } = {}) => {
-      if (scroll && scroller.current) toEnd(scroller.current, animated);
+      if (scroll && scroller.current) {
+        toEnd(scroller.current, animated);
+      }
     },
   }));
   return (
@@ -175,7 +188,7 @@ function Body({ contentSlot, scroll, column, contentRef, scrollRef, onScroll, cl
       // The chassis's own ref type is the device's scroller; on the web both are a `<div>`.
       ref={(node) => {
         scroller.current = node;
-        assign(contentRef as unknown as Ref<HTMLDivElement>, node);
+        assign(contentRef as Ref<HTMLDivElement>, node);
       }}
       // A scrolling region a keyboard cannot reach is a region a keyboard user cannot read:
       // the mouse wheel moves it and nothing else does, which axe reports as
@@ -194,7 +207,7 @@ function Body({ contentSlot, scroll, column, contentRef, scrollRef, onScroll, cl
               }),
           }
         : {})}
-      className={cn('cube-rn-view', BODY, scroll && 'overflow-y-auto', column, className)}
+      className={cn("cube-rn-view", BODY, scroll && "overflow-y-auto", column, className)}
     >
       {contentSlot}
     </div>
@@ -220,7 +233,7 @@ export function HeaderContentFooter({
   headerSlot,
   footerSlot,
   scroll = false,
-  width = 'full',
+  width = "full",
   contentRef,
   scrollRef,
   onScroll,
@@ -232,15 +245,18 @@ export function HeaderContentFooter({
   // The header slot stays unpadded: a page header carries its own `px-4`, and the body matches
   // it so the two edges line up.
   const column = COLUMNS[width];
-  const bodyColumn = column && cn(column, 'px-4');
+  const bodyColumn = column && cn(column, "px-4");
 
   return (
     // `shrink` because a chassis is sized by its parent, and a view does not shrink by default.
-    <div data-slot="header-content-footer" className={cn('cube-rn-view', 'min-h-0 min-w-0 shrink flex-col', className)}>
+    <div
+      data-slot="header-content-footer"
+      className={cn("cube-rn-view", "min-h-0 min-w-0 shrink flex-col", className)}
+    >
       {headerSlot ? (
         <div
           data-slot="header-content-footer-header"
-          className={cn('cube-rn-view', 'min-w-0 shrink-0', column, headerClassName)}
+          className={cn("cube-rn-view", "min-w-0 shrink-0", column, headerClassName)}
         >
           {headerSlot}
         </div>
@@ -259,7 +275,7 @@ export function HeaderContentFooter({
       {footerSlot ? (
         <div
           data-slot="header-content-footer-footer"
-          className={cn('cube-rn-view', 'min-w-0 shrink-0', bodyColumn, footerClassName)}
+          className={cn("cube-rn-view", "min-w-0 shrink-0", bodyColumn, footerClassName)}
         >
           {footerSlot}
         </div>
@@ -274,6 +290,9 @@ export function HeaderContentFooter({
  *
  * It needs a height to divide, so it defaults to filling its parent.
  */
-export function StickyHeaderContentFooter({ className, ...props }: Omit<HeaderContentFooterProps, 'scroll'>) {
-  return <HeaderContentFooter scroll {...props} className={cn('h-full', className)} />;
+export function StickyHeaderContentFooter({
+  className,
+  ...props
+}: Omit<HeaderContentFooterProps, "scroll">) {
+  return <HeaderContentFooter scroll {...props} className={cn("h-full", className)} />;
 }

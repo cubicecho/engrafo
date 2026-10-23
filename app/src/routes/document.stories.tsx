@@ -199,7 +199,7 @@ export const ReprocessWhileProcessing: Story = {
     apolloClient: { resolvers: { Query: { document: () => document({ status: DocumentStatusEnum.Processing }) } } },
   },
   play: async ({ canvas, canvasElement }) => {
-    // aria-disabled, not disabled: ActionButton keeps the tooltip that says why.
+    // aria-disabled, not disabled: a Button with a hint keeps the tooltip that says why.
     const button = await canvas.findByRole('button', { name: 'Re-run processing' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(button).toHaveAccessibleDescription('Already processing');

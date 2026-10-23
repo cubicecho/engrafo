@@ -65,7 +65,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.145 0 0 / 10%);
-  --input: oklch(0.145 0 0 / 15%);
+  --input: oklch(0.145 0 0 / 50%);
   --ring: oklch(0.5 0.07 218);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -111,7 +111,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.145 0 0);
   --border: oklch(0.985 0 0 / 10%);
-  --input: oklch(0.985 0 0 / 15%);
+  --input: oklch(0.985 0 0 / 50%);
   --ring: oklch(0.68 0.065 218);
   --sidebar: oklch(0.269 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
@@ -162,7 +162,7 @@ html[data-palette="monokai"] {
   --destructive: oklch(0.7058 0.1936 8.454);
   --destructive-foreground: oklch(0.2737 0.0109 114.803);
   --border: oklch(0.9775 0.0079 106.545 / 10%);
-  --input: oklch(0.9775 0.0079 106.545 / 15%);
+  --input: oklch(0.9775 0.0079 106.545 / 50%);
   --ring: oklch(0.7012 0.1812 298.062);
   --sidebar: oklch(0.2977 0.0124 113.753);
   --sidebar-foreground: oklch(0.9775 0.0079 106.545);
@@ -172,6 +172,20 @@ html[data-palette="monokai"] {
   --sidebar-accent-foreground: oklch(0.9775 0.0079 106.545);
   --sidebar-border: oklch(0.9775 0.0079 106.545 / 10%);
   --sidebar-ring: oklch(0.7012 0.1812 298.062);
+}
+
+/*
+ * Scrollbars in the palette: a thin thumb of the foreground at 30%, on no track. In
+ * `@layer base` because an app's utilities are layered and an unlayered rule would beat every
+ * one of them — `[scrollbar-width:none]` included, whatever its specificity. The colour is on
+ * `*` too, though it inherits: read at each element, `--foreground` is the one in force there,
+ * so a `.dark` on a subtree turns its scrollbars with its text.
+ */
+@layer base {
+  * {
+    scrollbar-color: color-mix(in oklab, var(--foreground) 30%, transparent) transparent;
+    scrollbar-width: thin;
+  }
 }
 
 @theme inline {

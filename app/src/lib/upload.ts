@@ -15,7 +15,7 @@ const HTTP_REDIRECT_MIN = 300;
  * scan with no progress bar looks exactly like a hung page.
  *
  * @param url - The presigned URL to PUT to.
- * @param file - The file, sent as the browser's own `File` so it is streamed.
+ * @param file - The file, sent as the browser's own `Blob` handle so it is streamed.
  * @param headers - The headers the URL was signed with.
  * @param onProgress - Called with the fraction sent so far, from 0 to 1.
  * @param signal - Aborts the upload when it fires.
@@ -24,7 +24,7 @@ const HTTP_REDIRECT_MIN = 300;
  */
 export function putFile(
   url: string,
-  file: File,
+  file: Blob,
   headers: UploadHeader[],
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,

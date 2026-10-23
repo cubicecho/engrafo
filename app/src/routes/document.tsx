@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { DocumentFileVariant, DocumentStatusEnum as DocumentStatus } from '@/__generated__/graphql';
-import { ActionButton } from '@/components/action-button';
 import { ConfirmButton } from '@/components/confirm-button';
 import { DocumentDetailsCard } from '@/components/domain/document-details-card';
 import { DocumentFileUrl } from '@/components/domain/document-file';
@@ -13,7 +12,7 @@ import { DocumentTextCard } from '@/components/domain/document-text-card';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
-import { EmptyState } from '@/components/page';
+import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
 import { Alert } from '@/components/ui/alert';
@@ -121,7 +120,7 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
       breadcrumbsSlot={<BackToDocuments />}
       title="Document"
       loading={loading}
-      contentSlot={<div className="py-4">{contentSlot}</div>}
+      contentSlot={contentSlot}
     />
   );
 }
@@ -149,6 +148,7 @@ export function DocumentRoute() {
   const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
   const [rename] = useMutation(RenameDocument);
   const [remove, removeState] = useMutation(DeleteDocument);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const busy = doc ? isInProgress(doc.status) : false;
   useEffect(() => {
@@ -164,13 +164,20 @@ export function DocumentRoute() {
     if (!doc) {
       return;
     }
-    const { data } = await client.query({
-      query: DocumentFileUrl,
-      variables: { id: doc.id, variant, download: true },
-      fetchPolicy: 'network-only',
-    });
-    if (data) {
+    setDownloadError(null);
+    try {
+      const { data } = await client.query({
+        query: DocumentFileUrl,
+        variables: { id: doc.id, variant, download: true },
+        fetchPolicy: 'network-only',
+      });
+      if (!data) {
+        throw new Error('The server returned no address for the file');
+      }
       window.location.assign(data.documentFileUrl);
+    } catch (error) {
+      // Said on the page: left unsaid, a press that fails looks like a press that did nothing.
+      setDownloadError(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -186,7 +193,7 @@ export function DocumentRoute() {
             count={0}
             emptySlot={
               <EmptyState
-                icon={FileText}
+                iconSlot={<FileText />}
                 title="No such document"
                 description="It may have been deleted, or the link is for someone else's archive."
                 actionSlot={
@@ -209,34 +216,36 @@ export function DocumentRoute() {
       actionSlot={
         <>
           <DocumentStatusBadge status={doc.status} />
-          <ActionButton
-            label="Rename"
+          <Button
+            size="sm"
             variant="outline"
-            size="icon"
             iconSlot={<Pencil />}
+            content="Rename"
             onClick={() => setRenaming(true)}
           />
-          <ActionButton
-            label="Re-run processing"
-            hint={busy ? 'Already processing' : undefined}
+          <Button
+            size="sm"
             variant="outline"
-            size="icon"
             iconSlot={<RefreshCw />}
+            content="Re-run"
+            aria-label="Re-run processing"
+            hint={busy ? 'Already processing' : undefined}
             disabled={busy || doc.status === DocumentStatus.PendingUpload}
             onClick={() => setReprocessing(true)}
           />
-          <ActionButton
-            label="Download original"
+          <Button
+            size="sm"
             variant="outline"
-            size="icon"
             iconSlot={<Download />}
+            content="Download"
+            aria-label="Download original"
             onClick={() => void download()}
           />
           <ConfirmButton
-            label="Delete"
-            variant="outline"
-            size="icon"
+            size="sm"
+            variant="destructive-outline"
             iconSlot={<Trash2 />}
+            content="Delete"
             title="Delete this document?"
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
@@ -250,8 +259,9 @@ export function DocumentRoute() {
           />
         </>
       }
+      contentClassName="gap-6"
       contentSlot={
-        <div className="flex flex-col gap-6 py-4">
+        <>
           {renaming ? (
             <RenameDocumentDialog
               title={doc.title}
@@ -283,6 +293,9 @@ export function DocumentRoute() {
               description={reprocessState.error.message}
             />
           )}
+          {downloadError && (
+            <Alert variant="destructive" title="Could not download the file" description={downloadError} />
+          )}
           {retryState.error && (
             <Alert variant="destructive" title="Could not retry processing" description={retryState.error.message} />
           )}
@@ -307,7 +320,7 @@ export function DocumentRoute() {
           <DocumentPreviewCard doc={doc} />
           <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
           <DocumentDetailsCard createdAt={doc.createdAt} checksumSha256={doc.checksumSha256} />
-        </div>
+        </>
       }
     />
   );
