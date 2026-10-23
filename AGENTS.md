@@ -11,7 +11,8 @@ serves all of it.
 
 Search is hybrid and local: an embedding model on the CPU and Postgres full-text
 search, over passages of each document's text. Documents are filed in nested
-folders, drawn as a tree. There is no tagging, no correspondents, no mail
+folders, drawn as a tree in the sidebar, and a folder the user shares is
+readable by an MCP client at `/mcp`. There is no tagging, no correspondents, no mail
 ingestion. Those are what Paperless is for.
 
 ## Tech Stack
@@ -41,10 +42,10 @@ engrafo/
 │       ├── components/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
-│       │   ├── layouts/     # app-layout: the sidebar shell around every signed-in page
-│       │   └── domain/      # archive-tree, status-badge, upload-panel, the name and move dialogs
-│       ├── routes/          # login, verify, documents (the tree), document (detail), settings
-│       ├── lib/             # apollo, auth, upload, query, format, folder-tree, tree (vendored), cn()
+│       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
+│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, the dialogs
+│       ├── routes/          # login, verify, documents (upload + search), document (detail), settings
+│       ├── lib/             # apollo, auth, upload, query, format, archive, folder-tree, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -73,7 +74,9 @@ engrafo/
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # resolvers.ts — the document fields CRUD cannot express
-│       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes)
+│       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
+│       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
+│       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── search/          # chunk, embedder, index-document, search (hybrid + RRF), resolvers
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -169,7 +172,7 @@ untouched, so a retried call does not queue a second run.
 `parent_id` (null is the top level, where a document with no `folder_id` sits
 too) rather than by path strings, so a folder can be empty and a rename or move
 is one row. A document's title is its name in its folder: the tree draws
-`<folder path>/<title>`, and later an MCP client will ask for that path. So
+`<folder path>/<title>`, and an MCP client asks for that path. So
 nothing in one folder shares a name with anything else there — folder or
 document, ignoring case — and a title has no `/`. The two unique indexes hold
 it within each table (`coalesce(parent, TOP_LEVEL)` because an index treats
@@ -183,6 +186,35 @@ lock so an upload into it either goes with the rest or finds the folder gone;
 `documents.folder_id` is `ON DELETE RESTRICT` so the database can never drop a
 document whose objects are still in the bucket. The behaviour follows
 mcp-ragdown's, which is where the folder name rule comes from.
+
+**`/mcp` reads only shared folders, with an API key, never a session.** A folder's
+`mcp_enabled` shares it and every folder inside it; `loadMcpAccess` in
+`mcp/access.ts` is the one place that rule is written, and every tool reads it
+afresh per call, so turning a folder off takes effect on the next call. The top
+level is never shared. Paths run from the top through unshared folders too,
+matched ignoring case, and an unshared or missing path answers the same "not in
+a shared folder". The endpoint is stateless Streamable HTTP (a server per
+request, as mcp-ragdown serves it), mounted with `app.all` before the static
+handler, and is not GraphQL: there is no context, so `requireAuth` never sees a
+key, and only a session can call `createApiKey` — a key cannot mint its
+successor. Keys are better-auth's api-key plugin (`engr_` prefix, `apikeys`
+table in `AUTH_TABLES`, out of the GraphQL schema), stored in Postgres whatever
+`SESSION_STORE` says, and minted with `rateLimitEnabled: false`, because the
+plugin's default of ten a day starves an agent. `SECURE_LOCAL_NET` does not
+waive the key: the key is what says whose archive it is. The four tools are
+read-only. `searchDocuments` takes `folderIds` for this door.
+
+**The tree is in the sidebar.** `ArchiveSidebarSection` is mounted by
+`AppLayout` on every signed-in page and is the one reader of `useArchive` that
+polls (the sidebar is hidden under `md` by CSS, not unmounted). The documents
+page draws a second `ArchiveTree` under `md` only, from the same query and
+cache. A folder's "Upload here" navigates to `/?into=<id>`, which is where the
+upload panel's folder lives. A mutation outside the tree that removes a row
+refetches `Archive`; one that returns the changed fields updates it by id.
+
+**`PageLayout width="full"` pads nothing.** cubeui's chassis puts `px-4` on the
+body only with the `page` and `prose` columns, so every full-width page passes
+`FULL_WIDTH_BODY` (`lib/page.ts`) in `contentClassName`.
 
 **Two buckets: files and text.** `S3_BUCKET` holds what the user uploaded and
 what OCR produced; `S3_TEXT_BUCKET` (default `<bucket>-text`) holds the extracted

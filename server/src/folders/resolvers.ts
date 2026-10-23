@@ -32,6 +32,11 @@ const FOLDERS_SDL = parse(`
     moveFolder(id: UUID!, parentId: UUID): Folder!
     "Deletes the folder, every folder under it and every document in them, with their stored files."
     deleteFolder(id: UUID!): Boolean!
+    """
+    Turns MCP access to a folder on or off. On, an MCP client with one of the caller's API keys
+    can list, search and read the folder and every folder inside it.
+    """
+    setFolderMcp(id: UUID!, enabled: Boolean!): Folder!
   }
 `);
 
@@ -128,6 +133,22 @@ export function applyFoldersExtension(schema: GraphQLSchema): GraphQLSchema {
       await tx.delete(folders).where(eq(folders.id, folder.id));
     });
     return true;
+  };
+
+  mutations.setFolderMcp.resolve = async (
+    _parent: unknown,
+    args: { id: string; enabled: boolean },
+    context: Context,
+  ) => {
+    const userId = requireAuth(context);
+    // No name changes, so no name lock: one row, scoped to its owner.
+    const folder = await loadOwnedFolder(context.db, userId, args.id);
+    const [updated] = await context.db
+      .update(folders)
+      .set({ mcpEnabled: args.enabled })
+      .where(eq(folders.id, folder.id))
+      .returning();
+    return updated;
   };
 
   return extended;

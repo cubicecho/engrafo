@@ -39,6 +39,8 @@ interface Candidate {
  * @param query - What was typed.
  * @param limit - How many documents to return at most.
  * @param [options.minCosine] - The floor for a passage found by meaning alone.
+ * @param [options.folderIds] - Only documents filed in these folders, as MCP reads only the shared
+ *   ones. Left out, every document of the user's; empty, none.
  * @returns The documents, best first.
  */
 export async function searchDocuments(
@@ -46,8 +48,21 @@ export async function searchDocuments(
   userId: string,
   query: string,
   limit: number,
-  { minCosine = SEARCH_DEFAULTS.minCosine }: { minCosine?: number } = {},
+  { minCosine = SEARCH_DEFAULTS.minCosine, folderIds }: { minCosine?: number; folderIds?: readonly string[] } = {},
 ): Promise<SearchHit[]> {
+  if (folderIds?.length === 0) {
+    return [];
+  }
+  const ownDocument = folderIds
+    ? and(eq(documents.userId, userId), inArray(documents.folderId, [...folderIds]))
+    : eq(documents.userId, userId);
+  // Passages carry their user but not their folder, so a folder filter is a subquery on documents.
+  const ownChunk = folderIds
+    ? and(
+        eq(documentChunks.userId, userId),
+        inArray(documentChunks.documentId, db.select({ id: documents.id }).from(documents).where(ownDocument)),
+      )
+    : eq(documentChunks.userId, userId);
   const pool = SEARCH_DEFAULTS.candidatePoolSize;
   const [queryVector = []] = await embedder.embed([query]);
   const tsQuery = toTsQuery(query);
@@ -67,13 +82,13 @@ export async function searchDocuments(
     db
       .select({ ...chunkColumns, distance })
       .from(documentChunks)
-      .where(eq(documentChunks.userId, userId))
+      .where(ownChunk)
       .orderBy(distance)
       .limit(pool),
     db
       .select({ ...chunkColumns, rank })
       .from(documentChunks)
-      .where(and(eq(documentChunks.userId, userId), sql`${CHUNK_WORDS} @@ ${tsQuery}`))
+      .where(and(ownChunk, sql`${CHUNK_WORDS} @@ ${tsQuery}`))
       .orderBy(desc(rank))
       .limit(pool),
     db
@@ -81,7 +96,7 @@ export async function searchDocuments(
       .from(documents)
       .where(
         and(
-          eq(documents.userId, userId),
+          ownDocument,
           ne(documents.status, DocumentStatus.PendingUpload),
           sql`to_tsvector('simple', ${documents.title}) @@ ${tsQuery}`,
         ),
@@ -124,7 +139,7 @@ export async function searchDocuments(
   const rows = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.userId, userId), inArray(documents.id, ids)));
+    .where(and(ownDocument, inArray(documents.id, ids)));
   const byId = new Map(rows.map((row) => [row.id, row]));
 
   return ranked.flatMap(([id, { score, best }]) => {

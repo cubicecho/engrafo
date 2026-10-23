@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { type AnyPgColumn, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 import { TOP_LEVEL } from './top-level.ts';
 import { users } from './users.ts';
@@ -22,6 +22,9 @@ export const folders = pgTable(
     // the server's to delete first, because their objects are in the buckets.
     parentId: uuid('parent_id').references((): AnyPgColumn => folders.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    // Whether an MCP client may read this folder, and every folder inside it. Off until the
+    // user turns it on: an agent sees nothing it was not given.
+    mcpEnabled: boolean('mcp_enabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()

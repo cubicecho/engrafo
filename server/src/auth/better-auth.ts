@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { apiKey } from '@better-auth/api-key';
 import type { DB } from '@cubicecho/engrafo-db';
-import { accounts, sessions, users, verifications } from '@cubicecho/engrafo-db/schema';
+import { accounts, apikeys, sessions, users, verifications } from '@cubicecho/engrafo-db/schema';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, genericOAuth, magicLink, oneTimeToken } from 'better-auth/plugins';
@@ -14,7 +15,7 @@ import {
   SESSION_STORE_MEMORY,
   sessionStore,
 } from '../core/config.ts';
-import { AUTH_DEFAULTS } from '../core/defaults.ts';
+import { API_KEY_DEFAULTS, AUTH_DEFAULTS } from '../core/defaults.ts';
 import { SECONDS_PER_MINUTE } from '../core/wire.ts';
 import { claimFirstAdmin } from './admin.ts';
 import { memoryStorage } from './session-store.ts';
@@ -67,6 +68,9 @@ interface LinkCapture {
 // context. A request never sees another's.
 const linkCapture = new AsyncLocalStorage<LinkCapture>();
 
+/** What every API key starts with, so one pasted somewhere it should not be is recognisable. */
+export const API_KEY_PREFIX = 'engr_';
+
 /**
  * Engrafo ships no mail provider, so the console is the delivery channel.
  *
@@ -100,7 +104,7 @@ export function createAuth(
     // The rc drizzle instance is keyed by relations, so the adapter can't discover tables itself.
     database: drizzleAdapter(db, {
       provider: 'pg',
-      schema: { user: users, session: sessions, account: accounts, verification: verifications },
+      schema: { user: users, session: sessions, account: accounts, verification: verifications, apikey: apikeys },
     }),
     secret,
     // With no APP_URL, better-auth takes its base URL from each request, so the
@@ -164,6 +168,12 @@ export function createAuth(
           }
           await sendMagicLink(link);
         },
+      }),
+      // Keys for MCP clients. Stored in Postgres whatever SESSION_STORE says, so a restart
+      // does not disconnect every agent. Minted only by settings' createApiKey, from a session.
+      apiKey({
+        defaultPrefix: API_KEY_PREFIX,
+        startingCharactersConfig: { charactersLength: API_KEY_PREFIX.length + API_KEY_DEFAULTS.shownCharacters },
       }),
     ],
   });

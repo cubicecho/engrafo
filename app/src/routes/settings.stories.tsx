@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { clientId } from '@/lib/id';
 import { ROUTES } from '@/lib/routes';
 import { SettingsRoute } from './settings';
 
@@ -37,8 +38,50 @@ const RESOLVERS = {
       ocrAvailable: true,
       ocrDefault: true,
     }),
+    apiKeys: () => [],
   },
 };
+
+/** A key as `apiKeys` answers it. */
+interface ApiKeyFixture {
+  id: string;
+  name: string;
+  start: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+const CLAUDE_CODE_KEY: ApiKeyFixture = {
+  id: '3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b',
+  name: 'Claude Code on my laptop',
+  start: 'engr_Ab12Cd34',
+  lastUsedAt: '2026-10-20T08:00:00.000Z',
+  expiresAt: null,
+  createdAt: '2026-10-01T09:00:00.000Z',
+};
+
+/** A server whose keys can be made and revoked, so a story sees the list change. */
+function keyServer(start: ApiKeyFixture[]) {
+  const keys = [...start];
+  return {
+    Query: { ...RESOLVERS.Query, apiKeys: () => keys },
+    Mutation: {
+      createApiKey: (_parent: unknown, args: { name: string }) => {
+        const apiKey = { ...CLAUDE_CODE_KEY, id: clientId(), name: args.name, lastUsedAt: null };
+        keys.unshift(apiKey);
+        return { apiKey, key: 'engr_Ab12Cd34TheRestOfTheSecretKey' };
+      },
+      revokeApiKey: (_parent: unknown, args: { id: string }) => {
+        keys.splice(
+          keys.findIndex((key) => key.id === args.id),
+          1,
+        );
+        return true;
+      },
+    },
+  };
+}
 
 /** Bounded height, because `PageLayout` is a sticky chassis that scrolls its own body. */
 function Framed() {
@@ -145,5 +188,51 @@ export const Unreachable: Story = {
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not load your settings');
     await expect(canvas.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  },
+};
+
+/** The MCP card: where an agent connects, and the keys it connects with, none shown whole. */
+export const McpKeys: Story = {
+  parameters: { apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Claude Code on my laptop')).toBeInTheDocument();
+    await expect(canvas.getByText(/\/mcp$/)).toBeInTheDocument();
+    await expect(canvas.getByText('engr_Ab12Cd34…')).toBeInTheDocument();
+    await expect(canvas.getByText(/Never expires/)).toBeInTheDocument();
+  },
+};
+
+/** A new key is shown once, with what to paste into Claude Code, then listed by its start alone. */
+export const MakesAKey: Story = {
+  parameters: { apolloClient: { resolvers: keyServer([]) } },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await canvas.findByText(/No keys yet/)).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'New key' }));
+
+    const form = within(await page.findByRole('dialog', { name: 'New API key' }));
+    await userEvent.type(form.getByRole('textbox', { name: /Name/ }), 'Claude Desktop');
+    await userEvent.click(form.getByRole('button', { name: 'Make key' }));
+
+    const shown = within(await page.findByRole('dialog', { name: 'Your new API key' }));
+    await expect(shown.getAllByText(/engr_Ab12Cd34TheRestOfTheSecretKey/).length).toBeGreaterThan(0);
+    await expect(shown.getByText(/claude mcp add --transport http engrafo/)).toBeInTheDocument();
+    await userEvent.click(shown.getByRole('button', { name: 'Done' }));
+
+    await expect(await canvas.findByText('Claude Desktop')).toBeInTheDocument();
+    await expect(canvas.queryByText(/TheRestOfTheSecretKey/)).not.toBeInTheDocument();
+  },
+};
+
+/** Revoking asks first, saying what stops working, and the key leaves the list. */
+export const RevokesAKey: Story = {
+  parameters: { apolloClient: { resolvers: keyServer([CLAUDE_CODE_KEY]) } },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Revoke' }));
+    const dialog = within(await page.findByRole('alertdialog'));
+    await expect(dialog.getByText(/refused from its next call/)).toBeInTheDocument();
+    await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(canvas.queryByText('Claude Code on my laptop')).not.toBeInTheDocument());
   },
 };

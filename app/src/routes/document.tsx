@@ -21,10 +21,12 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
 import { POLLING_DEFAULTS } from '@/defaults';
+import { ARCHIVE_QUERY_NAME } from '@/lib/archive';
 import { formatBytes, joinStats } from '@/lib/format';
+import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { ROUTES } from '@/lib/routes';
-import type { SlotNode } from '@/lib/utils';
+import { cn, type SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
   query DocumentDetail($id: UUID!) {
@@ -149,6 +151,7 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
   return (
     <PageLayout
       width="full"
+      contentClassName={FULL_WIDTH_BODY}
       breadcrumbsSlot={<BackToDocuments />}
       title="Document"
       loading={loading}
@@ -182,7 +185,8 @@ export function DocumentRoute() {
   });
   const serverOcr = useQuery(ServerOcr, { skip: !reprocessing });
   const [rename] = useMutation(RenameDocument);
-  const [remove, removeState] = useMutation(DeleteDocument);
+  // The sidebar's tree still lists it until the archive is read again.
+  const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const busy = doc ? isInProgress(doc.status) : false;
@@ -307,7 +311,7 @@ export function DocumentRoute() {
           />
         </>
       }
-      contentClassName="gap-6"
+      contentClassName={cn(FULL_WIDTH_BODY, 'gap-6')}
       contentSlot={
         <>
           {renaming ? (

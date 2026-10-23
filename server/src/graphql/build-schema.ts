@@ -2,6 +2,7 @@ import type { DB } from '@cubicecho/engrafo-db';
 import { AUTH_TABLES, SEARCH_TABLES, SERVER_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
+import { applyApiKeysExtension } from '../api-keys/resolvers.ts';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
@@ -56,6 +57,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyFoldersExtension(schema);
   schema = applySearchExtension(schema);
   schema = applySsoExtension(schema);
+  schema = applyApiKeysExtension(schema);
 
   return { schema, entities };
 }

@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { McpSettings } from '@/components/domain/mcp-settings';
 import { SsoSettings } from '@/components/domain/sso-pairing';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
@@ -11,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Settings } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { formatBytes, formatDate } from '@/lib/format';
+import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { useSignOut } from '@/lib/sign-out';
+import { cn } from '@/lib/utils';
 
 const SettingsPage = graphql(`
   query SettingsPage {
@@ -48,7 +51,7 @@ export function SettingsRoute() {
       title="Settings"
       description="Your account and what this instance is configured to do."
       width="full"
-      contentClassName="gap-6"
+      contentClassName={cn(FULL_WIDTH_BODY, 'gap-6')}
       contentSlot={
         <>
           <QueryState query={queryLike(result)} what="your settings" count={data ? 1 : 0} />
@@ -87,6 +90,8 @@ export function SettingsRoute() {
                   />
                 }
               />
+
+              <McpSettings />
 
               {/* How people sign in is the instance's, so only the admin sees it. */}
               {data.me.isAdmin ? <SsoSettings /> : null}

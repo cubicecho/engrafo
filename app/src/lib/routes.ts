@@ -28,3 +28,18 @@ export const ROUTES = Object.freeze({
 export function documentPath(id: string): string {
   return generatePath(ROUTES.document, { id });
 }
+
+/** The query string key that says which folder the upload panel files into. */
+export const UPLOAD_INTO_PARAM = 'into';
+
+/**
+ * The documents page with its upload panel pointed at a folder: where a folder's "Upload here"
+ * goes, from whichever page its tree is on.
+ *
+ * @param folderId - The folder, or null for the top level.
+ */
+export function uploadIntoPath(folderId: string | null): string {
+  return folderId === null
+    ? ROUTES.documents
+    : `${ROUTES.documents}?${UPLOAD_INTO_PARAM}=${encodeURIComponent(folderId)}`;
+}

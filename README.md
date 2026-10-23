@@ -22,11 +22,16 @@ whole product.
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
   person searches only their own documents.
 - **Folders** — file documents into folders, nested as deep as you like, and
-  see the archive as a tree. Drag a document or a folder onto another folder,
+  see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way
   files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
   move onto a taken name is refused rather than overwriting. Deleting a folder
   deletes everything in it, once you have typed its name.
+- **MCP for AI agents** — share a folder from its menu, make an API key in
+  Settings, and an MCP client (Claude Code, Claude Desktop, any other) can
+  list, search and read what is in it. Sharing a folder shares the folders
+  inside it; nothing else is visible, and the tools are read-only. See
+  [Connecting an agent](#connecting-an-agent).
 - **A pipeline you can watch** — every step is a row with a status, so a document
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
@@ -215,6 +220,30 @@ provider vouches for, or a new one if there is none. Setting only one of
 `OIDC_ISSUER` and `OIDC_CLIENT_ID` stops the server at boot. `OIDC_ISSUER` wins
 over a pairing, and Settings then shows the provider read-only.
 
+## Connecting an agent
+
+Engrafo serves one MCP endpoint, `/mcp` (Streamable HTTP), next to the app.
+
+1. On the documents page, open a folder's ⋯ menu and choose **Share with MCP**.
+   The folders inside it are shared too. Everything else, including documents
+   at the top level, stays out of reach.
+2. In **Settings → MCP**, make an API key. It is shown once, with the command
+   to paste:
+
+   ```bash
+   claude mcp add --transport http engrafo http://your-host:3004/mcp \
+     --header "Authorization: Bearer engr_…"
+   ```
+
+   Any other client takes the same URL and header (`x-api-key` works too).
+
+The tools are `engrafo_folders`, `engrafo_search` (the same hybrid search as
+the app), `engrafo_list` and `engrafo_read`, which returns a document's
+extracted text a page at a time. A document is named by its path in the tree,
+`Taxes/2026/invoice`. Turning a folder off takes effect on the agent's next
+call. Revoking a key in Settings refuses it from then on. A key always works
+as its owner, and only a session can make one, so a key cannot make another.
+
 ## Before you expose it
 
 Registration is **open**: any address that completes a sign-in gets an account.
@@ -236,6 +265,9 @@ for an instance on the public internet. Before putting Engrafo on a domain:
   which is the only place "secure local net" is a true statement.
 - **Never set `EXPOSE_MAGIC_LINK=true` on a reachable instance.** It hands the
   sign-in token to whoever asked for it, which is the same thing by another route.
+- **`/mcp` needs an API key even with `SECURE_LOCAL_NET`**, because the key is what
+  says whose archive it reads. Treat a key like a password: anyone with it reads
+  the folders you shared.
 - **Set a real `BETTER_AUTH_SECRET`** and keep it. Changing it signs everyone out; leaking
   it lets anyone mint a session.
 

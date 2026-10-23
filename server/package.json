@@ -12,10 +12,12 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1133.0",
     "@aws-sdk/s3-request-presigner": "^3.1133.0",
+    "@better-auth/api-key": "^1.7.12",
     "@cubicecho/engrafo-db": "*",
     "@huggingface/transformers": "^4.3.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@vantreeseba/drizzle-graphql": "^13.0.0",
-    "better-auth": "^1.7.7",
+    "better-auth": "^1.7.12",
     "drizzle-orm": "1.0.0-rc.4",
     "express": "^5.2.1",
     "file-type": "^22.1.0",

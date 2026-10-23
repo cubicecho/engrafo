@@ -1,5 +1,6 @@
 import { LogOut } from 'lucide-react';
 import { useLinkClickHandler, useMatch } from 'react-router';
+import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
@@ -85,13 +86,18 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
       divider="none"
       sidebarSlot={
         <Sidebar
+          // Wider than the rail's default, for the archive's tree.
+          className="w-80"
           headerSlot={<Brand />}
           contentSlot={
-            <SidebarSection
-              as="nav"
-              label="Main"
-              contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
-            />
+            <>
+              <SidebarSection
+                as="nav"
+                label="Main"
+                contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
+              />
+              <ArchiveSidebarSection />
+            </>
           }
           footerSlot={
             <>

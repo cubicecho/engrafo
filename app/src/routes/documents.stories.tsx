@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { DocumentStatusEnum, type DocumentsPageQuery } from '@/__generated__/graphql';
-import { clientId } from '@/lib/id';
+import { expect, userEvent, within } from 'storybook/test';
 import { ROUTES } from '@/lib/routes';
+import { archiveServer, document, EMPTY_FOLDER, SERVER_CONFIG, TAXES, YEAR } from '../../.storybook/archive.ts';
 import { DocumentsRoute } from './documents';
 
 /**
- * The archive, which is the screen this app mostly is.
+ * The archive's front page: the upload panel and search. The tree is in the sidebar
+ * (`ArchiveSidebarSection`, whose stories drive it); here it is drawn only on a phone.
  *
  * Mocked through the SDL rather than through canned responses, because the query it makes is
  * the one most exposed to the database: `documents(orderBy: …, limit: 200)` and its filter
@@ -14,80 +14,6 @@ import { DocumentsRoute } from './documents';
  * call changes without anyone editing this app. Executing it against the printed schema is what
  * turns that into a failing story instead of a blank tree.
  */
-
-const MAX_UPLOAD_BYTES = 104_857_600;
-
-const SERVER_CONFIG = {
-  version: '1.4.2',
-  maxUploadBytes: MAX_UPLOAD_BYTES,
-  acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
-  ocrAvailable: true,
-  ocrDefault: true,
-};
-
-type Document = DocumentsPageQuery['documents'][number];
-type Folder = DocumentsPageQuery['folders'][number];
-
-function document(overrides: Partial<Document>): Document {
-  return {
-    id: clientId(),
-    title: 'Untitled',
-    folderId: null,
-    sizeBytes: 482_113,
-    status: DocumentStatusEnum.Ready,
-    ...overrides,
-  };
-}
-
-const TAXES: Folder = { id: clientId(), name: 'Taxes', parentId: null };
-const YEAR: Folder = { id: clientId(), name: '2026', parentId: TAXES.id };
-const EMPTY_FOLDER: Folder = { id: clientId(), name: 'Receipts', parentId: null };
-
-/**
- * A server that remembers: the folder and document writes change what the next read returns,
- * as the real one does, so a story can make a change and then see it in the tree.
- */
-function archiveServer(start: { folders: Folder[]; documents: Document[] }) {
-  const folders = [...start.folders];
-  const documents = [...start.documents];
-  const taken = (parentId: string | null, name: string) =>
-    [
-      ...folders.filter((f) => (f.parentId ?? null) === parentId).map((f) => f.name),
-      ...documents.filter((d) => (d.folderId ?? null) === parentId).map((d) => d.title),
-    ].some((n) => n.toLowerCase() === name.toLowerCase());
-  return {
-    Query: {
-      serverConfig: () => SERVER_CONFIG,
-      folders: () => folders,
-      documents: () => documents,
-    },
-    Mutation: {
-      createFolder: (_parent: unknown, args: { name: string; parentId?: string | null }) => {
-        if (taken(args.parentId ?? null, args.name)) {
-          throw new Error(`Something called "${args.name}" is already there.`);
-        }
-        const folder = { id: clientId(), name: args.name, parentId: args.parentId ?? null };
-        folders.push(folder);
-        return folder;
-      },
-      moveDocument: (_parent: unknown, args: { id: string; folderId?: string | null }) => {
-        const doc = documents.find((d) => d.id === args.id);
-        if (!doc) {
-          throw new Error('Document not found');
-        }
-        doc.folderId = args.folderId ?? null;
-        return doc;
-      },
-      deleteFolder: (_parent: unknown, args: { id: string }) => {
-        folders.splice(
-          folders.findIndex((f) => f.id === args.id),
-          1,
-        );
-        return true;
-      },
-    },
-  };
-}
 
 /** Bounded height, because `PageLayout` is a sticky chassis that scrolls its own body. */
 function Framed() {
@@ -108,10 +34,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * A filed archive: folders nested in folders, an empty one, documents in them and at the top
- * level. Only a document that is not settled wears a status; a tree of "Ready" says nothing.
- */
+/** The page itself: the upload panel. The tree beside it is the sidebar's, not this page's. */
 export const WithDocuments: Story = {
   parameters: {
     apolloClient: {
@@ -119,26 +42,27 @@ export const WithDocuments: Story = {
         folders: [TAXES, YEAR, EMPTY_FOLDER],
         documents: [
           document({ title: 'Electricity bill — August' }),
-          document({ title: 'Passport scan' }),
           document({ title: 'Tax return', folderId: YEAR.id }),
-          document({ title: 'Lease agreement', status: DocumentStatusEnum.Processing }),
-          document({ title: 'Warranty', status: DocumentStatusEnum.Failed }),
         ],
       }),
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('link', { name: /Electricity bill — August/ })).toBeInTheDocument();
-    // A folder is a button that folds what is under it; an empty one is still there to file into.
-    await expect(canvas.getByRole('button', { name: /^Taxes/, expanded: true })).toBeInTheDocument();
-    await expect(canvas.getByRole('button', { name: /^Receipts/ })).toBeInTheDocument();
-    await expect(canvas.getByRole('link', { name: /Tax return/ })).toBeInTheDocument();
-    await expect(canvas.getByText('Processing')).toBeInTheDocument();
-    await expect(canvas.getByText('Failed')).toBeInTheDocument();
-    await expect(canvas.queryByText('Ready')).not.toBeInTheDocument();
     // The upload panel is part of this page, not a separate screen: there is nowhere else to
     // add a document from.
-    await expect(canvas.getByRole('switch', { name: 'Run OCR on new uploads' })).toBeInTheDocument();
+    await expect(await canvas.findByRole('switch', { name: 'Run OCR on new uploads' })).toBeInTheDocument();
+    // From `md` up the tree is the sidebar's, so this page draws none of its own.
+    await expect(canvas.queryByRole('link', { name: /Electricity bill/ })).not.toBeInTheDocument();
+  },
+};
+
+/** On a phone the sidebar is a bar, so the tree comes back onto this page, under the upload panel. */
+export const WithDocumentsOnAPhone: Story = {
+  ...WithDocuments,
+  globals: { viewport: { value: 'mobile1' } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('link', { name: /Electricity bill — August/ })).toBeVisible();
+    await expect(canvas.getByRole('button', { name: /^Taxes/ })).toBeVisible();
   },
 };
 
@@ -158,89 +82,19 @@ export const Empty: Story = {
   },
 };
 
-/** "New folder" in the header asks for a name and the folder appears in the tree. */
-export const CreatesAFolder: Story = {
-  parameters: {
-    apolloClient: { resolvers: archiveServer({ folders: [TAXES], documents: [] }) },
-  },
-  play: async ({ canvas, canvasElement }) => {
-    await canvas.findByRole('button', { name: /^Taxes/ });
-    await userEvent.click(canvas.getByRole('button', { name: 'New folder' }));
-
-    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'New folder' }));
-    await userEvent.type(dialog.getByRole('textbox', { name: /Name/ }), 'Insurance');
-    await userEvent.click(dialog.getByRole('button', { name: 'Create' }));
-
-    await expect(await canvas.findByRole('button', { name: /^Insurance/ })).toBeInTheDocument();
-  },
-};
-
-/** A name already beside it is refused by the server, and the dialog stays open saying so. */
+/** "New folder" in the header makes a folder at the top level, and a taken name is refused there. */
 export const RefusesATakenFolderName: Story = {
   parameters: {
     apolloClient: { resolvers: archiveServer({ folders: [TAXES], documents: [] }) },
   },
   play: async ({ canvas, canvasElement }) => {
-    await canvas.findByRole('button', { name: /^Taxes/ });
-    await userEvent.click(canvas.getByRole('button', { name: 'New folder' }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'New folder' }));
 
     const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'New folder' }));
     await userEvent.type(dialog.getByRole('textbox', { name: /Name/ }), 'taxes');
     await userEvent.click(dialog.getByRole('button', { name: 'Create' }));
 
     await expect(await dialog.findByRole('alert')).toHaveTextContent('Something called "taxes" is already there.');
-  },
-};
-
-/** "Move to…" in a row's menu is the way to move without dragging, and files the document there. */
-export const MovesADocumentWithTheMenu: Story = {
-  parameters: {
-    apolloClient: {
-      resolvers: archiveServer({ folders: [TAXES, YEAR], documents: [document({ title: 'Tax return' })] }),
-    },
-  },
-  play: async ({ canvas, canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Tax return' }));
-    await userEvent.click(await page.findByRole('menuitem', { name: 'Move to…' }));
-
-    const dialog = within(await page.findByRole('dialog', { name: 'Move “Tax return”' }));
-    await userEvent.click(dialog.getByRole('combobox', { name: 'Folder' }));
-    await userEvent.click(await page.findByRole('option', { name: 'Taxes/2026' }));
-    await userEvent.click(dialog.getByRole('button', { name: 'Move' }));
-
-    // Now under 2026: inside the list that folder's row opens.
-    await waitFor(() => {
-      const year = canvas.getByRole('button', { name: /^2026/ }).closest('li');
-      expect(year && within(year).queryByRole('link', { name: /Tax return/ })).toBeInTheDocument();
-    });
-  },
-};
-
-/** Deleting a folder takes what is in it, so the button stays locked until its name is typed. */
-export const DeletesAFolderOnlyOnceNamed: Story = {
-  parameters: {
-    apolloClient: {
-      resolvers: archiveServer({
-        folders: [TAXES, YEAR],
-        documents: [document({ title: 'Tax return', folderId: YEAR.id })],
-      }),
-    },
-  },
-  play: async ({ canvas, canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Taxes' }));
-    await userEvent.click(await page.findByRole('menuitem', { name: 'Delete' }));
-
-    const dialog = within(await page.findByRole('alertdialog'));
-    await expect(dialog.getByText(/1 document and 1 folder/)).toBeInTheDocument();
-    const confirm = dialog.getByRole('button', { name: 'Delete folder' });
-    await expect(confirm).toBeDisabled();
-    await userEvent.type(dialog.getByRole('textbox'), 'Taxes');
-    await expect(confirm).toBeEnabled();
-    await userEvent.click(confirm);
-
-    await waitFor(() => expect(canvas.queryByRole('button', { name: /^Taxes/ })).not.toBeInTheDocument());
   },
 };
 
@@ -305,7 +159,6 @@ export const Searching: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('link', { name: /Electricity bill — August/ })).toBeInTheDocument();
     await userEvent.type(canvas.getByRole('searchbox', { name: 'Search documents' }), 'rent');
 
     const results = await canvas.findByRole('list', { name: 'Documents matching “rent”' });
@@ -315,7 +168,6 @@ export const Searching: Story = {
     await expect(rows[0]).toHaveTextContent('950 EUR on the first day');
     // A hit on the title alone shows which file it is instead of an empty line.
     await expect(rows[1]).toHaveTextContent('receipts.pdf');
-    await expect(canvas.queryByRole('list', { name: 'Documents and folders' })).not.toBeInTheDocument();
   },
 };
 
