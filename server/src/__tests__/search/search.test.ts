@@ -2,6 +2,7 @@ import { documentChunks, documents, folders, type NewDocument } from '@cubicecho
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
+import { browseDocuments } from '../../search/browse.ts';
 import type { SearchFilter } from '../../search/filters.ts';
 import { indexDocument } from '../../search/index-document.ts';
 import { searchDocuments, snippet } from '../../search/search.ts';
@@ -325,5 +326,97 @@ describe('snippet', () => {
   it('is the start of the passage when no word matches, and the whole of a short one', () => {
     expect(snippet(text, 'zebra', 40).startsWith('Preamble')).toBe(true);
     expect(snippet('Short.', 'zebra', 40)).toBe('Short.');
+  });
+});
+
+describe('browsing by filter, with no search', () => {
+  let db: TestDb;
+  let alice: string;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    alice = await createUser(db, 'alice@example.com');
+  });
+
+  async function filed(title: string, values: Partial<NewDocument> = {}) {
+    await db.insert(documents).values({
+      userId: alice,
+      title,
+      originalFilename: `${title}.pdf`,
+      mimeType: 'application/pdf',
+      sizeBytes: 1,
+      originalKey: `originals/${alice}/${title}`,
+      status: 'ready',
+      ...values,
+    });
+  }
+
+  const browse = async (filter: SearchFilter, page = { first: 10, offset: 0 }) => {
+    const { documents: rows, hasMore } = await browseDocuments({ db }, alice, filter, page);
+    return { titles: rows.map((doc) => doc.title), hasMore };
+  };
+
+  it('lists the newest by the date on the document first, then the undated by upload time', async () => {
+    await filed('Undated old', { createdAt: new Date('2026-01-01T00:00:00Z') });
+    await filed('March', { documentDate: '2026-03-01' });
+    await filed('Undated new', { createdAt: new Date('2026-05-01T00:00:00Z') });
+    await filed('April', { documentDate: '2026-04-30' });
+    expect((await browse({})).titles).toEqual(['April', 'March', 'Undated new', 'Undated old']);
+  });
+
+  it('narrows by the same filters as a search', async () => {
+    await filed('Receipt', { total: '12.50', documentDate: '2026-03-02' });
+    await filed('Scan', { mimeType: 'image/png', documentDate: '2026-03-03' });
+    await filed('Statement', { mimeType: 'text/csv' });
+    await filed('Old receipt', { vendor: 'Bakery', documentDate: '2025-01-01' });
+    expect((await browse({ hasReceipt: true })).titles).toEqual(['Receipt', 'Old receipt']);
+    expect((await browse({ kinds: ['IMAGE', 'TEXT'] })).titles).toEqual(['Scan', 'Statement']);
+    expect((await browse({ dateFrom: '2026-03-01', dateTo: '2026-03-31' })).titles).toEqual(['Scan', 'Receipt']);
+    expect((await browse({ kinds: [] })).titles).toEqual([]);
+  });
+
+  it('pages, and says when there is another page', async () => {
+    for (let day = 1; day <= 5; day++) {
+      await filed(`Day ${day}`, { documentDate: `2026-03-0${day}` });
+    }
+    expect(await browse({}, { first: 2, offset: 0 })).toEqual({ titles: ['Day 5', 'Day 4'], hasMore: true });
+    expect(await browse({}, { first: 2, offset: 2 })).toEqual({ titles: ['Day 3', 'Day 2'], hasMore: true });
+    expect(await browse({}, { first: 2, offset: 4 })).toEqual({ titles: ['Day 1'], hasMore: false });
+  });
+
+  it("leaves out someone else's documents and an upload still waiting for its bytes", async () => {
+    const bob = await createUser(db, 'bob@example.com');
+    await filed('Mine');
+    await filed('Waiting', { status: 'pending_upload' });
+    await db.insert(documents).values({
+      userId: bob,
+      title: 'Theirs',
+      originalFilename: 'theirs.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1,
+      originalKey: `originals/${bob}/theirs`,
+      status: 'ready',
+    });
+    expect((await browse({})).titles).toEqual(['Mine']);
+  });
+
+  it('is a query, with the folder filter and its subfolders, and refuses too large a page', async () => {
+    const [taxes] = await db.insert(folders).values({ userId: alice, name: 'Taxes' }).returning();
+    const [year] = await db.insert(folders).values({ userId: alice, name: '2026', parentId: taxes?.id }).returning();
+    await filed('Top', { folderId: taxes?.id, documentDate: '2026-02-01' });
+    await filed('Inside', { folderId: year?.id, documentDate: '2026-01-01' });
+    await filed('Outside');
+
+    const client = createClient(db, alice);
+    const query = `query ($filter: DocumentSearchFilter, $first: Int, $offset: Int) {
+      browseDocuments(filter: $filter, first: $first, offset: $offset) { hasMore documents { title } }
+    }`;
+    const data = await client.expectOk(query, { filter: { folderId: taxes?.id }, first: 1 });
+    expect(data.browseDocuments).toEqual({ hasMore: true, documents: [{ title: 'Top' }] });
+    const next = await client.expectOk(query, { filter: { folderId: taxes?.id }, first: 1, offset: 1 });
+    expect(next.browseDocuments).toEqual({ hasMore: false, documents: [{ title: 'Inside' }] });
+
+    expect((await client.expectError(query, { first: 10_000 })).code).toBe(ErrorCode.BadUserInput);
+    expect((await client.expectError(query, { offset: -1 })).code).toBe(ErrorCode.BadUserInput);
   });
 });

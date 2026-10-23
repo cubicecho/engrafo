@@ -214,8 +214,7 @@ export const Searching: Story = {
 const searchedWith: Array<Record<string, unknown> | null> = [];
 
 /**
- * The filters show only while there is a search to narrow. Read from the URL, they go to the
- * server with the query; changing one asks again with it.
+ * Read from the URL, the filters go to the server with the query; changing one asks again with it.
  */
 export const SearchingWithFilters: Story = {
   parameters: {
@@ -247,14 +246,86 @@ export const SearchingWithFilters: Story = {
   },
 };
 
-/** With nothing typed there is nothing to narrow, so there are no filters either. */
-export const NoFiltersWithoutASearch: Story = {
+/** With nothing typed and nothing narrowed, the filters are there and the page is the upload panel. */
+export const FiltersWithoutASearch: Story = {
   parameters: {
     apolloClient: { resolvers: archiveServer({ folders: [], documents: [] }) },
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('searchbox', { name: 'Search documents' })).toBeInTheDocument();
-    await expect(canvas.queryByRole('switch', { name: 'Receipts only' })).not.toBeInTheDocument();
+    await expect(canvas.getByRole('switch', { name: 'Receipts only' })).not.toBeChecked();
+    await expect(await canvas.findByRole('switch', { name: 'Run OCR on new uploads' })).toBeInTheDocument();
+  },
+};
+
+const browsedWith: Array<Record<string, unknown>> = [];
+/** Two pages of receipts, the second shorter than the first, newest first as the server sends them. */
+const RECEIPTS = ['2026-03-03', '2026-03-02', '2026-03-01'].map((documentDate, i) => ({
+  ...document({ title: `Receipt ${i + 1}` }),
+  originalFilename: `receipt-${i + 1}.pdf`,
+  createdAt: '2026-09-02T11:04:00.000Z',
+  documentDate,
+}));
+
+/**
+ * Filters with no search list every document that matches them, in place of the upload panel,
+ * a page at a time: "Show more" asks for the next page and adds it under the first.
+ */
+export const BrowsingByFilter: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?receipts=1`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          folders: () => [TAXES],
+          documents: () => [],
+          browseDocuments: (_parent: unknown, args: { filter: Record<string, unknown>; offset: number }) => {
+            browsedWith.push(args);
+            // The page asks for 50; two rows stand in for a full page, so a second one follows.
+            return args.offset === 0
+              ? { hasMore: true, documents: RECEIPTS.slice(0, 2) }
+              : { hasMore: false, documents: RECEIPTS.slice(2) };
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const list = await canvas.findByRole('list', { name: 'Documents that match the filters' });
+    await expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    // The first page may have been asked for before this ran, so it is looked for rather than reset.
+    await expect(browsedWith.at(-1)).toMatchObject({ filter: { hasReceipt: true }, offset: 0 });
+    // Browsing replaces the upload panel, as a search does.
+    await expect(canvas.queryByRole('switch', { name: 'Run OCR on new uploads' })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Show more' }));
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(RECEIPTS.length));
+    await expect(browsedWith.at(-1)).toMatchObject({ offset: 2 });
+    await expect(within(list).getAllByRole('listitem')[2]).toHaveTextContent('Receipt 3');
+    await expect(canvas.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+  },
+};
+
+/** Filters that match nothing say so, and "Clear filters" goes back to the upload panel. */
+export const BrowsingFindsNothing: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?kind=EBOOK`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          serverConfig: () => SERVER_CONFIG,
+          folders: () => [],
+          documents: () => [],
+          browseDocuments: () => ({ hasMore: false, documents: [] }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('No document matches these filters.')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear filters' }));
+    await expect(await canvas.findByRole('switch', { name: 'Run OCR on new uploads' })).toBeInTheDocument();
   },
 };
 

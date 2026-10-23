@@ -4,6 +4,7 @@ import { graphql } from '@/__generated__';
 import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
 import { ExportReceiptsButton } from '@/components/domain/export-receipts';
+import { FilteredDocuments } from '@/components/domain/filtered-documents';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
 import { SearchFilterBar } from '@/components/domain/search-filter-bar';
 import { UploadPanel } from '@/components/domain/upload-panel';
@@ -34,7 +35,8 @@ const DocumentsPage = graphql(`
 const SEARCH_PARAM = 'q';
 
 /**
- * The archive's front page: the upload panel and a search box that swaps it for what it found.
+ * The archive's front page: the upload panel, and a search box and filters that swap it for what
+ * they found. Filters with no search list every document that matches them.
  * The tree of folders and documents is in the sidebar (`ArchiveSidebarSection`), which is also
  * what polls while a document is being processed; under `md`, where the sidebar is a bar, the
  * tree is drawn here instead.
@@ -59,6 +61,7 @@ export function DocumentsRoute() {
 
   // The search's filters sit beside its text in the URL, for the same reason.
   const filters = readSearchFilters(params);
+  const filterInput = toSearchFilterInput(filters);
   const setFilters = (next: SearchFilters) =>
     setParams((current) => writeSearchFilters(current, next), { replace: true });
 
@@ -86,7 +89,7 @@ export function DocumentsRoute() {
       width="full"
       iconSlot={<FileText />}
       title="Documents"
-      description="Upload into a folder, or search everything you have uploaded. The folders are in the sidebar."
+      description="Upload into a folder, or search and filter everything you have uploaded. The folders are in the sidebar."
       actionSlot={
         <>
           <ExportReceiptsButton folders={folders} />
@@ -101,14 +104,15 @@ export function DocumentsRoute() {
             defaultValue={search}
             onSettledText={setSearch}
           />
-          {/* Only while searching: the filters narrow a search, and narrow nothing without one. */}
-          {search !== '' && <SearchFilterBar folders={folders} value={filters} onValueChange={setFilters} />}
+          <SearchFilterBar folders={folders} value={filters} onValueChange={setFilters} />
         </>
       }
       contentClassName={cn(FULL_WIDTH_BODY, 'gap-6')}
       contentSlot={
         search !== '' ? (
-          <DocumentSearchResults query={search} filter={toSearchFilterInput(filters)} />
+          <DocumentSearchResults query={search} filter={filterInput} />
+        ) : filterInput !== null ? (
+          <FilteredDocuments filter={filterInput} />
         ) : (
           <>
             {page.data?.serverConfig && (

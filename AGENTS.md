@@ -78,7 +78,7 @@ engrafo/
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
-│       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), resolvers
+│       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), browse (filters, no search), resolvers
 │       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -456,8 +456,21 @@ search with whatever survived the cut, usually nothing; `search.test.ts`
 holds one search that only finds its document because of this. A folder
 that is not the caller's has no descendants of theirs and matches nothing.
 The MCP tool passes `folderIds` and no filter, and is unchanged. The app keeps
-the filters in the query string beside `q` (`lib/search-filters.ts`) and draws
-them only while there is a search to narrow.
+the filters in the query string beside `q` (`lib/search-filters.ts`) and always
+draws them.
+
+**Filters with no search are a list, not a search.** `browseDocuments(filter,
+first, offset)` in `search/browse.ts` is a plain read of `documents` under the
+same `filterConditions`, for the caller's `user_id` and leaving out
+`pending_upload` rows, newest by `documentDate` first (`nulls last`), then by
+`createdAt`. There is nothing to rank, so nothing is embedded and no passage is
+read. It pages by offset, asking for one row more than `first` to answer
+`hasMore` without a count; a cursor over a nullable date is case-by-case work
+that a personal archive's size does not pay for. An empty filter is allowed and
+is the whole archive a page at a time, but the app asks only once something is
+narrowed: with filters and no `q` the documents page draws `FilteredDocuments`
+in place of the upload panel, and "Show more" appends the next page with
+`fetchMore`.
 **A CSV is text, cut by rows.** Bank and card statements, stored as they are by
 the text step; no magic bytes, so `isText` covers it. `chunkText` would read it
 as one paragraph (no blank lines), turn its line breaks into spaces and cut

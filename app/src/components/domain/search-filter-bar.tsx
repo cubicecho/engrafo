@@ -17,7 +17,7 @@ interface SearchFilterBarProps {
 }
 
 /**
- * What a search is narrowed to: a folder (with everything inside it), a kind of document, the
+ * What a search or the list is narrowed to: a folder (with everything inside it), a kind of document, the
  * date on the document, and receipts only. One wrapping row above the results, as cubeui's filter
  * bar is, each control given a width so none takes the line.
  */
