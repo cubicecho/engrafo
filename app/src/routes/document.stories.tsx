@@ -381,3 +381,76 @@ export const Unreachable: Story = {
     await expect(canvas.queryByText('No such document')).not.toBeInTheDocument();
   },
 };
+
+const EARLIER_ID = '5c4b3a29-1807-4f6e-8d5c-4b3a29180716';
+const TAXES = { id: '7d1e0c55-8a2b-4f3c-9d4e-5f6a7b8c9d0e', name: 'Taxes', parentId: null, mcpEnabled: false };
+const deleted: string[] = [];
+
+/**
+ * The reader already has this file. The page says where the other copy is, by its path in the
+ * archive, and offers to delete this one through the same delete the header has.
+ */
+export const Duplicate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          documentDuplicates: () => [
+            {
+              document: document({}),
+              checked: true,
+              duplicates: [{ id: EARLIER_ID, title: 'Lease agreement', folderId: TAXES.id }],
+            },
+          ],
+          folders: () => [TAXES],
+          documents: () => [],
+        },
+        Mutation: {
+          deleteDocument: (_parent: unknown, args: { id: string }) => {
+            deleted.push(args.id);
+            return true;
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    deleted.length = 0;
+    const title = await canvas.findByText('You already have this file');
+    const alert = title.closest<HTMLElement>('[data-slot="alert"]');
+    if (alert === null) {
+      throw new Error('The duplicate warning is not an alert');
+    }
+    await expect(alert).toHaveAttribute('role', 'status');
+    const other = await within(alert).findByRole('link', { name: 'Taxes/Lease agreement' });
+    await expect(other).toHaveAttribute('href', documentPath(EARLIER_ID));
+
+    await userEvent.click(within(alert).getByRole('button', { name: 'Delete this copy' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
+      name: 'Delete this copy?',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleted).toEqual([ID]));
+  },
+};
+
+/** The only copy of a file draws no warning. */
+export const NotADuplicate: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          documentDuplicates: () => [{ document: document({}), checked: true, duplicates: [] }],
+          folders: () => [],
+          documents: () => [],
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
+    await expect(canvas.queryByText('You already have this file')).not.toBeInTheDocument();
+  },
+};

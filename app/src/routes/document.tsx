@@ -10,6 +10,7 @@ import { DocumentFileUrl } from '@/components/domain/document-file';
 import { DocumentPipelineCard } from '@/components/domain/document-pipeline-card';
 import { DocumentPreviewCard } from '@/components/domain/document-preview-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
+import { DuplicateAlert } from '@/components/domain/duplicate-alert';
 import { MoveDialog } from '@/components/domain/move-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
@@ -21,7 +22,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, FileText, Pencil, RefreshCw, Trash2 } from '@/components/ui/icons';
 import { POLLING_DEFAULTS } from '@/defaults';
-import { ARCHIVE_QUERY_NAME } from '@/lib/archive';
+import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
 import { formatBytes, joinStats } from '@/lib/format';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
@@ -57,6 +58,24 @@ const DocumentDetail = graphql(`
         error
         startedAt
         finishedAt
+      }
+    }
+  }
+`);
+
+// Its own query, not a field of the page's: drizzle-graphql reads only the columns a selection
+// names, so a duplicates field on Document could not count on the checksum. Asked once the
+// checksum is in, which the page's own poll brings, and its failure costs only the warning.
+const DocumentDuplicatesOf = graphql(`
+  query DocumentDuplicatesOf($id: UUID!) {
+    documentDuplicates(ids: [$id]) {
+      document {
+        id
+      }
+      duplicates {
+        id
+        title
+        folderId
       }
     }
   }
@@ -172,6 +191,15 @@ export function DocumentRoute() {
   const result = useQuery(DocumentDetail, { variables: { id } });
   const { data, startPolling, stopPolling } = result;
   const doc = data?.document ?? null;
+  const duplicatesOf = useQuery(DocumentDuplicatesOf, {
+    variables: { id },
+    skip: !doc?.checksumSha256,
+    // Network as well as cache: the other copy may have been deleted since this page last asked.
+    fetchPolicy: 'cache-and-network',
+  });
+  const duplicates = duplicatesOf.data?.documentDuplicates[0]?.duplicates ?? [];
+  // The sidebar's query, answered from the cache, for the other copies' folder paths.
+  const { folders } = useArchive();
 
   const [renaming, setRenaming] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -218,6 +246,14 @@ export function DocumentRoute() {
       // Said on the page: left unsaid, a press that fails looks like a press that did nothing.
       setDownloadError(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  function deleteThis(documentId: string) {
+    // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
+    void remove({ variables: { id: documentId } }).then(
+      () => navigate(ROUTES.documents, { replace: true }),
+      () => undefined,
+    );
   }
 
   if (!doc) {
@@ -301,13 +337,7 @@ export function DocumentRoute() {
             title="Delete this document?"
             description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
             confirmLabel="Delete"
-            onConfirm={() => {
-              // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
-              void remove({ variables: { id: doc.id } }).then(
-                () => navigate(ROUTES.documents, { replace: true }),
-                () => undefined,
-              );
-            }}
+            onConfirm={() => deleteThis(doc.id)}
           />
         </>
       }
@@ -376,6 +406,24 @@ export function DocumentRoute() {
               }
             />
           )}
+
+          <DuplicateAlert
+            duplicates={duplicates}
+            folders={folders}
+            actionSlot={
+              // Plain outline: the destructive red does not reach 4.5:1 on the warning's tint, and
+              // the confirmation it opens is where the delete is marked as one.
+              <ConfirmButton
+                variant="outline"
+                iconSlot={<Trash2 />}
+                content="Delete this copy"
+                title="Delete this copy?"
+                description="This copy's uploaded file, its searchable PDF and its extracted text are deleted from storage. Your other copies are kept."
+                confirmLabel="Delete"
+                onConfirm={() => deleteThis(doc.id)}
+              />
+            }
+          />
 
           <DocumentPipelineCard ocrRequested={doc.ocrRequested} steps={doc.processingSteps} />
           <DocumentPreviewCard doc={doc} />
