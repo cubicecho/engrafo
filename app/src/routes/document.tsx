@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import {
   DocumentFileVariant,
+  DocumentMetadataField,
   DocumentStatusEnum as DocumentStatus,
   StepStatusEnum as StepStatus,
 } from '@/__generated__/graphql';
@@ -202,6 +203,20 @@ const SetDocumentReceipt = graphql(`
   }
 `);
 
+const ResetDocumentMetadata = graphql(`
+  mutation ResetDocumentMetadata($id: UUID!, $fields: [DocumentMetadataField!]!) {
+    resetDocumentMetadata(id: $id, fields: $fields) {
+      id
+      documentDate
+      documentDateSource
+      vendor
+      total
+      currency
+      receiptSource
+    }
+  }
+`);
+
 const DeleteDocument = graphql(`
   mutation DeleteDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -312,6 +327,7 @@ export function DocumentRoute() {
   const [setDate] = useMutation(SetDocumentDate);
   const [editingReceipt, setEditingReceipt] = useState(false);
   const [setReceipt] = useMutation(SetDocumentReceipt);
+  const [resetMetadata, resetState] = useMutation(ResetDocumentMetadata);
   // The sidebar's tree still lists it until the archive is read again.
   const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -345,6 +361,11 @@ export function DocumentRoute() {
       // Said on the page: left unsaid, a press that fails looks like a press that did nothing.
       setDownloadError(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  function resetFields(documentId: string, fields: DocumentMetadataField[]) {
+    // The failure is drawn from `resetState`; the handler only keeps the rejection handled.
+    void resetMetadata({ variables: { id: documentId, fields } }).catch(() => undefined);
   }
 
   function deleteThis(documentId: string) {
@@ -526,6 +547,13 @@ export function DocumentRoute() {
               description={visionState.error.message}
             />
           )}
+          {resetState.error && (
+            <Alert
+              variant="destructive"
+              title="Could not read the fields from the text again"
+              description={resetState.error.message}
+            />
+          )}
           {downloadError && (
             <Alert variant="destructive" title="Could not download the file" description={downloadError} />
           )}
@@ -614,6 +642,7 @@ export function DocumentRoute() {
                   currency={doc.currency}
                   source={doc.receiptSource}
                   onEdit={() => setEditingReceipt(true)}
+                  onReset={() => resetFields(doc.id, [DocumentMetadataField.Receipt])}
                 />
                 <DocumentDetailsCard
                   createdAt={doc.createdAt}
@@ -621,6 +650,7 @@ export function DocumentRoute() {
                   documentDate={doc.documentDate ?? null}
                   documentDateSource={doc.documentDateSource ?? null}
                   onEditDate={() => setEditingDate(true)}
+                  onResetDate={() => resetFields(doc.id, [DocumentMetadataField.Date])}
                 />
               </>
             }

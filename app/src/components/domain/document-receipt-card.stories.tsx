@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { DocumentReceiptCard } from './document-receipt-card';
 
@@ -14,6 +14,7 @@ const meta = {
     currency: 'EUR',
     source: FieldSource.Extracted,
     onEdit: fn(),
+    onReset: fn(),
   },
 } satisfies Meta<typeof DocumentReceiptCard>;
 
@@ -32,6 +33,21 @@ export const Extracted: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: 'Edit receipt details' }));
     await expect(args.onEdit).toHaveBeenCalledOnce();
+    // Already automatic: there is nothing to hand back.
+    await expect(canvas.queryByRole('button', { name: /Reset receipt/ })).not.toBeInTheDocument();
+  },
+};
+
+/** One the user filled in can be handed back to be read from the text again, once confirmed. */
+export const SetByTheUser: Story = {
+  args: { source: FieldSource.User },
+  play: async ({ args, canvas, canvasElement }) => {
+    await expect(canvas.getByText('Set by you.')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Reset receipt details to automatic' }));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('alertdialog'));
+    await expect(args.onReset).not.toHaveBeenCalled();
+    await userEvent.click(dialog.getByRole('button', { name: 'Reset' }));
+    await expect(args.onReset).toHaveBeenCalledOnce();
   },
 };
 
