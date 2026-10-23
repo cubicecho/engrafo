@@ -1,3 +1,10 @@
+# [4.10.0](https://github.com/cubicecho/engrafo/compare/v4.9.0...v4.10.0) (2026-10-23)
+
+
+### Features
+
+* export the whole archive as a tar, and import one back ([dc4c789](https://github.com/cubicecho/engrafo/commit/dc4c78909389ec3127c678baf7f5840ee38d4408)), closes [#35](https://github.com/cubicecho/engrafo/issues/35)
+
 # [4.9.0](https://github.com/cubicecho/engrafo/compare/v4.8.0...v4.9.0) (2026-10-23)
 
 
