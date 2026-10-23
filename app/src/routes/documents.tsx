@@ -1,14 +1,16 @@
 import { useQuery } from '@apollo/client/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
+import { FolderPlus } from '@/components/domain/app-icons';
+import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
-import { DocumentsTable } from '@/components/domain/documents-table';
 import { isInProgress } from '@/components/domain/status-badge';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
 import { PageLayout } from '@/components/page-layout';
 import { QueryState } from '@/components/query-state';
+import { Button } from '@/components/ui/button';
 import { FileText } from '@/components/ui/icons';
 import { SearchInput } from '@/components/ui/search-input';
 import { DOCUMENT_LIST_DEFAULTS, POLLING_DEFAULTS } from '@/defaults';
@@ -22,15 +24,17 @@ const DocumentsPage = graphql(`
       ocrAvailable
       ocrDefault
     }
+    folders {
+      id
+      name
+      parentId
+    }
     documents(orderBy: { createdAt: { direction: desc, priority: 1 } }, limit: $limit) {
       id
       title
-      originalFilename
-      mimeType
+      folderId
       sizeBytes
       status
-      ocrRequested
-      createdAt
     }
   }
 `);
@@ -39,9 +43,9 @@ const DocumentsPage = graphql(`
 const SEARCH_PARAM = 'q';
 
 /**
- * The archive: the upload panel over the list of everything uploaded, newest
- * first, and a search box that swaps both for what it found. Polls while any
- * document is still being processed.
+ * The archive: the upload panel over the tree of folders and documents, and a
+ * search box that swaps both for what it found. Polls while any document is
+ * still being processed.
  */
 export function DocumentsRoute() {
   const [params, setParams] = useSearchParams();
@@ -64,6 +68,11 @@ export function DocumentsRoute() {
   const result = useQuery(DocumentsPage, { variables: { limit: DOCUMENT_LIST_DEFAULTS.limit } });
   const { data, startPolling, stopPolling } = result;
   const documents = data?.documents ?? [];
+  const folders = data?.folders ?? [];
+  // Where the upload panel files what it is given: the page's, so a folder's
+  // "Upload here" can point it there.
+  const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const busy = documents.some((doc) => isInProgress(doc.status));
 
   // There is no subscription: the pipeline runs in the server process and says
@@ -83,7 +92,16 @@ export function DocumentsRoute() {
       width="full"
       iconSlot={<FileText />}
       title="Documents"
-      description="Everything you have uploaded."
+      description="Everything you have uploaded, in the folders you have filed it in."
+      actionSlot={
+        <Button
+          size="sm"
+          variant="outline"
+          iconSlot={<FolderPlus />}
+          content="New folder"
+          onClick={() => setCreatingFolder(true)}
+        />
+      }
       headerContentSlot={
         <SearchInput
           label="Search documents"
@@ -98,22 +116,40 @@ export function DocumentsRoute() {
           <DocumentSearchResults query={search} />
         ) : (
           <>
-            {data?.serverConfig && <UploadPanel config={data.serverConfig} onChanged={() => void result.refetch()} />}
+            {data?.serverConfig && (
+              <UploadPanel
+                config={data.serverConfig}
+                folders={folders}
+                folderId={uploadFolderId}
+                onFolderChange={setUploadFolderId}
+                onChanged={() => void result.refetch()}
+              />
+            )}
 
             <QueryState
               query={queryLike(result)}
               what="your documents"
-              count={documents.length}
+              count={documents.length + folders.length}
               emptySlot={
                 <EmptyState
                   iconSlot={<FileText />}
                   title="No documents yet"
-                  description="Upload a PDF, a scan or a text file to get started."
+                  description="Upload a PDF, a scan or a text file to get started, or make a folder to file them in."
                 />
               }
             />
 
-            {documents.length > 0 && <DocumentsTable documents={documents} />}
+            {/* Mounted with an empty archive too, so "New folder" in the header has its dialog. */}
+            {data && (
+              <ArchiveTree
+                folders={folders}
+                documents={documents}
+                onChanged={() => result.refetch()}
+                onUploadInto={setUploadFolderId}
+                newFolderRequested={creatingFolder}
+                onNewFolderClosed={() => setCreatingFolder(false)}
+              />
+            )}
           </>
         )
       }

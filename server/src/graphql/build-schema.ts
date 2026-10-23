@@ -4,6 +4,7 @@ import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
+import { applyFoldersExtension } from '../folders/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
@@ -52,6 +53,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   let schema = withMutationRoot(drizzleSchema);
   schema = applyAuthExtension(schema);
   schema = applyDocumentsExtension(schema);
+  schema = applyFoldersExtension(schema);
   schema = applySearchExtension(schema);
   schema = applySsoExtension(schema);
 

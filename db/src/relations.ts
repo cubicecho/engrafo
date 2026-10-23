@@ -8,10 +8,17 @@ import * as schema from './schema.ts';
 export const relations = defineRelations(schema, (r) => ({
   users: {
     documents: r.many.documents({ from: r.users.id, to: r.documents.userId }),
+    folders: r.many.folders({ from: r.users.id, to: r.folders.userId }),
+  },
+
+  folders: {
+    user: r.one.users({ from: r.folders.userId, to: r.users.id }),
+    documents: r.many.documents({ from: r.folders.id, to: r.documents.folderId }),
   },
 
   documents: {
     user: r.one.users({ from: r.documents.userId, to: r.users.id }),
+    folder: r.one.folders({ from: r.documents.folderId, to: r.folders.id }),
     processingSteps: r.many.processingSteps({ from: r.documents.id, to: r.processingSteps.documentId }),
   },
 

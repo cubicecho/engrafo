@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -35,7 +36,7 @@ describe('pipeline runner', () => {
       .insert(documents)
       .values({
         userId,
-        title: 'Note',
+        title: `Note ${randomUUID()}`,
         originalFilename: 'note.txt',
         mimeType: 'text/plain',
         sizeBytes: 5,

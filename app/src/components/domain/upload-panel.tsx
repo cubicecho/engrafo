@@ -2,6 +2,8 @@ import { useMutation } from '@apollo/client/react';
 import { useId, useState } from 'react';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
+import { Combobox } from '@/components/combobox';
+import { FormField } from '@/components/form-field';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
 import { Button } from '@/components/ui/button';
@@ -10,6 +12,7 @@ import type { PickedFile } from '@/components/ui/file-picker-base';
 import { X } from '@/components/ui/icons';
 import { Progress } from '@/components/ui/progress';
 import { SwitchField } from '@/components/ui/switch-field';
+import { type FolderRow, folderOptions, TOP_LEVEL } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { clientId } from '@/lib/id';
 import { putFile } from '@/lib/upload';
@@ -57,6 +60,11 @@ interface Job {
 interface UploadPanelProps {
   /** What the server will accept, as `serverConfig` reports it. */
   config: { maxUploadBytes: number; acceptedMimeTypes: string[]; ocrAvailable: boolean; ocrDefault: boolean };
+  /** Every folder the caller has, for the "Upload into" picker. */
+  folders: readonly FolderRow[];
+  /** The folder new uploads are filed in, or null for the top level. */
+  folderId: string | null;
+  onFolderChange: (folderId: string | null) => void;
   /** Called whenever a document changes state, so the list can refetch. */
   onChanged: () => void;
 }
@@ -67,7 +75,7 @@ interface UploadPanelProps {
  * Each file is signed for, PUT straight to the bucket and then confirmed, and a
  * failure at any of the three is shown on that file's row.
  */
-export function UploadPanel({ config, onChanged }: UploadPanelProps) {
+export function UploadPanel({ config, folders, folderId, onFolderChange, onChanged }: UploadPanelProps) {
   const ocrId = useId();
   const [ocr, setOcr] = useState(config.ocrAvailable && config.ocrDefault);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -93,6 +101,7 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
             mimeType: file.type || UNKNOWN_MIME_TYPE,
             sizeBytes: file.size,
             ocr,
+            folderId,
           },
         },
       });
@@ -135,6 +144,20 @@ export function UploadPanel({ config, onChanged }: UploadPanelProps) {
             multiple
             read="none"
             onPickMany={start}
+          />
+
+          <FormField
+            label="Upload into"
+            controlSlot={(props) => (
+              <Combobox
+                {...props}
+                options={folderOptions(folders)}
+                value={folderId ?? TOP_LEVEL}
+                onValueChange={(value) => onFolderChange(value === TOP_LEVEL ? null : value)}
+                searchable
+                searchPlaceholder="Find a folder"
+              />
+            )}
           />
 
           <SwitchField

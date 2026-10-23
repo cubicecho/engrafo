@@ -166,9 +166,13 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
       if (keys.length === 0) {
         return;
       }
-      await client.send(
-        new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }),
-      );
+      // S3 takes at most a thousand keys a call, and a folder's delete can pass more.
+      for (let start = 0; start < keys.length; start += STORAGE_DEFAULTS.deleteBatchSize) {
+        const batch = keys.slice(start, start + STORAGE_DEFAULTS.deleteBatchSize);
+        await client.send(
+          new DeleteObjectsCommand({ Bucket, Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true } }),
+        );
+      }
     },
   };
 }

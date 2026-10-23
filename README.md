@@ -21,6 +21,12 @@ whole product.
   embedding model (granite-embedding-small, about 50 MB, baked into the image)
   and Postgres's full-text search, fused the way mcp-ragdown does it. Each
   person searches only their own documents.
+- **Folders** — file documents into folders, nested as deep as you like, and
+  see the archive as a tree. Drag a document or a folder onto another folder,
+  or use "Move to…". Names are unique within a folder, ignoring case, the way
+  files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
+  move onto a taken name is refused rather than overwriting. Deleting a folder
+  deletes everything in it, once you have typed its name.
 - **A pipeline you can watch** — every step is a row with a status, so a document
   says where it got to, and a failed one says why and offers a retry.
 - **Preview, download, rename, delete** — the archived PDF where there is one,
@@ -28,7 +34,8 @@ whole product.
 - **Sign-in by magic link**, through an OpenID Connect provider such as
   heautou, or with no link at all on a private instance.
 
-No tags, no correspondents, no mail ingestion. Those are what Paperless is for.
+No tags, no correspondents, no mail ingestion. Folders are the one way to
+organise. Those are what Paperless is for.
 
 ## Quickstart
 

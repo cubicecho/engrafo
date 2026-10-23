@@ -28,6 +28,13 @@ const CONFIG = {
 };
 
 const DOCUMENT_ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d6e';
+const TAXES_ID = '7d1e0c55-8a2b-4f3c-9d4e-5f6a7b8c9d0e';
+const YEAR_ID = '0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d';
+
+const FOLDERS = [
+  { id: TAXES_ID, name: 'Taxes', parentId: null },
+  { id: YEAR_ID, name: '2026', parentId: TAXES_ID },
+];
 
 function file(name: string, bytes: number, type = 'application/pdf'): File {
   return new File([new Uint8Array(bytes)], name, { type });
@@ -51,7 +58,7 @@ function fileInput(canvasElement: HTMLElement): HTMLInputElement {
 }
 
 /** The pair of mutations one successful upload makes, pointed at a bucket that accepts. */
-function uploadMocks(uploadUrl: string): MockLink.MockedResponse[] {
+function uploadMocks(uploadUrl: string, folderId: string | null = null): MockLink.MockedResponse[] {
   return [
     {
       request: {
@@ -62,6 +69,7 @@ function uploadMocks(uploadUrl: string): MockLink.MockedResponse[] {
             mimeType: 'application/pdf',
             sizeBytes: SCAN_BYTES,
             ocr: true,
+            folderId,
           },
         },
       },
@@ -85,7 +93,7 @@ function uploadMocks(uploadUrl: string): MockLink.MockedResponse[] {
 const meta = {
   title: 'Domain/UploadPanel',
   component: UploadPanel,
-  args: { config: CONFIG, onChanged: fn() },
+  args: { config: CONFIG, folders: FOLDERS, folderId: null, onFolderChange: fn(), onChanged: fn() },
   parameters: { layout: 'padded' },
 } satisfies Meta<typeof UploadPanel>;
 
@@ -148,6 +156,33 @@ export const UploadsAFile: Story = {
     // Twice: once when the row exists so the list can show it as pending, once when it is done.
     // The list has no subscription, so a missed call is a row that never appears.
     await expect(args.onChanged).toHaveBeenCalledTimes(2);
+  },
+};
+
+/** The folder picker offers the top level and every folder by its path, and says which was chosen. */
+export const ChoosesAFolder: Story = {
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const picker = canvas.getByRole('combobox', { name: 'Upload into' });
+    await expect(picker).toHaveTextContent('Top level');
+
+    await userEvent.click(picker);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await page.findByRole('option', { name: 'Taxes/2026' }));
+    await expect(args.onFolderChange).toHaveBeenCalledWith(YEAR_ID);
+  },
+};
+
+/** With a folder chosen, `createDocumentUpload` names it, so the document lands there. */
+export const UploadsIntoAFolder: Story = {
+  args: { folderId: YEAR_ID },
+  parameters: { apolloClient: { mocks: uploadMocks(MOCK_BUCKET_OK, YEAR_ID) } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('combobox', { name: 'Upload into' })).toHaveTextContent('Taxes/2026');
+
+    await userEvent.upload(fileInput(canvasElement), file('scan.pdf', SCAN_BYTES));
+    await waitFor(() => expect(canvas.getByRole('listitem')).toHaveTextContent('Uploaded'));
   },
 };
 

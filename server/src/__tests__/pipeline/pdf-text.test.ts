@@ -14,6 +14,7 @@ function doc(values: Partial<Document> = {}): Document {
   return {
     id: '00000000-0000-4000-8000-000000000001',
     userId: '00000000-0000-4000-8000-000000000002',
+    folderId: null,
     title: 'Invoice',
     originalFilename: 'invoice.pdf',
     mimeType: 'application/pdf',

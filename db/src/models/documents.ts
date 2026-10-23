@@ -1,5 +1,8 @@
-import { bigint, boolean, index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
+import { folders } from './folders.ts';
+import { TOP_LEVEL } from './top-level.ts';
 import { users } from './users.ts';
 
 /**
@@ -27,6 +30,10 @@ export const documents = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    // Null is the top level. Restrict, not cascade: a folder's documents have
+    // objects in the buckets, so the server deletes them before the folder.
+    folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'restrict' }),
+    // Also the document's name in its folder, so it is unique there and has no `/`.
     title: text('title').notNull(),
     originalFilename: text('original_filename').notNull(),
     mimeType: text('mime_type').notNull(),
@@ -57,6 +64,12 @@ export const documents = pgTable(
     index('idx_documents_user_created').on(t.userId, t.createdAt),
     index('idx_documents_user_checksum').on(t.userId, t.checksumSha256),
     index('idx_documents_status').on(t.status),
+    index('idx_documents_folder_id').on(t.folderId),
+    uniqueIndex('uq_documents_user_folder_title').on(
+      t.userId,
+      sql`coalesce(${t.folderId}, ${TOP_LEVEL})`,
+      sql`lower(${t.title})`,
+    ),
   ],
 );
 
