@@ -15,6 +15,7 @@ import { type ExecutionResult, graphql } from 'graphql';
 import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
 import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
+import { type Backups, createBackups } from '../backup/state.ts';
 import { appUrl, type OidcConfig } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
@@ -158,6 +159,8 @@ export interface ClientOptions {
   origin?: string;
   /** Embeds search queries. Defaults to `createFakeEmbedder()`. */
   embedder?: Embedder;
+  /** Export links and import runs. Pass one to share it with an app or another client. */
+  backups?: Backups;
 }
 
 export function createClient(db: TestDb, userId: string | null, options: ClientOptions = {}): TestClient {
@@ -166,6 +169,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
   const events = options.events ?? createPipelineEvents();
   const { limiter = createRateLimiter(), ip = TEST_IP, token } = options;
   const authHost = options.authHost ?? fixedAuthHost(options.auth ?? createTestAuth(db).auth);
+  const backups = options.backups ?? createBackups();
 
   const run = async (query: string, variables?: Record<string, unknown>) => {
     const headers = new Headers(token === undefined ? {} : { authorization: `Bearer ${token}` });
@@ -183,6 +187,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       events,
       ocrAvailable: options.ocrAvailable ?? false,
       embedder: options.embedder ?? createFakeEmbedder(),
+      backups,
     };
     return graphql({ schema, source: query, contextValue, variableValues: variables });
   };

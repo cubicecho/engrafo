@@ -224,3 +224,19 @@ export function textKey(userId: string, documentId: string): string {
 export function thumbnailKey(userId: string, documentId: string): string {
   return `thumbnails/${userId}/${documentId}.jpg`;
 }
+
+/**
+ * Names the object an archive being imported is uploaded to, before it is read back in.
+ *
+ * @param userId - Whose import.
+ * @param uploadId - A fresh id per upload.
+ * @returns The key in the files bucket. Deleted once the import has read it.
+ */
+export function importKey(userId: string, uploadId: string): string {
+  return `imports/${userId}/${uploadId}.tar`;
+}
+
+/** Every key {@link importKey} gives for one user starts with this. */
+export function importKeyPrefix(userId: string): string {
+  return `imports/${userId}/`;
+}

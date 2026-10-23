@@ -42,6 +42,7 @@ const RESOLVERS = {
     serverConfig: () => ({
       version: '1.4.2',
       maxUploadBytes: MAX_UPLOAD_BYTES,
+      maxImportBytes: 5_368_709_120,
       acceptedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'],
       ocrAvailable: true,
       ocrDefault: true,
@@ -49,6 +50,7 @@ const RESOLVERS = {
       visionAuto: true,
     }),
     apiKeys: () => [],
+    latestImport: () => null,
     visionSettings: () => {
       // The page must never ask this for anyone but the admin: the real server answers FORBIDDEN.
       visionSettingsReads += 1;
@@ -149,6 +151,7 @@ export const Ready: Story = {
       'Account',
       'Processing',
       'MCP',
+      'Backup',
       'About',
     ]);
   },

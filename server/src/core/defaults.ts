@@ -476,3 +476,28 @@ export const STORAGE_DEFAULTS: Readonly<StorageSettings> = Object.freeze({
   downloadUrlTtlMinutes: 5,
   deleteBatchSize: 1000,
 });
+
+/** Export and import: the whole archive as one tar, out and back in. */
+export interface BackupSettings {
+  /** How long a minted export link works. Long enough to click, short enough not to leak usefully. */
+  exportLinkTtlMinutes: number;
+  /**
+   * The largest archive an import accepts, in bytes. `MAX_IMPORT_BYTES` overrides it. The archive
+   * is PUT to the bucket in one request, and S3 takes at most 5 GiB that way.
+   */
+  maxImportBytes: number;
+  /** The largest `metadata.json` read, in bytes: it is held in memory and parsed whole. */
+  metadataMaxBytes: number;
+  /** How long a finished import's summary stays to be read, in minutes. Only the latest is ever shown. */
+  importRetentionMinutes: number;
+}
+
+/** The shipped values of `BackupSettings`. */
+export const BACKUP_DEFAULTS: Readonly<BackupSettings> = Object.freeze({
+  exportLinkTtlMinutes: 5,
+  // 5 GiB.
+  maxImportBytes: 5_368_709_120,
+  // 64 MiB.
+  metadataMaxBytes: 67_108_864,
+  importRetentionMinutes: 1440,
+});
