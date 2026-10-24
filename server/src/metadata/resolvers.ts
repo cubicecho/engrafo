@@ -2,20 +2,30 @@ import { DocumentStatus, documents, FieldSource, folders } from '@cubicecho/engr
 import { and, asc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
+import { dateOrder } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { METADATA_DEFAULTS } from '../core/defaults.ts';
-import { badInput, requireAuth } from '../core/errors.ts';
+import { badInput, conflict, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { loadOwned } from '../documents/resolvers.ts';
 import { folderAndDescendants, folderPaths } from '../folders/names.ts';
+import { readMetadata } from '../pipeline/steps/metadata.ts';
 import { csvCell, csvText } from './csv.ts';
 import { calendarDaySchema } from './schemas.ts';
 
 // The fields read from a document's content, as the user corrects them, and the receipts export.
 // Each write marks its field `user`, which is what keeps the pipeline's metadata step off it on
-// every later run.
+// every later run; `resetDocumentMetadata` is the way back.
 
 const METADATA_SDL = parse(`
+  "A field read from a document's content that the user can take over, and hand back."
+  enum DocumentMetadataField {
+    "The date printed on the document."
+    DATE
+    "The vendor, total and currency, which are one field: an edit to any of them is to all three."
+    RECEIPT
+  }
+
   input DocumentReceiptInput {
     "Who it is from. Empty or null leaves it blank."
     vendor: String
@@ -46,8 +56,21 @@ const METADATA_SDL = parse(`
     then the caller's: processing the document again does not read them from its text.
     """
     setDocumentReceipt(id: UUID!, input: DocumentReceiptInput!): Document!
+    """
+    Hands the fields named back to the pipeline: each is read again from the document's stored
+    text, now, and processing the document again reads it too. A field not named is left as it
+    is. Only a document that is ready or failed; one being processed answers CONFLICT.
+    """
+    resetDocumentMetadata(id: UUID!, fields: [DocumentMetadataField!]!): Document!
   }
 `);
+
+/** What `resetDocumentMetadata` takes, as the SDL's enum values. */
+export const DocumentMetadataField = { Date: 'DATE', Receipt: 'RECEIPT' } as const;
+export type DocumentMetadataField = (typeof DocumentMetadataField)[keyof typeof DocumentMetadataField];
+
+/** Why a reset waits: the run in progress reads the fields itself when it gets there. */
+const BEING_PROCESSED = 'This document is being processed. Its fields will be read when it finishes.';
 
 /** The columns of the export, in order. */
 export const RECEIPTS_CSV_HEADER = ['date', 'vendor', 'total', 'currency', 'title', 'folder'] as const;
@@ -142,6 +165,48 @@ export function applyMetadataExtension(schema: GraphQLSchema): GraphQLSchema {
       })
       .where(eq(documents.id, doc.id))
       .returning();
+    return updated;
+  };
+
+  mutations.resetDocumentMetadata.resolve = async (
+    _parent: unknown,
+    args: { id: string; fields: readonly DocumentMetadataField[] },
+    context: Context,
+  ) => {
+    const doc = await loadOwned(context, args.id);
+    if (args.fields.length === 0) {
+      throw badInput('Name at least one field to reset.');
+    }
+    if (doc.status === DocumentStatus.PendingUpload) {
+      throw badInput('The upload has not finished yet.');
+    }
+    const isSettled = doc.status === DocumentStatus.Ready || doc.status === DocumentStatus.Failed;
+    if (isSettled === false) {
+      throw conflict(BEING_PROCESSED);
+    }
+
+    // The same rule the pipeline runs, on a copy of the row: a field being reset loses its
+    // source, so `metadataPatch` reads it again, and one that is not is marked the user's, so the
+    // patch leaves it out exactly as it leaves out an edit. An extracted field not named stays as
+    // it was rather than being read again behind the caller's back.
+    const resets = new Set(args.fields);
+    const handedBack = {
+      ...doc,
+      documentDateSource: resets.has(DocumentMetadataField.Date) ? null : FieldSource.User,
+      receiptSource: resets.has(DocumentMetadataField.Receipt) ? null : FieldSource.User,
+    };
+    const patch = await readMetadata(handedBack, context.storage, { dateOrder: dateOrder() });
+
+    // Conditional on the status it was read with: a reprocess claimed since then will read the
+    // fields itself, and its metadata step must not race this write.
+    const [updated] = await context.db
+      .update(documents)
+      .set(patch)
+      .where(and(eq(documents.id, doc.id), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])))
+      .returning();
+    if (!updated) {
+      throw conflict(BEING_PROCESSED);
+    }
     return updated;
   };
 

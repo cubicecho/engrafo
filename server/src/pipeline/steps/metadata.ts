@@ -3,6 +3,7 @@ import { type Document, FieldSource } from '@cubicecho/engrafo-db/schema';
 import { METADATA_DEFAULTS } from '../../core/defaults.ts';
 import { findDocumentDate } from '../../metadata/document-date.ts';
 import { extractReceipt, NO_RECEIPT, type ReceiptExtractor, type ReceiptFields } from '../../metadata/receipt.ts';
+import type { StorageSet } from '../../storage/s3.ts';
 import { hasHeadings } from '../mime.ts';
 import type { DocumentPatch, PipelineConfig, PipelineStep } from '../types.ts';
 
@@ -59,6 +60,31 @@ export function metadataPatch(
   return patch;
 }
 
+/** Today as `YYYY-MM-DD`, which is what the date reader takes for "not in the future". */
+export function calendarToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Reads the document's stored text and runs the extractors over it, through `metadataPatch`.
+ *
+ * @param doc - The document. Its `*Source` columns decide what is read, as in `metadataPatch`.
+ * @param storage - Where its text is, at `contentKey`. A document with none reads as empty text.
+ * @param config - The date order.
+ * @returns The patch to write. The pipeline's step returns it; `resetDocumentMetadata` writes it
+ *   for a document whose sources it has just handed back, so both go through the same rule.
+ */
+export async function readMetadata(
+  doc: Document,
+  storage: StorageSet,
+  config: Pick<PipelineConfig, 'dateOrder'>,
+): Promise<DocumentPatch> {
+  const content = doc.contentKey ? await text(await storage.text.getStream(doc.contentKey)) : '';
+  const wantsReceipt = doc.receiptSource !== FieldSource.User && mayBeReceipt(doc);
+  const receipt = wantsReceipt ? await RECEIPT_EXTRACTOR(content) : NO_RECEIPT;
+  return metadataPatch(doc, content, config, calendarToday(), receipt);
+}
+
 /**
  * Reads the document's date, and a receipt's vendor, total and currency, from its text. After
  * every step that produces text, and before `index`, though nothing the index does reads them:
@@ -67,9 +93,5 @@ export function metadataPatch(
 export const metadataStep: PipelineStep = {
   name: 'metadata',
   enabled: () => true,
-  async run({ doc, storage, config }) {
-    const content = doc.contentKey ? await text(await storage.text.getStream(doc.contentKey)) : '';
-    const receipt = mayBeReceipt(doc) ? await RECEIPT_EXTRACTOR(content) : NO_RECEIPT;
-    return metadataPatch(doc, content, config, new Date().toISOString().slice(0, 10), receipt);
-  },
+  run: ({ doc, storage, config }) => readMetadata(doc, storage, config),
 };
