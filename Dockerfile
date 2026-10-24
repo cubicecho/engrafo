@@ -64,7 +64,8 @@ WORKDIR /app
 # "Tesseract couldn't load any languages".
 #
 # poppler-utils is pdftotext: a PDF that already has text keeps it that way,
-# since ocrmypdf skips those pages and reports no text for them.
+# since ocrmypdf skips those pages and reports no text for them. It is also
+# pdftoppm, which draws a PDF's first page as its thumbnail.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ocrmypdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd ghostscript poppler-utils \

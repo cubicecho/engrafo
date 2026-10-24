@@ -11,6 +11,7 @@ import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } f
 const CONFIG: RunConfig = {
   ocrAvailable: true,
   pdfTextAvailable: true,
+  thumbnailTools: { pdf: false, image: false },
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
@@ -31,6 +32,7 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    thumbnailKey: null,
     documentDate: null,
     documentDateSource: null,
     vendor: null,

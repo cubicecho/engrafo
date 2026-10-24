@@ -104,6 +104,7 @@ describe('document uploads', () => {
       ['vision', 'queued'],
       ['metadata', 'queued'],
       ['index', 'queued'],
+      ['thumbnail', 'queued'],
     ]);
   });
 
@@ -148,21 +149,23 @@ describe('document uploads', () => {
       const { document } = await createUpload({ ocr: false });
       const archiveKey = `archives/${userId}/${document.id}`;
       const contentKey = `text/${userId}/${document.id}`;
+      const thumbnailKey = `thumbnails/${userId}/${document.id}.jpg`;
       storage.files.objects.set(archiveKey, { body: Buffer.from('%PDF-'), contentType: 'application/pdf' });
+      storage.files.objects.set(thumbnailKey, { body: Buffer.from('jpeg'), contentType: 'image/jpeg' });
       storage.text.objects.set(contentKey, { body: Buffer.from('old text'), contentType: 'text/plain' });
       await db
         .update(documents)
-        .set({ status, archiveKey, contentKey, contentBytes: 8 })
+        .set({ status, archiveKey, contentKey, contentBytes: 8, thumbnailKey })
         .where(eq(documents.id, document.id));
       await db.insert(processingSteps).values([
         { userId, documentId: document.id, step: 'inspect', position: 0, status: 'succeeded' },
         { userId, documentId: document.id, step: 'ocr', position: 2, status: 'skipped' },
       ]);
-      return { id: document.id, archiveKey, contentKey };
+      return { id: document.id, archiveKey, contentKey, thumbnailKey };
     }
 
     it('re-runs every step of a ready document and forgets what the last run produced', async () => {
-      const { id, archiveKey, contentKey } = await finished();
+      const { id, archiveKey, contentKey, thumbnailKey } = await finished();
 
       const data = await client().expectOk(REPROCESS, { id });
       expect(data.reprocessDocument).toEqual({
@@ -175,6 +178,9 @@ describe('document uploads', () => {
       const steps = await db.select().from(processingSteps).where(eq(processingSteps.documentId, id));
       expect(steps.map((step: { status: string }) => step.status)).toEqual(['queued', 'queued']);
       expect(storage.files.objects.has(archiveKey)).toBe(false);
+      expect(storage.files.objects.has(thumbnailKey)).toBe(false);
+      const [row] = await db.select().from(documents).where(eq(documents.id, id));
+      expect(row?.thumbnailKey).toBeNull();
       expect(storage.text.objects.has(contentKey)).toBe(false);
       expect(emitted).toEqual([id]);
     });
@@ -229,11 +235,37 @@ describe('document uploads', () => {
     expect((await client().expectError(query, { id: document.id, variant: 'ARCHIVE' })).code).toBe(ErrorCode.NotFound);
   });
 
+  it("signs thumbnail URLs in one call, for the caller's documents that have one", async () => {
+    const { document: drawn } = await createUpload({ filename: 'a.pdf' });
+    const { document: bare } = await createUpload({ filename: 'b.pdf' });
+    const thumbnailKey = `thumbnails/${userId}/${drawn.id}.jpg`;
+    await db.update(documents).set({ status: 'ready', thumbnailKey }).where(eq(documents.id, drawn.id));
+    await db.update(documents).set({ status: 'ready' }).where(eq(documents.id, bare.id));
+    const stranger = await createUser(db, 'stranger@example.com');
+
+    const batch = 'query ($ids: [UUID!]!) { documentThumbnailUrls(ids: $ids) { documentId url } }';
+    const data = await client().expectOk(batch, { ids: [drawn.id, bare.id] });
+    expect(data.documentThumbnailUrls).toEqual([{ documentId: drawn.id, url: `https://s3.test/get/${thumbnailKey}` }]);
+    const theirs = await createClient(db, stranger, { storage, events }).expectOk(batch, { ids: [drawn.id] });
+    expect(theirs.documentThumbnailUrls).toEqual([]);
+
+    const one = 'query ($id: UUID!) { documentFileUrl(id: $id, variant: THUMBNAIL) }';
+    expect((await client().expectOk(one, { id: drawn.id })).documentFileUrl).toBe(
+      `https://s3.test/get/${thumbnailKey}`,
+    );
+    expect((await client().expectError(one, { id: bare.id })).code).toBe(ErrorCode.NotFound);
+  });
+
   it('deletes the row and its objects', async () => {
     const { document } = await createUpload();
     const archiveKey = `archive/${userId}/${document.id}.pdf`;
     const contentKey = `text/${userId}/${document.id}.txt`;
-    await db.update(documents).set({ status: 'ready', archiveKey, contentKey }).where(eq(documents.id, document.id));
+    const thumbnailKey = `thumbnails/${userId}/${document.id}.jpg`;
+    await db
+      .update(documents)
+      .set({ status: 'ready', archiveKey, contentKey, thumbnailKey })
+      .where(eq(documents.id, document.id));
+    storage.files.objects.set(thumbnailKey, { body: Buffer.from('d'), contentType: 'image/jpeg' });
     storage.files.objects.set(document.originalKey, { body: Buffer.from('a'), contentType: 'application/pdf' });
     storage.files.objects.set(archiveKey, { body: Buffer.from('b'), contentType: 'application/pdf' });
     storage.text.objects.set(contentKey, { body: Buffer.from('c'), contentType: 'text/plain' });
