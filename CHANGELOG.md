@@ -1,3 +1,10 @@
+# [4.11.0](https://github.com/cubicecho/engrafo/compare/v4.10.0...v4.11.0) (2026-10-24)
+
+
+### Features
+
+* thumbnails in lists and saved searches in the sidebar ([da88207](https://github.com/cubicecho/engrafo/commit/da882079041fba5620421bd9a5c5a89686efd039)), closes [#36](https://github.com/cubicecho/engrafo/issues/36)
+
 # [4.10.0](https://github.com/cubicecho/engrafo/compare/v4.9.0...v4.10.0) (2026-10-23)
 
 
