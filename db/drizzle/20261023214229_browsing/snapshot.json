@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "30208780-fac7-4cc6-8376-962522a20f8b",
+  "id": "49e326c1-3e37-48cc-a5b1-3d3afa8c57ed",
   "prevIds": [
     "f443304a-022b-4596-ba0b-406aae34e186"
   ],
@@ -90,6 +90,12 @@
     {
       "isRlsEnabled": false,
       "name": "processing_steps",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "saved_searches",
       "entityType": "tables",
       "schema": "public"
     },
@@ -977,6 +983,19 @@
       "table": "documents"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "thumbnail_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "documents"
+    },
+    {
       "type": "bigint",
       "typeSchema": null,
       "notNull": false,
@@ -1115,19 +1134,6 @@
       "generated": null,
       "identity": null,
       "name": "error",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "deleted_at",
       "entityType": "columns",
       "schema": "public",
       "table": "documents"
@@ -1521,6 +1527,97 @@
       "entityType": "columns",
       "schema": "public",
       "table": "processing_steps"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "query",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "filters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "saved_searches"
     },
     {
       "type": "uuid",
@@ -2120,34 +2217,6 @@
           "opclass": null
         },
         {
-          "value": "deleted_at",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "idx_documents_user_deleted_at",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "user_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
           "value": "coalesce(\"folder_id\", '00000000-0000-0000-0000-000000000000'::uuid)",
           "isExpression": true,
           "asc": true,
@@ -2163,7 +2232,7 @@
         }
       ],
       "isUnique": true,
-      "where": "\"deleted_at\" is null",
+      "where": null,
       "with": "",
       "method": "btree",
       "concurrently": false,
@@ -2318,6 +2387,55 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "processing_steps"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "lower(\"name\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "uq_saved_searches_user_name",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_saved_searches_user_id",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "saved_searches"
     },
     {
       "nameExplicit": true,
@@ -2528,6 +2646,23 @@
       "table": "processing_steps"
     },
     {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "saved_searches_user_id_users_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "saved_searches"
+    },
+    {
       "columns": [
         "id"
       ],
@@ -2615,6 +2750,16 @@
       "name": "processing_steps_pkey",
       "schema": "public",
       "table": "processing_steps",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "saved_searches_pkey",
+      "schema": "public",
+      "table": "saved_searches",
       "entityType": "pks"
     },
     {

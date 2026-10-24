@@ -41,7 +41,9 @@ export function trashedNotFound(): GraphQLError {
  */
 export async function deleteStoredFiles(storage: StorageSet, docs: readonly Document[]): Promise<void> {
   await storage.files.delete(
-    docs.flatMap((doc) => [doc.originalKey, doc.archiveKey]).filter((key): key is string => Boolean(key)),
+    docs
+      .flatMap((doc) => [doc.originalKey, doc.archiveKey, doc.thumbnailKey])
+      .filter((key): key is string => Boolean(key)),
   );
   await storage.text.delete(docs.map((doc) => doc.contentKey).filter((key): key is string => Boolean(key)));
 }

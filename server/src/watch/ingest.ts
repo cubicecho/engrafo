@@ -91,7 +91,8 @@ async function readFingerprint(path: string): Promise<{ sha256: string; head: Bu
 }
 
 /**
- * The folder a file's directories stand for, made where missing.
+ * The folder a file's directories stand for, made where missing. The import rebuilds a backup's folders
+ * with it too.
  *
  * @param db - The database.
  * @param userId - Whose folders.
@@ -103,7 +104,7 @@ async function readFingerprint(path: string): Promise<{ sha256: string; head: Bu
  * An existing folder is matched ignoring case, as every name here is. Under the name lock, so a
  * folder the app makes at the same moment is either seen here or waits for this to finish.
  */
-async function ensureFolders(db: DB, userId: string, dirs: readonly string[]): Promise<string | null> {
+export async function ensureFolders(db: DB, userId: string, dirs: readonly string[]): Promise<string | null> {
   if (dirs.length === 0) {
     return null;
   }

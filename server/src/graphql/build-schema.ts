@@ -4,10 +4,12 @@ import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyApiKeysExtension } from '../api-keys/resolvers.ts';
 import { applyAuthExtension } from '../auth/resolvers.ts';
+import { applyBackupExtension } from '../backup/resolvers.ts';
 import { applyDuplicatesExtension } from '../documents/duplicates.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
 import { applyMetadataExtension } from '../metadata/resolvers.ts';
+import { applySavedSearchesExtension } from '../saved-searches/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
 import { applyTrashExtension } from '../trash/resolvers.ts';
@@ -62,10 +64,13 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyFoldersExtension(schema);
   schema = applyMetadataExtension(schema);
   schema = applySearchExtension(schema);
+  // After search, whose DocumentSearchFilter it takes.
+  schema = applySavedSearchesExtension(schema);
   schema = applySsoExtension(schema);
   schema = applyApiKeysExtension(schema);
   schema = applyVisionExtension(schema);
   schema = applyTrashExtension(schema);
+  schema = applyBackupExtension(schema);
 
   return { schema, entities };
 }

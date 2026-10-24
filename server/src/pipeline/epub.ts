@@ -3,7 +3,7 @@ import { posix } from 'node:path';
 import { type AnyNode, type Element, isTag } from 'domhandler';
 import { strFromU8, type UnzipFileInfo, unzipSync } from 'fflate';
 import { DomUtils, parseDocument } from 'htmlparser2';
-import { EBOOK_DEFAULTS } from '../core/defaults.ts';
+import { EBOOK_DEFAULTS, THUMBNAIL_DEFAULTS } from '../core/defaults.ts';
 import { createSectionBuilder, type SectionBuilder, sectionsText, type TextSection, walkHtml } from './html-text.ts';
 
 // An EPUB is a zip: META-INF/container.xml names the package (OPF), the
@@ -87,6 +87,62 @@ export async function readEpub(
  */
 export function bookText(sections: BookSection[]): string {
   return sectionsText(sections);
+}
+
+/**
+ * An EPUB's cover image, as the package names it.
+ *
+ * @param path - An EPUB on disk.
+ * @param options - Limits, for tests.
+ * @param options.maxCoverBytes - The largest cover read; a bigger one reads as none.
+ * @returns The image's bytes, or null when the book names no cover or it is not in the zip.
+ *
+ * @remarks
+ * Only the package's own word: the EPUB 3 `cover-image` property, else the EPUB 2
+ * `<meta name="cover">`. Guessing from file names or the first chapter's first image is the
+ * expensive part of other readers, and a wrong cover is worse than the type icon.
+ */
+export async function readEpubCover(
+  path: string,
+  { maxCoverBytes = THUMBNAIL_DEFAULTS.maxCoverBytes }: { maxCoverBytes?: number } = {},
+): Promise<Uint8Array | null> {
+  const data = await readFile(path);
+  const files = unpack(data, EBOOK_DEFAULTS.maxUnpackedBytes);
+  const container = files[CONTAINER_PATH];
+  const packagePath = container ? packagePathFrom(strFromU8(container)) : null;
+  const packageXml = packagePath ? files[packagePath] : undefined;
+  if (!packagePath || !packageXml) {
+    return null;
+  }
+  const cover = coverPath(strFromU8(packageXml).replace(/^\uFEFF/, ''), posix.dirname(packagePath));
+  if (cover === null) {
+    return null;
+  }
+  const found = unzipSync(data, {
+    filter: (file: UnzipFileInfo) => file.name === cover && file.originalSize <= maxCoverBytes,
+  });
+  return found[cover] ?? null;
+}
+
+/**
+ * The cover image's path inside the zip, from the package document.
+ *
+ * @param packageXml - The OPF.
+ * @param baseDir - The OPF's directory, which its hrefs are relative to.
+ * @returns The path, or null when the package names no image as its cover.
+ */
+export function coverPath(packageXml: string, baseDir: string): string | null {
+  const nodes = parseXml(packageXml);
+  const items = findAllNamed(nodes, 'item');
+  const byProperty = items.find((item) =>
+    (item.attribs.properties ?? '').split(WHITESPACE_RUN).includes('cover-image'),
+  );
+  const coverId = findAllNamed(nodes, 'meta').find((meta) => meta.attribs.name === 'cover')?.attribs.content;
+  const item = byProperty ?? items.find((candidate) => coverId !== undefined && candidate.attribs.id === coverId);
+  if (!item?.attribs.href || (item.attribs['media-type'] ?? '').startsWith('image/') === false) {
+    return null;
+  }
+  return resolveHref(baseDir, item.attribs.href).path;
 }
 
 /** The zip's text files, refusing one whose declared sizes add up past the limit. */

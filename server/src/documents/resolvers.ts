@@ -6,15 +6,18 @@ import {
   processingSteps,
   StepStatus,
 } from '@cubicecho/engrafo-db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
+import { THUMBNAIL_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { assertNameFree, lockNames, ownedParent, type Tx } from '../folders/names.ts';
 import { ACCEPTED_MIME_TYPES } from '../pipeline/mime.ts';
+import { THUMBNAIL_MIME_TYPE } from '../pipeline/thumbnail.ts';
+import type { StorageSet } from '../storage/s3.ts';
 import { deleteStoredFiles, notTrashed, trashDocument } from '../trash/trash.ts';
 import {
   completePendingDocument,
@@ -41,6 +44,14 @@ const DOCUMENTS_SDL = parse(`
     ARCHIVE
     "The extracted plain text, when there is any."
     TEXT
+    "A small JPEG of the first page, when the thumbnail step made one."
+    THUMBNAIL
+  }
+
+  type DocumentThumbnailUrl {
+    documentId: UUID!
+    "A short-lived URL for the thumbnail JPEG."
+    url: String!
   }
 
   input CreateDocumentUploadInput {
@@ -81,6 +92,11 @@ const DOCUMENTS_SDL = parse(`
     serverConfig: ServerConfig!
     "A short-lived URL for one of a document's files."
     documentFileUrl(id: UUID!, variant: DocumentFileVariant! = ORIGINAL, download: Boolean! = false): String!
+    """
+    Thumbnail URLs for a list's rows, in one call rather than one per row. A document with no
+    thumbnail, or that is not the caller's, is left out of the answer.
+    """
+    documentThumbnailUrls(ids: [UUID!]!): [DocumentThumbnailUrl!]!
   }
 
   extend type Mutation {
@@ -111,8 +127,26 @@ const DocumentFileVariant = {
   Original: 'ORIGINAL',
   Archive: 'ARCHIVE',
   Text: 'TEXT',
+  Thumbnail: 'THUMBNAIL',
 } as const;
 type DocumentFileVariant = (typeof DocumentFileVariant)[keyof typeof DocumentFileVariant];
+
+const thumbnailIdsSchema = z
+  .array(z.uuid('That is not a document id.'))
+  .max(THUMBNAIL_DEFAULTS.lookupMaxIds, `Ask about at most ${THUMBNAIL_DEFAULTS.lookupMaxIds} documents at a time.`);
+
+/**
+ * A thumbnail's URL. It works for longer than a download's, because a list's rows load their
+ * pictures lazily, as they are scrolled to, and can be scrolled to long after the list was fetched.
+ */
+function presignThumbnail(storage: StorageSet, key: string, originalFilename: string): Promise<string> {
+  return storage.files.presignGet(key, {
+    filename: `${titleFromFilename(originalFilename)}.jpg`,
+    contentType: THUMBNAIL_MIME_TYPE,
+    download: false,
+    ttlMinutes: THUMBNAIL_DEFAULTS.urlTtlMinutes,
+  });
+}
 
 /** Hides a missing document and someone else's behind one answer. */
 function documentNotFound(): GraphQLError {
@@ -182,6 +216,12 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
         download: args.download,
       });
     }
+    if (args.variant === DocumentFileVariant.Thumbnail) {
+      if (!doc.thumbnailKey) {
+        throw documentNotFound();
+      }
+      return presignThumbnail(context.storage, doc.thumbnailKey, doc.originalFilename);
+    }
     if (args.variant === DocumentFileVariant.Text) {
       // The text lives in its own bucket, so this URL is signed by the other
       // Storage — same credentials, different bucket in the path.
@@ -199,6 +239,33 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
       contentType: doc.mimeType,
       download: args.download,
     });
+  };
+
+  queries.documentThumbnailUrls.resolve = async (_parent: unknown, args: { ids: unknown }, context: Context) => {
+    const userId = requireAuth(context);
+    const ids = parseOrThrow(thumbnailIdsSchema, args.ids);
+    if (ids.length === 0) {
+      return [];
+    }
+    // The caller's own and finished only: the answer leaves the rest out rather than saying why.
+    const rows = await context.db
+      .select({ id: documents.id, thumbnailKey: documents.thumbnailKey, originalFilename: documents.originalFilename })
+      .from(documents)
+      .where(
+        and(eq(documents.userId, userId), inArray(documents.id, ids), isNotNull(documents.thumbnailKey), notTrashed()),
+      );
+    return Promise.all(
+      rows.flatMap(({ id, thumbnailKey, originalFilename }) =>
+        thumbnailKey === null
+          ? []
+          : [
+              presignThumbnail(context.storage, thumbnailKey, originalFilename).then((url) => ({
+                documentId: id,
+                url,
+              })),
+            ],
+      ),
+    );
   };
 
   mutations.createDocumentUpload.resolve = async (_parent: unknown, args: { input: unknown }, context: Context) => {
@@ -285,6 +352,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
           archiveKey: null,
           contentKey: null,
           contentBytes: null,
+          thumbnailKey: null,
         })
         .where(and(eq(documents.id, doc.id), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])))
         .returning();
@@ -304,9 +372,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
     }
 
     // Before the run starts, since it writes its new files under the same keys.
-    if (doc.archiveKey) {
-      await context.storage.files.delete([doc.archiveKey]);
-    }
+    const files = [doc.archiveKey, doc.thumbnailKey].filter((key): key is string => Boolean(key));
+    await context.storage.files.delete(files);
     if (doc.contentKey) {
       await context.storage.text.delete([doc.contentKey]);
     }

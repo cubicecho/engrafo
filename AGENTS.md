@@ -43,9 +43,9 @@ engrafo/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
-│       │   └── domain/      # archive-tree, archive-sidebar, status-badge, upload-panel, mcp-settings, vision-settings, the dialogs
+│       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
 │       ├── routes/          # login, verify, documents (upload + search), document (detail), trash, settings
-│       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, tree (vendored), page, cn()
+│       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -77,7 +77,9 @@ engrafo/
 │       ├── documents/       # create.ts (insertPendingDocument, completePendingDocument), resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
+│       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
+│       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), browse (filters, no search), resolvers
 │       ├── trash/           # trash (notTrashed, trash/restore/purge, deleteStoredFiles), resolvers (trash, restore, purge, empty), purger (the timer)
@@ -94,12 +96,13 @@ engrafo/
 │       │   ├── html-text.ts # walkHtml: markup off, for EPUB chapters and HTML uploads
 │       │   ├── image.ts     # toOpaquePng and pngHasTransparency: an image ocrmypdf will take
 │       │   ├── decode.ts    # decodeText: a text upload's bytes, in whatever encoding it was saved in
-│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, vision, metadata, index
+│       │   ├── thumbnail.ts # thumbnailSource, pdftoppm for a PDF's first page, Pillow to resize an image or a cover
+│       │   └── steps/       # inspect, text, ocr, pdf-text, ebook, vision, metadata, index, thumbnail
 │       └── __tests__/       # Server tests, in the same folders as src; helpers.ts at the root
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, folders, processing-steps, document-chunks, auth (better-auth's tables)
+│       ├── models/          # users, documents, folders, processing-steps, document-chunks, saved-searches, auth (better-auth's tables)
 │       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       ├── defaults.ts      # DATABASE_DEFAULTS
@@ -445,6 +448,48 @@ inclusive, so an undated receipt is only in an export with no range; a folder
 takes everything inside it. Cells go through `csvCell`, which quotes and
 defuses a leading `=`, `+`, `-` or `@` (CSV injection), except the total.
 
+**The whole-archive export is a link, and it is a tar, streamed.** The export
+is too big for `downloadBlob`, so `createExportLink` mints a token (32 random
+bytes, kept in memory only as its sha256, for `BACKUP_DEFAULTS.exportLinkTtlMinutes`)
+and the app hands the browser `/export/<token>`, which `backup/endpoint.ts`
+mounts before the static handler. The token is the credential, spent on first
+use; unknown, spent and expired are one 404. Tar rather than zip because
+fflate's streaming `Zip` has no ZIP64 (an archive past 4 GiB would come out
+corrupt) and a zip's directory is at its end, so the import could not read one
+in a single pass; `backup/tar.ts` writes ustar with pax for long or non-ASCII
+names and reads the same back. `metadata.json` comes first (`backup/manifest.ts`,
+`format` + `version`), then each document's original, archive PDF and text,
+each `head`ed for its size and streamed from the bucket into the response, so
+memory is one object's chunks. Paths are the tree (`originals/Taxes/2026/<title><ext>`),
+with Windows-unsafe characters swapped in the path only. An object missing
+from the bucket is left out and logged; a stream that breaks mid-way destroys
+the response, so a broken export fails as a download instead of saving short.
+Only the caller's rows are read, and `pending_upload` rows are left out.
+
+**The import goes through the bucket and the same two calls as an upload.**
+`createImportUpload(sizeBytes)` signs a PUT to `imports/<userId>/<uuid>.tar`
+(capped by `MAX_IMPORT_BYTES`, default 5 GiB, S3's single-PUT ceiling);
+`importArchive(key)` refuses a key outside the caller's prefix as NOT_FOUND,
+starts a background run and returns at once; the app polls `latestImport`. A
+run is in memory (`backup/state.ts`), one at a time per user (a second is
+`CONFLICT`, since two would race the checksum check), and the uploaded object
+is deleted when it ends. A run cut off by a restart is finished by importing
+the same archive again: it is idempotent by checksum. `importArchive` in
+`backup/import.ts` reads the tar in one pass (gunzipping a `.tar.gz`):
+`metadata.json` must be first, folders are made with the watcher's
+`ensureFolders` (found ignoring case, made under `lockNames`), and each
+original is checked against the manifest's checksum, skipped when that
+checksum is already filed in the caller's archive (read once before the run,
+so two copies inside one export both come in), sniffed with `sniffMimeType`,
+checked with `createUploadSchema` and filed with `insertPendingDocument` +
+`completePendingDocument`, so a clash is numbered and the pipeline runs as for
+any upload. Before completing, the row gets `createdAt` and whatever the
+manifest marks `user` (the date, the receipt through `receiptSchema`), which
+the metadata step then leaves alone; extracted fields are read again. The
+archive PDFs and text in the tar are not imported: the pipeline makes them.
+`mcpEnabled` is recorded, never restored. Notes are not in the manifest
+because there is no notes column yet; add them to both halves when there is.
+
 **Search filters go inside each read, never over the fused list.**
 `searchDocuments` takes a `filter` (folder with its subfolders unless
 `includeSubfolders: false`, `kinds` of PDF / IMAGE / TEXT / EBOOK, a
@@ -473,6 +518,50 @@ is the whole archive a page at a time, but the app asks only once something is
 narrowed: with filters and no `q` the documents page draws `FilteredDocuments`
 in place of the upload panel, and "Show more" appends the next page with
 `fetchMore`.
+
+**A thumbnail is the last step, and it never fails a document.** The
+`thumbnail` step, last in `STEPS` (it produces no text, so the rule holds, and
+a finished document reaches it through `catchUp()`), draws a JPEG
+`THUMBNAIL_DEFAULTS.widthPx` wide and stores it at `thumbnails/<user>/<id>.jpg`
+in the files bucket, beside the archive, as `documents.thumbnailKey`.
+`thumbnailSource` in `pipeline/thumbnail.ts` decides from what: a PDF's first
+page from its OCR archive when there is one, else the original, with
+`pdftoppm` (poppler-utils, already in both Docker stages for `pdftotext`); an
+image from the original, resized by Pillow through `python3 -c` the way
+`toOpaquePng` converts (first frame, EXIF turned, laid on white, cut at
+`maxHeightPx` so a receipt roll is not a strip); an EPUB from the cover its
+package names (`cover-image`, else `<meta name="cover">`, nothing guessed,
+`readEpubCover` in `epub.ts`). Text, Markdown, CSV and HTML get none, and the
+app draws a type icon. `detectThumbnailTools()` asks for both tools at boot
+(`config.thumbnailTools`); a missing one makes the step `skipped` for what it
+would draw, not failed. A render that throws is a `[thumbnail]` line and the
+step succeeds with no key: a picture in a list is not worth a document waiting
+on a person. `deleteStoredFiles` and `reprocessDocument` delete the object with
+the archive. The browser gets the URLs in one query per list,
+`documentThumbnailUrls(ids)` (the caller's documents that have one; the rest
+are left out, not refused), signed for `urlTtlMinutes` rather than the
+download's five because rows load lazily, and `documentFileUrl(variant:
+THUMBNAIL)` for one. The rows draw it in `ListItem`'s `leadingSlot`
+(`DocumentThumbnail`, `loading="lazy"`, the icon again if the image fails).
+The tree has no thumbnail: `FileTree` has no hover slot, and `meta` is inside
+the row's pressed area.
+
+**A saved search is a query string under a name.** `saved_searches` (scoped
+like every user-owned table) holds a `name`, unique per user ignoring case, a
+`query` (null for filters alone) and `filters` as JSON: the
+`DocumentSearchFilter` the page sent, checked by the search's own
+`filterSchema` and stored with only the fields that narrow something
+(`storedFilters`). Reads are generated; `saveSearch`, `renameSavedSearch` and
+`deleteSavedSearch` in `saved-searches/resolvers.ts` check the name first for a
+readable `CONFLICT` and let the unique index catch the race. Nothing on the
+server runs one: the app turns it back into the documents page's query string
+(`savedSearchPath` in `lib/saved-searches.ts`, which reads the JSON without
+trusting its shape) and navigates there. "Save search" is on the documents
+page while `q` or a filter is set; the list is `SavedSearchesSidebarSection`,
+under the tree in `AppLayout`, each row a link marked while the page shows it,
+with Rename (a `NameDialog`) and Delete in its menu. The search box is drawn
+afresh when `q` changes from outside it, so opening one (or Back) shows its
+text.
 **A CSV is text, cut by rows.** Bank and card statements, stored as they are by
 the text step; no magic bytes, so `isText` covers it. `chunkText` would read it
 as one paragraph (no blank lines), turn its line breaks into spaces and cut
@@ -703,7 +792,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`, `[trash]`,
-`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[backup]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

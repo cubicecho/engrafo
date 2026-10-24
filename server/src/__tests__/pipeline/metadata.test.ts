@@ -7,6 +7,7 @@ import { createFakeEmbedder, createFakeStorage, type TestDb } from '../helpers.t
 const CONFIG: RunConfig = {
   ocrAvailable: false,
   pdfTextAvailable: false,
+  thumbnailTools: { pdf: false, image: false },
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',
@@ -28,6 +29,7 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    thumbnailKey: null,
     documentDate: null,
     documentDateSource: null,
     vendor: null,

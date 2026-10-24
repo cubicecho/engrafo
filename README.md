@@ -192,6 +192,7 @@ domain.
 | `PORT` | `3004` | Port the server listens on. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
 | `MAX_UPLOAD_BYTES` | `104857600` | Largest accepted upload, 100 MiB by default. |
+| `MAX_IMPORT_BYTES` | `5368709120` | Largest archive **Settings → Backup** imports, 5 GiB by default (S3's limit for one PUT). |
 | `OCR_ENABLED` | `true` | Set to `false` to turn OCR off. Also needs `ocrmypdf` on PATH — the image has it. |
 | `OCR_DEFAULT` | `true` | Whether the upload form's OCR toggle starts on. |
 | `OCR_LANGUAGES` | `eng` | Tesseract languages joined with `+` (`eng+deu`). Each needs its traineddata installed. |
@@ -311,6 +312,27 @@ Someone signing in this way gets the account with the email address the
 provider vouches for, or a new one if there is none. Setting only one of
 `OIDC_ISSUER` and `OIDC_CLIENT_ID` stops the server at boot. `OIDC_ISSUER` wins
 over a pairing, and Settings then shows the provider read-only.
+
+## Backups
+
+**Settings → Backup** exports your whole archive as one `.tar`: every original
+you uploaded, the searchable PDF and extracted text where there are any, and a
+`metadata.json` with titles, folder paths, dates, receipt fields and checksums.
+It streams straight from the bucket to your browser, so its size is never held
+on the server. The tree inside reads like your folders
+(`originals/Taxes/2026/invoice.pdf`), so it is useful without Engrafo too.
+
+The same tab imports one back, into this instance or a new one. Folders are made
+where missing, a document whose checksum is already in your archive is skipped
+(so importing the same export twice adds nothing), a name already taken in its
+folder is numbered, and dates and receipts you corrected by hand are kept. Each
+imported document is processed again like a new upload, so OCR and the search
+index run with this instance's settings; a large import takes a while to settle.
+The importer also takes a `.tar.gz`. Folder sharing with MCP is not restored:
+share again what you want an agent to read.
+
+An export is per account, and the database dump plus bucket sync remains the way
+to back up the instance itself (accounts, API keys, sign-in settings).
 
 ## Connecting an agent
 

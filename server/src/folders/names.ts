@@ -206,3 +206,21 @@ export async function folderAndDescendants(db: DB | Tx, userId: string, rootId: 
   }
   return found;
 }
+
+/** Each folder's path from the top, `Taxes/2026`, by id: the receipts CSV's folder column, and the backup's. */
+export function folderPaths(all: readonly Folder[]): Map<string, string> {
+  const byId = new Map(all.map((folder) => [folder.id, folder]));
+  const paths = new Map<string, string>();
+  for (const folder of all) {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    // Up to the top. `seen` guards a loop the server never makes.
+    for (let at: Folder | undefined = folder; at && seen.has(at.id) === false; ) {
+      seen.add(at.id);
+      names.unshift(at.name);
+      at = at.parentId ? byId.get(at.parentId) : undefined;
+    }
+    paths.set(folder.id, names.join('/'));
+  }
+  return paths;
+}

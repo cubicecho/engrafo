@@ -69,6 +69,10 @@ export const documents = pgTable(
     // to megabytes and nothing here ever queries it. Postgres keeps the pointer
     // and the size so a list stays cheap.
     contentKey: text('content_key'),
+    // A small JPEG of the first page (or the image, or an ebook's cover), beside the archive in the
+    // files bucket, for lists. Null when the thumbnail step made none: a text file, a missing
+    // tool, or a render that failed, which never fails the document.
+    thumbnailKey: text('thumbnail_key'),
     contentBytes: bigint('content_bytes', { mode: 'number' }),
     // The date on the document (a receipt's, a letter's), not when it was uploaded: a calendar
     // day with no time and no zone, which is what is printed on paper.

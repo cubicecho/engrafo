@@ -51,6 +51,9 @@ export function archiveServer(start: { folders: Folder[]; documents: Document[] 
       documents: () => documents,
       // The shell asks for the trash's count on every page.
       trash: () => ({ count: 0, retentionDays: 30, documents: [] }),
+      // The sidebar lists them under the tree on every page, and a list draws thumbnails.
+      savedSearches: () => [],
+      documentThumbnailUrls: () => [],
     },
     Mutation: {
       createFolder: (_parent: unknown, args: { name: string; parentId?: string | null }) => {

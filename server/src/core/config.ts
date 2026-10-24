@@ -6,6 +6,7 @@ import { DATABASE_DEFAULTS } from '@cubicecho/engrafo-db/defaults';
 import {
   AUTH_DEFAULTS,
   type AuthSettings,
+  BACKUP_DEFAULTS,
   type DateOrder,
   DOCUMENT_DEFAULTS,
   HTTP_DEFAULTS,
@@ -326,6 +327,15 @@ export function modelsDir(): string | null {
  */
 export function maxUploadBytes(): number {
   return envPositiveInteger(process.env.MAX_UPLOAD_BYTES, DOCUMENT_DEFAULTS.maxUploadBytes);
+}
+
+/**
+ * The largest archive an import accepts.
+ *
+ * @returns Bytes, from `MAX_IMPORT_BYTES` or `BACKUP_DEFAULTS.maxImportBytes`.
+ */
+export function maxImportBytes(): number {
+  return envPositiveInteger(process.env.MAX_IMPORT_BYTES, BACKUP_DEFAULTS.maxImportBytes);
 }
 
 /**
