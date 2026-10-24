@@ -1,6 +1,7 @@
 import { useLinkClickHandler, useMatch } from 'react-router';
 import { LogOut } from '@/components/domain/app-icons';
 import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
+import { SavedSearchesSidebarSection } from '@/components/domain/saved-searches';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
@@ -97,6 +98,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
                 contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
               />
               <ArchiveSidebarSection />
+              <SavedSearchesSidebarSection />
             </>
           }
           footerSlot={

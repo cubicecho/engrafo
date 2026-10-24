@@ -1,9 +1,10 @@
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
+import { ConfirmButton } from '@/components/confirm-button';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
-import { Pencil } from '@/components/ui/icons';
+import { Pencil, Undo2 } from '@/components/ui/icons';
 import { formatCalendarDay } from '@/lib/calendar-day';
 import { formatAgo, formatDate } from '@/lib/format';
 
@@ -18,6 +19,8 @@ interface DocumentDetailsCardProps {
   documentDateSource: FieldSource | null;
   /** Opens the date's edit dialog. */
   onEditDate: () => void;
+  /** Hands the date back to be read from the text again. Offered only while the date is the user's. */
+  onResetDate: () => void;
 }
 
 /** Where a document's date came from, said under it, so a wrong one reads as a guess to correct. */
@@ -41,6 +44,7 @@ export function DocumentDetailsCard({
   documentDate,
   documentDateSource,
   onEditDate,
+  onResetDate,
 }: DocumentDetailsCardProps) {
   return (
     <CardLayout
@@ -55,14 +59,29 @@ export function DocumentDetailsCard({
                 value={formatCalendarDay(documentDate) || '—'}
                 hint={dateHint(documentDateSource)}
                 actionSlot={
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    iconSlot={<Pencil />}
-                    aria-label="Edit the document date"
-                    hint="Edit the date"
-                    onClick={onEditDate}
-                  />
+                  <>
+                    {documentDateSource === FieldSource.User && (
+                      <ConfirmButton
+                        size="icon-sm"
+                        variant="ghost"
+                        iconSlot={<Undo2 />}
+                        aria-label="Reset the document date to automatic"
+                        hint="Reset to automatic"
+                        title="Read the date from the text again?"
+                        description="The date you set is replaced by the one read from the document's text, or none if it has none, and processing again reads it afresh."
+                        confirmLabel="Reset"
+                        onConfirm={onResetDate}
+                      />
+                    )}
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      iconSlot={<Pencil />}
+                      aria-label="Edit the document date"
+                      hint="Edit the date"
+                      onClick={onEditDate}
+                    />
+                  </>
                 }
               />
               <PropertyRow label="Added" value={formatDate(createdAt)} hint={formatAgo(createdAt)} />

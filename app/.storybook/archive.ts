@@ -49,6 +49,9 @@ export function archiveServer(start: { folders: Folder[]; documents: Document[] 
       serverConfig: () => SERVER_CONFIG,
       folders: () => folders,
       documents: () => documents,
+      // The sidebar lists them under the tree on every page, and a list draws thumbnails.
+      savedSearches: () => [],
+      documentThumbnailUrls: () => [],
     },
     Mutation: {
       createFolder: (_parent: unknown, args: { name: string; parentId?: string | null }) => {

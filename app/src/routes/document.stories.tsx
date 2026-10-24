@@ -375,6 +375,78 @@ export const EditingTheReceipt: Story = {
   },
 };
 
+/** Every `resetDocumentMetadata` the page sent, by its `fields`, for the stories below to read. */
+function resetServer() {
+  const resets: string[][] = [];
+  const edited = {
+    documentDate: '2020-01-01',
+    documentDateSource: FieldSourceEnum.User,
+    vendor: 'Mine',
+    total: '1.00',
+    currency: 'EUR',
+    receiptSource: FieldSourceEnum.User,
+  };
+  const resolvers = {
+    Query: { document: () => document(edited) },
+    Mutation: {
+      resetDocumentMetadata: (_parent: unknown, args: { fields: string[] }) => {
+        resets.push(args.fields);
+        return document({
+          ...edited,
+          ...(args.fields.includes('DATE')
+            ? { documentDate: '2025-03-12', documentDateSource: FieldSourceEnum.Extracted }
+            : {}),
+          ...(args.fields.includes('RECEIPT')
+            ? { vendor: 'REWE', total: '9.99', currency: 'EUR', receiptSource: FieldSourceEnum.Extracted }
+            : {}),
+        });
+      },
+    },
+  };
+  return { resets, resolvers };
+}
+
+const resettingTheDate = resetServer();
+
+/**
+ * A date the user set can be handed back: after the confirm, the page asks for the date alone
+ * and the card says it was read from the text, while the receipt stays the user's.
+ */
+export const ResettingTheDate: Story = {
+  parameters: { apolloClient: { resolvers: resettingTheDate.resolvers } },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset the document date to automatic' }));
+    const dialog = within(await page.findByRole('alertdialog'));
+    await userEvent.click(dialog.getByRole('button', { name: 'Reset' }));
+
+    await expect(await canvas.findByText('Read from the text')).toBeInTheDocument();
+    await expect(resettingTheDate.resets).toEqual([['DATE']]);
+    await expect(canvas.getByText('Set by you.')).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole('button', { name: 'Reset the document date to automatic' }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+const resettingTheReceipt = resetServer();
+
+/** The receipt resets on its own, asking for the receipt alone, and the date stays the user's. */
+export const ResettingTheReceipt: Story = {
+  parameters: { apolloClient: { resolvers: resettingTheReceipt.resolvers } },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset receipt details to automatic' }));
+    const dialog = within(await page.findByRole('alertdialog'));
+    await userEvent.click(dialog.getByRole('button', { name: 'Reset' }));
+
+    await expect(await canvas.findByText(/Read from the text\. Check it/)).toBeInTheDocument();
+    await expect(resettingTheReceipt.resets).toEqual([['RECEIPT']]);
+    await expect(canvas.getByText('REWE')).toBeInTheDocument();
+    await expect(canvas.getByText('Set by you')).toBeInTheDocument();
+  },
+};
+
 const HOME = { id: '6b3a1c2d-4e5f-4a6b-8c7d-9e0f1a2b3c4d', name: 'Home', parentId: null };
 
 /**

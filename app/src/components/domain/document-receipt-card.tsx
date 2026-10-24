@@ -1,9 +1,10 @@
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
+import { ConfirmButton } from '@/components/confirm-button';
 import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
-import { Pencil, Plus } from '@/components/ui/icons';
+import { Pencil, Plus, Undo2 } from '@/components/ui/icons';
 import { formatMoney } from '@/lib/money';
 
 /** A document's receipt fields, as the server holds them. */
@@ -20,6 +21,8 @@ interface DocumentReceiptCardProps extends ReceiptValues {
   source: FieldSource | null;
   /** Opens the receipt's edit dialog. */
   onEdit: () => void;
+  /** Hands the receipt back to be read from the text again. Offered only while it is the user's. */
+  onReset: () => void;
 }
 
 /**
@@ -27,7 +30,7 @@ interface DocumentReceiptCardProps extends ReceiptValues {
  * one with nothing filled in is a single line and a button to add them, not a card of dashes.
  * The date is the document's, in the details card, rather than a second copy here.
  */
-export function DocumentReceiptCard({ vendor, total, currency, source, onEdit }: DocumentReceiptCardProps) {
+export function DocumentReceiptCard({ vendor, total, currency, source, onEdit, onReset }: DocumentReceiptCardProps) {
   const isEmpty = vendor === null && total === null && currency === null;
   const edit = (
     <Button
@@ -51,7 +54,25 @@ export function DocumentReceiptCard({ vendor, total, currency, source, onEdit }:
             ? 'Set by you.'
             : undefined
       }
-      actionSlot={edit}
+      actionSlot={
+        <>
+          {source === FieldSource.User && (
+            <ConfirmButton
+              size="sm"
+              variant="ghost"
+              iconSlot={<Undo2 />}
+              content="Reset"
+              aria-label="Reset receipt details to automatic"
+              hint="Reset to automatic"
+              title="Read the receipt from the text again?"
+              description="The vendor, total and currency you set are replaced by what is read from the document's text, which may be nothing, and processing again reads them afresh."
+              confirmLabel="Reset"
+              onConfirm={onReset}
+            />
+          )}
+          {edit}
+        </>
+      }
       contentSlot={
         isEmpty ? (
           <EmptyState compact title="Not a receipt, or nothing was read from it." />

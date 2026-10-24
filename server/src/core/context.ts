@@ -2,6 +2,7 @@ import type { DB } from '@cubicecho/engrafo-db';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
+import type { Backups } from '../backup/state.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -40,4 +41,6 @@ export interface Context {
   embedder: Embedder;
   /** Whether the ocr step can run on this instance: allowed by config and ocrmypdf found at boot. */
   ocrAvailable: boolean;
+  /** Export links waiting to be followed and import runs being watched, kept between requests. */
+  backups: Backups;
 }

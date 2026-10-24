@@ -2,6 +2,8 @@ import type { DB } from '@cubicecho/engrafo-db';
 import express, { type Express } from 'express';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
+import { mountExport } from '../backup/endpoint.ts';
+import { type Backups, createBackups } from '../backup/state.ts';
 import { trustProxy } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
@@ -28,6 +30,8 @@ export interface AppDeps {
   ocrAvailable: boolean;
   /** Embeds search queries, with the model the pipeline indexes with. */
   embedder: Embedder;
+  /** Export links and import runs. Left out, the app keeps its own; a test passes one to reach in. */
+  backups?: Backups;
   /** The built web client. Left out, the app serves the API alone. */
   staticDir?: string;
 }
@@ -38,7 +42,8 @@ export interface AppDeps {
  * @param deps - The database, auth, storage and the rest of what requests are answered from.
  * @returns The app, which the caller listens on. Nothing is opened or scheduled here.
  */
-export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
+export function createApp({ staticDir, backups = createBackups(), ...deps }: AppDeps): Express {
+  const graphqlDeps = { ...deps, backups };
   const app = express();
   // Which proxy hops may set X-Forwarded-For. `req.ip` feeds the sign-in throttle.
   app.set('trust proxy', trustProxy());
@@ -58,6 +63,8 @@ export function createApp({ staticDir, ...graphqlDeps }: AppDeps): Express {
   mountSso(app, graphqlDeps.authHost);
   // Before the static handler as well, for the same reason.
   mountMcp(app, graphqlDeps);
+  // And again: the export link is followed by the browser, not fetched by the app.
+  mountExport(app, { db: graphqlDeps.db, storage: graphqlDeps.storage, links: backups.links });
   if (staticDir !== undefined) {
     const serveStatic = createStaticHandler(staticDir);
     app.use((req, res) => serveStatic(req, res));
