@@ -1,5 +1,5 @@
-import { CardLayout, type CardLayoutProps } from "@/components/card-layout";
 import { cn, type SlotNode } from "@/lib/utils";
+import { CardLayout, type CardLayoutProps } from "@/components/card-layout";
 
 export type CenteredLayoutProps = Omit<CardLayoutProps, "className"> & {
   /** The body of the card: the form, the message. */

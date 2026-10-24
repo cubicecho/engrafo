@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { HeaderContentFooter } from "@/components/header-content-footer";
+import { cn, type SlotNode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { cn, type SlotNode } from "@/lib/utils";
+import { HeaderContentFooter } from "@/components/header-content-footer";
 
 /** How wide the dialog wants to be, past the phone width every size shares. */
 const SIZES = {

@@ -7,6 +7,7 @@ import {
   FileSpreadsheet as FileSpreadsheetSource,
   FolderInput as FolderInputSource,
   FolderPlus as FolderPlusSource,
+  LogOut as LogOutSource,
   Unplug as UnplugSource,
 } from 'lucide-react';
 import { icon } from '@/components/ui/icons';
@@ -20,6 +21,8 @@ export const FolderPlus = icon(FolderPlusSource);
 export const FolderInput = icon(FolderInputSource);
 /** Stop sharing with MCP clients. */
 export const Unplug = icon(UnplugSource);
+/** Sign out. */
+export const LogOut = icon(LogOutSource);
 /** A saved search. */
 export const Bookmark = icon(BookmarkSource);
 /** Save this search. */

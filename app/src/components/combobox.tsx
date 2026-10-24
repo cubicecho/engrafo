@@ -1,30 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import { useEffect, useId, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, type ButtonProps } from "@/components/ui/button";
-import { ColorDot } from "@/components/ui/color-dot";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
 import { matchesEveryWord } from "@/components/ui/command-base";
-import { Check, ChevronsUpDown, Plus, X } from "@/components/ui/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  Select as SelectRoot,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { readableTextColor } from "@/lib/readable-text-color";
 import {
   blocksOf,
@@ -39,6 +15,30 @@ import {
   withOrphanOptions,
 } from "@/lib/select-options";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { ColorDot } from "@/components/ui/color-dot";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown, Plus, X } from "@/components/ui/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  Select as SelectRoot,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /** Off the screen and still read. `sr-only` is a clip, which the device does not have. */
 const SR_ONLY = "sr-only";

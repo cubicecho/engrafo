@@ -10,29 +10,29 @@
     "codegen": "node --import=./src/core/preload-env.ts src/graphql/write-schema.ts && graphql-codegen-esm"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1133.0",
-    "@aws-sdk/s3-request-presigner": "^3.1133.0",
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/s3-request-presigner": "^3.1156.0",
     "@better-auth/api-key": "^1.7.12",
     "@cubicecho/agent-core": "^4.2.0",
     "@cubicecho/engrafo-db": "*",
     "@huggingface/transformers": "^4.3.1",
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "@vantreeseba/drizzle-graphql": "^13.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@vantreeseba/drizzle-graphql": "^16.0.0",
     "better-auth": "^1.7.12",
     "chardet": "^2.2.0",
     "domhandler": "^6.0.1",
-    "drizzle-orm": "1.0.0-rc.4",
-    "express": "^5.2.1",
+    "drizzle-orm": "1.0.0-rc.5",
+    "express": "^5.3.0",
     "fflate": "^0.8.3",
-    "file-type": "^22.1.0",
-    "graphql": "^16.10.0",
-    "graphql-yoga": "^5.23.0",
+    "file-type": "^22.2.0",
+    "graphql": "^16.14.2",
+    "graphql-yoga": "^6.0.1",
     "htmlparser2": "^12.0.0",
     "openai": "^7.43.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "jose": "^6.2.12"
+    "jose": "^6.2.13"
   }
 }

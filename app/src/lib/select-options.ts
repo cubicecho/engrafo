@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
 /** One choice in a select. */
 export type SelectOption = {
@@ -95,7 +95,7 @@ export type SelectEntry = SelectOption | SelectSeparatorEntry | SelectNoteEntry;
  * @returns true for `{ separator: true }`.
  */
 export function isSeparator<T extends object>(entry: T): entry is T & SelectSeparatorEntry {
-  return 'separator' in entry;
+  return "separator" in entry;
 }
 
 /**
@@ -106,7 +106,7 @@ export function isSeparator<T extends object>(entry: T): entry is T & SelectSepa
  * @returns true for a `{ note }` row.
  */
 export function isNote<T extends object>(entry: T): entry is T & SelectNoteEntry {
-  return 'note' in entry;
+  return "note" in entry;
 }
 
 /** One run of the list as a menu draws it: a rule, a note, or the options under one heading. */
@@ -135,7 +135,7 @@ export function blocksOf(entries: readonly SelectEntry[]): SelectBlock[] {
     }
     const last = blocks.at(-1);
     // `"options" in last` rather than two negations: it is the shape being asked for.
-    if (last && 'options' in last && last.group === entry.group) {
+    if (last && "options" in last && last.group === entry.group) {
       last.options.push(entry);
     } else {
       blocks.push({ group: entry.group, options: [entry] });
@@ -152,7 +152,7 @@ export function blocksOf(entries: readonly SelectEntry[]): SelectBlock[] {
  * @returns The label when it is a string, and the value otherwise.
  */
 export function optionText(option: SelectOption): string {
-  return typeof option.label === 'string' ? option.label : option.value;
+  return typeof option.label === "string" ? option.label : option.value;
 }
 
 /**
@@ -172,7 +172,9 @@ export function withOrphanOptions<T extends SelectEntry>(
   options: readonly T[],
   value: readonly string[],
 ): (T | SelectOption)[] {
-  const known = new Set(options.flatMap((entry) => ('value' in entry ? [(entry as SelectOption).value] : [])));
+  const known = new Set(
+    options.flatMap((entry) => ("value" in entry ? [(entry as SelectOption).value] : [])),
+  );
   const orphans = value.filter((held) => known.has(held) === false);
   return [...options, ...orphans.map((held) => ({ value: held, label: held }))];
 }
@@ -190,12 +192,12 @@ export function withOrphanOptions<T extends SelectEntry>(
  */
 export function isAddableOptionName(name: string, options: readonly SelectEntry[]): boolean {
   const folded = name.trim().toLocaleLowerCase();
-  if (folded === '') {
+  if (folded === "") {
     return false;
   }
   return options.every(
     (entry) =>
-      'value' in entry === false ||
+      "value" in entry === false ||
       optionText(entry as SelectOption)
         .trim()
         .toLocaleLowerCase() !== folded,
@@ -207,7 +209,7 @@ export function isAddableOptionName(name: string, options: readonly SelectEntry[
  * radix refuses an item whose value is `""`, so the row needs one of its own. It stays in this
  * file: a field translates on the way in and on the way out, and a caller only ever sees `null`.
  */
-const UNSET = '__cubeui_unset__';
+const UNSET = "__cubeui_unset__";
 
 /**
  * Puts the row for "nothing" at the top of a list.
@@ -231,7 +233,7 @@ export function withEmptyOption<T extends SelectEntry>(
  * @returns The row to mark chosen: the one for "nothing" for `null`, `undefined` and `""`.
  */
 export function menuValueOf(value: string | null | undefined): string {
-  return value === null || value === undefined || value === '' ? UNSET : value;
+  return value === null || value === undefined || value === "" ? UNSET : value;
 }
 
 /**

@@ -2,7 +2,6 @@ import { DropdownMenu as MenuPrimitive } from "radix-ui";
 import type * as React from "react";
 import { cloneElement, createContext, type RefObject, useContext, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Check } from "@/components/ui/icons";
 import {
   MENU_CONTENT_CLASS,
   MENU_INDICATOR_CLASS,
@@ -21,6 +20,7 @@ import {
   type MenuTriggerProps,
 } from "@/components/ui/menu-base";
 import { cn } from "@/lib/utils";
+import { Check } from "@/components/ui/icons";
 
 /** The shared contract, widened to what the radix part underneath accepts. */
 type Wide<Base, Radix> = Base & Omit<Radix, keyof Base>;

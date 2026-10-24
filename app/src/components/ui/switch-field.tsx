@@ -1,5 +1,3 @@
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   SWITCH_FIELD_DESCRIPTION_CLASS,
   SWITCH_FIELD_LABEL_CLASS,
@@ -7,6 +5,8 @@ import {
   switchFieldIds,
 } from "@/components/ui/switch-field-base";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 /** A switch with its caption on one row, where pressing the caption toggles it. */
 export function SwitchField({

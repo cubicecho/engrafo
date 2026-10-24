@@ -1,6 +1,6 @@
 export function parseNumber(text: string, integer = false): number | null {
   const trimmed = text.trim();
-  if (trimmed === '') {
+  if (trimmed === "") {
     return null;
   }
   const parsed = Number(trimmed);
@@ -23,9 +23,13 @@ export function parseNumber(text: string, integer = false): number | null {
  * @param integer - Whether the box takes only whole numbers, as {@link parseNumber} reads it.
  * @returns The text for the box's `value`.
  */
-export function numberText(draft: string | undefined, stored: number | null, integer = false): string {
+export function numberText(
+  draft: string | undefined,
+  stored: number | null,
+  integer = false,
+): string {
   // `String`, not the raw number: `TextInput` takes only a string, so `Input` does on both halves.
-  const storedText = stored === null ? '' : String(stored);
+  const storedText = stored === null ? "" : String(stored);
   if (draft !== undefined && parseNumber(draft, integer) === stored) {
     return draft;
   }
