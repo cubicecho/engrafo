@@ -23,7 +23,11 @@ import { SECONDS_PER_MINUTE } from '../core/wire.ts';
 export interface Storage {
   /** A URL the browser can PUT exactly this object to — the type and length are part of the signature. */
   presignPut(key: string, options: { contentType: string; contentLength: number }): Promise<string>;
-  presignGet(key: string, options: { filename: string; contentType: string; download: boolean }): Promise<string>;
+  /** A URL the browser can GET the object from, for `STORAGE_DEFAULTS.downloadUrlTtlMinutes` unless `ttlMinutes` says. */
+  presignGet(
+    key: string,
+    options: { filename: string; contentType: string; download: boolean; ttlMinutes?: number },
+  ): Promise<string>;
   /** The stored object's size and type, or null when nothing is at the key. */
   head(key: string): Promise<{ size: number; contentType: string | null } | null>;
   getStream(key: string): Promise<Readable>;
@@ -115,7 +119,7 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
       );
     },
 
-    presignGet(key, { filename, contentType, download }) {
+    presignGet(key, { filename, contentType, download, ttlMinutes }) {
       return getSignedUrl(
         signer,
         new GetObjectCommand({
@@ -124,7 +128,7 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
           ResponseContentType: contentType,
           ResponseContentDisposition: contentDisposition(filename, download),
         }),
-        { expiresIn: GET_EXPIRY_SECONDS },
+        { expiresIn: ttlMinutes === undefined ? GET_EXPIRY_SECONDS : ttlMinutes * SECONDS_PER_MINUTE },
       );
     },
 
@@ -208,6 +212,17 @@ export function archiveKey(userId: string, documentId: string): string {
  */
 export function textKey(userId: string, documentId: string): string {
   return `text/${userId}/${documentId}.txt`;
+}
+
+/**
+ * Names the object a document's thumbnail is stored at.
+ *
+ * @param userId - The document's owner.
+ * @param documentId - The document.
+ * @returns The key in the files bucket, beside the archive.
+ */
+export function thumbnailKey(userId: string, documentId: string): string {
+  return `thumbnails/${userId}/${documentId}.jpg`;
 }
 
 /**

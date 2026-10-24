@@ -1,4 +1,5 @@
 import { useQuery } from '@apollo/client/react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { ArchiveTree } from '@/components/domain/archive-tree';
@@ -6,6 +7,7 @@ import { DocumentSearchResults } from '@/components/domain/document-search-resul
 import { ExportReceiptsButton } from '@/components/domain/export-receipts';
 import { FilteredDocuments } from '@/components/domain/filtered-documents';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
+import { SaveSearchButton } from '@/components/domain/saved-searches';
 import { SearchFilterBar } from '@/components/domain/search-filter-bar';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
@@ -17,7 +19,13 @@ import { useArchive } from '@/lib/archive';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { UPLOAD_INTO_PARAM } from '@/lib/routes';
-import { readSearchFilters, type SearchFilters, toSearchFilterInput, writeSearchFilters } from '@/lib/search-filters';
+import {
+  readSearchFilters,
+  SEARCH_PARAM,
+  type SearchFilters,
+  toSearchFilterInput,
+  writeSearchFilters,
+} from '@/lib/search-filters';
 import { cn } from '@/lib/utils';
 
 const DocumentsPage = graphql(`
@@ -31,9 +39,6 @@ const DocumentsPage = graphql(`
   }
 `);
 
-/** The query string key the search box keeps its text in, so a search survives a reload and Back. */
-const SEARCH_PARAM = 'q';
-
 /**
  * The archive's front page: the upload panel, and a search box and filters that swap it for what
  * they found. Filters with no search list every document that matches them.
@@ -44,7 +49,19 @@ const SEARCH_PARAM = 'q';
 export function DocumentsRoute() {
   const [params, setParams] = useSearchParams();
   const search = (params.get(SEARCH_PARAM) ?? '').trim();
-  const setSearch = (text: string) =>
+  // The search box holds its own text and is only given where to start. When the text in the URL
+  // changes from outside it — a saved search opened from the sidebar, Back — it is drawn afresh
+  // from the URL; when the change is its own, it is left alone, or it would lose the caret.
+  const typed = useRef(search);
+  const [searchBoxKey, setSearchBoxKey] = useState(0);
+  useEffect(() => {
+    if (search !== typed.current) {
+      typed.current = search;
+      setSearchBoxKey((key) => key + 1);
+    }
+  }, [search]);
+  const setSearch = (text: string) => {
+    typed.current = text.trim();
     setParams(
       (current) => {
         const next = new URLSearchParams(current);
@@ -58,6 +75,7 @@ export function DocumentsRoute() {
       // One history entry per search, not one per pause in typing.
       { replace: true },
     );
+  };
 
   // The search's filters sit beside its text in the URL, for the same reason.
   const filters = readSearchFilters(params);
@@ -93,12 +111,14 @@ export function DocumentsRoute() {
       actionSlot={
         <>
           <ExportReceiptsButton folders={folders} />
+          {(search !== '' || filterInput !== null) && <SaveSearchButton query={search} filter={filterInput} />}
           <NewFolderButton />
         </>
       }
       headerContentSlot={
         <>
           <SearchInput
+            key={searchBoxKey}
             label="Search documents"
             placeholder="Search by meaning or by exact words"
             defaultValue={search}

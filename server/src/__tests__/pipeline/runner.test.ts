@@ -20,6 +20,7 @@ import {
 const CONFIG: PipelineConfig = {
   ocrAvailable: false,
   pdfTextAvailable: false,
+  thumbnailTools: { pdf: false, image: false },
   ocrLanguages: 'eng',
   concurrency: 1,
   dateOrder: 'DMY',

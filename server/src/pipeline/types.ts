@@ -3,6 +3,7 @@ import type { DateOrder } from '../core/defaults.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import type { VisionConfig } from '../vision/settings.ts';
+import type { ThumbnailTools } from './thumbnail.ts';
 
 /** The settings every run is handed, decided once at boot. */
 export interface PipelineConfig {
@@ -10,6 +11,8 @@ export interface PipelineConfig {
   ocrAvailable: boolean;
   /** pdftotext present, so a PDF's own text layer can be read. */
   pdfTextAvailable: boolean;
+  /** Which of pdftoppm and Pillow are here, for the thumbnail step. */
+  thumbnailTools: ThumbnailTools;
   /** Tesseract language codes joined with `+`. */
   ocrLanguages: string;
   /** How many documents run at once. */
@@ -49,6 +52,7 @@ export type DocumentPatch = Partial<
     | 'archiveKey'
     | 'contentKey'
     | 'contentBytes'
+    | 'thumbnailKey'
     | 'documentDate'
     | 'documentDateSource'
     | 'vendor'

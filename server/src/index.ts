@@ -33,6 +33,7 @@ import { detectPdfText } from './pipeline/pdf-text.ts';
 import { createPipeline } from './pipeline/runner.ts';
 import { STEPS } from './pipeline/step-list.ts';
 import { detectOcr } from './pipeline/steps/ocr.ts';
+import { detectThumbnailTools } from './pipeline/thumbnail.ts';
 import { createLocalEmbedder } from './search/embedder.ts';
 import { createS3Storage } from './storage/s3.ts';
 import { createWatcher, type Watcher } from './watch/watcher.ts';
@@ -93,6 +94,14 @@ if (!pdfTextAvailable) {
   console.warn('[pipeline] pdftotext was not found on PATH. A PDF keeps no text unless OCR reads it.');
 }
 
+const thumbnailTools = await detectThumbnailTools();
+if (!thumbnailTools.pdf) {
+  console.warn('[thumbnail] pdftoppm was not found on PATH. PDFs get no thumbnail.');
+}
+if (!thumbnailTools.image) {
+  console.warn('[thumbnail] Python with Pillow was not found. Images and ebooks get no thumbnail.');
+}
+
 const storage = createS3Storage(s3Config());
 const events = createPipelineEvents();
 // One model for the process: the pipeline indexes with it and search embeds queries with it.
@@ -105,6 +114,7 @@ const pipeline = createPipeline({
   config: {
     ocrAvailable,
     pdfTextAvailable,
+    thumbnailTools,
     ocrLanguages: ocrLanguages(),
     concurrency: pipelineConcurrency(),
     dateOrder: dateOrder(),

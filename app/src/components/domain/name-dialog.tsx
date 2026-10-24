@@ -16,6 +16,11 @@ interface NameDialogProps {
   initial?: string | undefined;
   /** The submit's words. */
   submitLabel?: string | undefined;
+  /**
+   * Whether Save waits for the name to change. On by default for a rename (an `initial` name);
+   * off for a name that is only a suggestion, which can be saved as it is.
+   */
+  requireChanges?: boolean | undefined;
   /** What is wrong with the name as typed, before anything is sent, or undefined when nothing is. */
   validate: (name: string) => string | undefined;
   /** Saves the trimmed name. The dialog closes once this resolves, and stays open saying why when it rejects. */
@@ -38,6 +43,7 @@ export function NameDialog({
   label,
   initial = '',
   submitLabel = 'Save',
+  requireChanges = initial !== '',
   validate,
   onSave,
   onClose,
@@ -87,7 +93,7 @@ export function NameDialog({
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content={submitLabel} requireChanges={initial !== ''} />
+            <form.SubmitButton content={submitLabel} requireChanges={requireChanges} />
           </>
         )}
       />

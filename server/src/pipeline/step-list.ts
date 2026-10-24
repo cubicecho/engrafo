@@ -5,6 +5,7 @@ import { metadataStep } from './steps/metadata.ts';
 import { ocrStep } from './steps/ocr.ts';
 import { pdfTextStep } from './steps/pdf-text.ts';
 import { textStep } from './steps/text.ts';
+import { thumbnailStep } from './steps/thumbnail.ts';
 import { visionStep } from './steps/vision.ts';
 import type { PipelineStep } from './types.ts';
 
@@ -29,6 +30,9 @@ import type { PipelineStep } from './types.ts';
 // mid-pipeline when it lands gets its row at index's position and runs it in this list's order.
 // A finished one caught up at boot has its row marked skipped, since no model is set up until the
 // admin sets one after the upgrade, so turning "auto" on later does not re-read the archive.
+// thumbnail keeps the rule: it produces no text, so nothing after it would read what it writes, and
+// it goes last. It needs the archive ocr made, which every step before it has settled. A finished
+// document reaches it through catchUp() at boot, and only it runs.
 export const STEPS: PipelineStep[] = [
   inspectStep,
   textStep,
@@ -38,4 +42,5 @@ export const STEPS: PipelineStep[] = [
   visionStep,
   metadataStep,
   indexStep,
+  thumbnailStep,
 ];
