@@ -1,5 +1,5 @@
 import type { BuildSchemaConfig, RowScope } from '@vantreeseba/drizzle-graphql';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Context } from '../core/context.ts';
 import { requireAuth } from '../core/errors.ts';
 
@@ -20,7 +20,8 @@ export const USER_OWNED_TABLES = ['documents', 'folders', 'processingSteps', 'sa
 /** Every table drizzle-graphql will generate fields for. */
 export const ALL_TABLES = ['users', ...USER_OWNED_TABLES] as const;
 
-const scopeByUserId: RowScope<Context> = (context, table) => eq((table as AnyTable).userId, requireAuth(context));
+const ownedBy = (context: Context, table: AnyTable) => eq(table.userId, requireAuth(context));
+const scopeByUserId: RowScope<Context> = ownedBy;
 
 /**
  * The row filter for each table, ANDed into every generated read after the client's own `where`.
@@ -30,6 +31,12 @@ export const scope: NonNullable<BuildSchemaConfig['scope']> = {
   // A user row is only ever visible to its owner. There is no directory here.
   users: (context, table) => eq((table as AnyTable).id, requireAuth(context)),
   ...Object.fromEntries(USER_OWNED_TABLES.map((name) => [name, scopeByUserId])),
+  // A document in the trash is out of every generated read: the lists, `document(id)`, a folder's
+  // `documents`, the aggregates. The trash's own query (trash/resolvers.ts) is the one way to see it.
+  // Built from `table`, not the imported one: on a relation read it is drizzle's alias.
+  // Not drizzle-graphql's `softDelete`: that generates `restoreDocuments` whatever `features`
+  // says, and a restore here has to number a taken name and restart the pipeline.
+  documents: (context, table) => and(ownedBy(context, table), isNull((table as AnyTable).deletedAt)),
 };
 
 /**

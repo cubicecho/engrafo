@@ -451,6 +451,20 @@ export const WATCH_DEFAULTS: Readonly<WatchSettings> = Object.freeze({
   stableSeconds: 10,
 });
 
+/** The trash: where a deleted document waits, restorable, until it is purged. */
+export interface TrashSettings {
+  /** How long a document stays in the trash before it is deleted for good. `TRASH_RETENTION_DAYS` overrides it. */
+  retentionDays: number;
+  /** How often the trash is checked for documents past their time. Also once at boot. */
+  purgeIntervalMinutes: number;
+}
+
+/** The shipped values of `TrashSettings`. */
+export const TRASH_DEFAULTS: Readonly<TrashSettings> = Object.freeze({
+  retentionDays: 30,
+  purgeIntervalMinutes: 60,
+});
+
 /** The buckets and the URLs signed for them. */
 export interface StorageSettings {
   /** S3 region. `S3_REGION` overrides it. */

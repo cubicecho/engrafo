@@ -247,6 +247,38 @@ describe('pipeline runner', () => {
     expect((await reload(ready.id)).status).toBe('ready');
   });
 
+  it('leaves a trashed document alone: no run, no resume, no catch-up', async () => {
+    const ran: string[] = [];
+    const step: PipelineStep = {
+      name: 'only',
+      enabled: () => true,
+      run: async ({ doc }) => {
+        ran.push(doc.id);
+        return undefined;
+      },
+    };
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [step],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
+    const deletedAt = new Date();
+    const queued = await insertDocument({ deletedAt });
+    await insertDocument({ status: 'processing', deletedAt });
+    await insertDocument({ status: 'ready', deletedAt });
+
+    await pipeline.run(queued.id);
+    expect(await pipeline.resume()).toBe(0);
+    expect(await pipeline.catchUp()).toBe(0);
+    await pipeline.idle();
+
+    expect(ran).toEqual([]);
+    expect((await reload(queued.id)).status).toBe('uploaded');
+  });
+
   it('runs a step added since a document finished, and only that step', async () => {
     const ran: string[] = [];
     const step = (name: string): PipelineStep => ({

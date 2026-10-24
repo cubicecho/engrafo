@@ -4,6 +4,7 @@ import { type Document, DocumentStatus, documents, folders } from '@cubicecho/en
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { folderPaths } from '../folders/names.ts';
 import type { Storage, StorageSet } from '../storage/s3.ts';
+import { notTrashed } from '../trash/trash.ts';
 import { MANIFEST_FORMAT, MANIFEST_NAME, MANIFEST_VERSION, type Manifest, type ManifestDocument } from './manifest.ts';
 import { TAR_END, tarFileHeader, tarPadding } from './tar.ts';
 
@@ -110,7 +111,8 @@ export async function planExport(
   const docs = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.userId, userId), ne(documents.status, DocumentStatus.PendingUpload)))
+    // The trash is not part of the archive: a restore from a backup should not bring back what was thrown away.
+    .where(and(eq(documents.userId, userId), ne(documents.status, DocumentStatus.PendingUpload), notTrashed()))
     .orderBy(asc(documents.createdAt), asc(documents.id));
 
   const allocate = {

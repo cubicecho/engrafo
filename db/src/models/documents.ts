@@ -94,6 +94,10 @@ export const documents = pgTable(
     visionRequested: boolean('vision_requested').notNull().default(false),
     status: documentStatus('status').notNull().default('pending_upload'),
     error: text('error'),
+    // When it was put in the trash, or null while it is filed. A trashed document keeps its row,
+    // its objects and its search passages until it is restored or purged; every read but the
+    // trash's own leaves it out.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -107,13 +111,14 @@ export const documents = pgTable(
     index('idx_documents_status').on(t.status),
     index('idx_documents_folder_id').on(t.folderId),
     index('idx_documents_user_document_date').on(t.userId, t.documentDate),
+    index('idx_documents_user_deleted_at').on(t.userId, t.deletedAt),
     check('ck_documents_currency', sql`${t.currency} ~ '^[A-Z]{3}$'`),
     check('ck_documents_total', sql`${t.total} >= 0`),
-    uniqueIndex('uq_documents_user_folder_title').on(
-      t.userId,
-      sql`coalesce(${t.folderId}, ${TOP_LEVEL})`,
-      sql`lower(${t.title})`,
-    ),
+    // Filed documents only: something in the trash does not hold its name, and a restore numbers
+    // itself if the name has been taken since.
+    uniqueIndex('uq_documents_user_folder_title')
+      .on(t.userId, sql`coalesce(${t.folderId}, ${TOP_LEVEL})`, sql`lower(${t.title})`)
+      .where(sql`${t.deletedAt} is null`),
   ],
 );
 

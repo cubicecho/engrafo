@@ -12,6 +12,7 @@ import { applyMetadataExtension } from '../metadata/resolvers.ts';
 import { applySavedSearchesExtension } from '../saved-searches/resolvers.ts';
 import { applySearchExtension } from '../search/resolvers.ts';
 import { applySsoExtension } from '../sso/resolvers.ts';
+import { applyTrashExtension } from '../trash/resolvers.ts';
 import { applyVisionExtension } from '../vision/resolvers.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
@@ -68,6 +69,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applySsoExtension(schema);
   schema = applyApiKeysExtension(schema);
   schema = applyVisionExtension(schema);
+  schema = applyTrashExtension(schema);
   schema = applyBackupExtension(schema);
 
   return { schema, entities };

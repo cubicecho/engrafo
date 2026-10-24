@@ -115,6 +115,8 @@ async function namesIn(tx: Tx, userId: string, parentId: string | null, except: 
         eq(documents.userId, userId),
         parentId === null ? isNull(documents.folderId) : eq(documents.folderId, parentId),
         except.documentId ? ne(documents.id, except.documentId) : undefined,
+        // A document in the trash holds no name; the partial unique index agrees.
+        isNull(documents.deletedAt),
       ),
     );
   return new Set([...folderRows, ...documentRows].map((row) => row.name.toLowerCase()));

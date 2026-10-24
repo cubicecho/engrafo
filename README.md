@@ -39,8 +39,14 @@ whole product.
   see the archive as a tree in the sidebar, on every page. Drag a document or a folder onto another folder,
   or use "Move to…". Names are unique within a folder, ignoring case, the way
   files are: a second upload of `scan.pdf` becomes `scan (2)`, and a rename or
-  move onto a taken name is refused rather than overwriting. Deleting a folder
-  deletes everything in it, once you have typed its name.
+  move onto a taken name is refused rather than overwriting. Deleting a folder,
+  once you have typed its name, puts everything in it in the Trash.
+- **Trash** — a deleted document goes to the Trash rather than away: restore it
+  to the folder it came from (the top level, if that folder was deleted too,
+  and numbered if its name has been taken since), delete it forever, or empty
+  the Trash. What has sat there for `TRASH_RETENTION_DAYS` (30) is deleted for
+  good on its own. Until then it is out of search, the tree and MCP, but its
+  files are still stored.
 - **Duplicate warnings** — upload a file you already have and Engrafo says so,
   on the upload's row and on the document's page, with a link to the other
   copy and a way to delete this one. It warns rather than refuses, since the
@@ -197,6 +203,7 @@ domain.
 | `WATCH_OWNER` | — | The email address of the account the watched folder files into. Required with `WATCH_DIR`; until that account exists, nothing is filed. |
 | `WATCH_POLL_SECONDS` | `5` | How often the watched folder is listed. |
 | `WATCH_STABLE_SECONDS` | `10` | How long a file's size and modification time must hold still before it counts as written. Raise it for a slow scanner. |
+| `TRASH_RETENTION_DAYS` | `30` | How long a deleted document waits in the Trash before it, and its files, are deleted for good. Checked at boot and hourly. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | Deprecated. The older spelling of the same switch, still read: `false` means what `SECURE_LOCAL_NET=true` means. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |

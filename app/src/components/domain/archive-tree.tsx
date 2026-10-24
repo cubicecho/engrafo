@@ -27,6 +27,7 @@ import {
 } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { documentPath } from '@/lib/routes';
+import { TRASH_QUERY_NAMES } from '@/lib/trash';
 import type { TreeNode } from '@/lib/tree';
 import { cn } from '@/lib/utils';
 
@@ -157,11 +158,11 @@ export function ArchiveTree({
   const [createFolder] = useMutation(CreateFolder);
   const [renameFolder] = useMutation(RenameFolder);
   const [moveFolder] = useMutation(MoveFolder);
-  const [deleteFolder] = useMutation(DeleteFolder);
+  const [deleteFolder] = useMutation(DeleteFolder, { refetchQueries: [...TRASH_QUERY_NAMES] });
   const [moveDocument] = useMutation(MoveDocument);
   const [setFolderMcp] = useMutation(SetFolderMcp);
   const [renameDocument] = useMutation(RenameTreeDocument);
-  const [deleteDocument] = useMutation(DeleteTreeDocument);
+  const [deleteDocument] = useMutation(DeleteTreeDocument, { refetchQueries: [...TRASH_QUERY_NAMES] });
 
   const entries = useMemo(() => archiveEntries(folders, documents), [folders, documents]);
   const byPath = useMemo(() => new Map(entries.map((entry) => [entry.path, entry])), [entries]);
@@ -397,7 +398,7 @@ export function ArchiveTree({
             }
           }}
           title={`Delete “${dialog.folder.name}”?`}
-          description={`Everything in it goes too: ${contentsOf(folders, documents, dialog.folder.id)}. The files are deleted from storage and cannot be recovered.`}
+          description={`The folder and every folder in it are deleted. What is in it (${contentsOf(folders, documents, dialog.folder.id)}) goes to the Trash, and is restored at the top level.`}
           confirmLabel="Delete folder"
           requireText={dialog.folder.name}
           requireTextLabel={`Type ${dialog.folder.name} to confirm`}
@@ -417,9 +418,9 @@ export function ArchiveTree({
               close();
             }
           }}
-          title={`Delete “${dialog.document.title}”?`}
-          description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
-          confirmLabel="Delete"
+          title={`Move “${dialog.document.title}” to the trash?`}
+          description="It waits in the Trash, where it can be restored, until it is deleted for good."
+          confirmLabel="Move to trash"
           onConfirm={() => {
             const { document } = dialog;
             close();

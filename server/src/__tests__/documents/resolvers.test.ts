@@ -256,7 +256,7 @@ describe('document uploads', () => {
     expect((await client().expectError(one, { id: bare.id })).code).toBe(ErrorCode.NotFound);
   });
 
-  it('deletes the row and its objects', async () => {
+  it('puts the document in the trash, keeping its objects until it is purged', async () => {
     const { document } = await createUpload();
     const archiveKey = `archive/${userId}/${document.id}.pdf`;
     const contentKey = `text/${userId}/${document.id}.txt`;
@@ -272,6 +272,13 @@ describe('document uploads', () => {
 
     const data = await client().expectOk('mutation ($id: UUID!) { deleteDocument(id: $id) }', { id: document.id });
     expect(data.deleteDocument).toBe(true);
+    // The original, the archive and the thumbnail all wait in the bucket for a restore.
+    expect(storage.files.objects.size).toBe(3);
+    expect(storage.text.objects.size).toBe(1);
+    const [row] = await db.select().from(documents);
+    expect(row.deletedAt).toBeInstanceOf(Date);
+
+    await client().expectOk('mutation { emptyTrash }');
     expect(storage.files.objects.size).toBe(0);
     expect(storage.text.objects.size).toBe(0);
     expect(await db.select().from(documents)).toEqual([]);
