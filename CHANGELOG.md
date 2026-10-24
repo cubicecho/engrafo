@@ -1,3 +1,10 @@
+# [4.13.0](https://github.com/cubicecho/engrafo/compare/v4.12.0...v4.13.0) (2026-10-24)
+
+
+### Features
+
+* trash with restore and purge ([e37a7ac](https://github.com/cubicecho/engrafo/commit/e37a7acd4563f9a2e6452d58f00f1aeec2dbfc49)), closes [#35](https://github.com/cubicecho/engrafo/issues/35)
+
 # [4.12.0](https://github.com/cubicecho/engrafo/compare/v4.11.0...v4.12.0) (2026-10-24)
 
 
