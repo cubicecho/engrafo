@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { DocumentDetailsCard } from './document-details-card';
 
@@ -14,6 +14,7 @@ const meta = {
     documentDate: null,
     documentDateSource: null,
     onEditDate: fn(),
+    onResetDate: fn(),
   },
 } satisfies Meta<typeof DocumentDetailsCard>;
 
@@ -57,14 +58,24 @@ export const ExtractedDate: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: 'Edit the document date' }));
     await expect(args.onEditDate).toHaveBeenCalledOnce();
+    // Already automatic: there is nothing to hand back.
+    await expect(canvas.queryByRole('button', { name: /Reset the document date/ })).not.toBeInTheDocument();
   },
 };
 
-/** A date the user set says that instead. */
+/**
+ * A date the user set says that instead, and can be handed back to be read from the text again,
+ * once the reader has confirmed it.
+ */
 export const DateSetByTheUser: Story = {
   args: { documentDate: '2025-03-12', documentDateSource: FieldSource.User },
-  play: async ({ canvas }) => {
+  play: async ({ args, canvas, canvasElement }) => {
     await expect(canvas.getByText('Set by you')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Reset the document date to automatic' }));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('alertdialog'));
+    await expect(args.onResetDate).not.toHaveBeenCalled();
+    await userEvent.click(dialog.getByRole('button', { name: 'Reset' }));
+    await expect(args.onResetDate).toHaveBeenCalledOnce();
   },
 };
 

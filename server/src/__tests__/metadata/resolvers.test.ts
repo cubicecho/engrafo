@@ -2,7 +2,7 @@ import { documents, folders } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
-import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
+import { createClient, createFakeStorage, createTestDb, createUser, type TestDb } from '../helpers.ts';
 
 const SET_DATE = `mutation ($id: UUID!, $date: String) {
   setDocumentDate(id: $id, date: $date) { id documentDate documentDateSource }
@@ -13,6 +13,12 @@ const SET_RECEIPT = `mutation ($id: UUID!, $input: DocumentReceiptInput!) {
 const EXPORT = `query ($from: String, $to: String, $folderId: UUID) {
   receiptsCsv(from: $from, to: $to, folderId: $folderId)
 }`;
+const RESET = `mutation ($id: UUID!, $fields: [DocumentMetadataField!]!) {
+  resetDocumentMetadata(id: $id, fields: $fields) {
+    id documentDate documentDateSource vendor total currency receiptSource
+  }
+}`;
+const RECEIPT_TEXT = 'Joe’s Diner\n12.03.2025\nBurger 9,50\nTotal EUR 12,50';
 const CSV_HEADER = 'date,vendor,total,currency,title,folder\r\n';
 
 describe('document metadata', () => {
@@ -140,6 +146,123 @@ describe('document metadata', () => {
       expect(error.code).toBe(ErrorCode.NotFound);
       const [row] = await db.select().from(documents).where(eq(documents.id, doc.id));
       expect(row?.vendor).toBe('Bob’s');
+    });
+  });
+
+  describe('resetDocumentMetadata', () => {
+    const storage = createFakeStorage();
+
+    /** A document whose stored text is `content`, with the edits given. */
+    async function withText(userId: string, content: string, values: Partial<typeof documents.$inferInsert> = {}) {
+      const doc = await insertDocument(userId, values);
+      const contentKey = `text/${userId}/${doc.id}`;
+      await storage.text.put(contentKey, content, 'text/plain');
+      await db.update(documents).set({ contentKey }).where(eq(documents.id, doc.id));
+      return doc;
+    }
+
+    it('reads the date from the stored text again, and leaves the edited receipt alone', async () => {
+      const doc = await withText(alice, RECEIPT_TEXT, {
+        documentDate: null,
+        documentDateSource: 'user',
+        vendor: 'Mine',
+        receiptSource: 'user',
+      });
+      const data = await createClient(db, alice, { storage }).expectOk(RESET, { id: doc.id, fields: ['DATE'] });
+      expect(data.resetDocumentMetadata).toEqual({
+        id: doc.id,
+        documentDate: '2025-03-12',
+        documentDateSource: 'extracted',
+        vendor: 'Mine',
+        total: null,
+        currency: null,
+        receiptSource: 'user',
+      });
+    });
+
+    it('reads the receipt again, and leaves the edited date alone', async () => {
+      const doc = await withText(alice, RECEIPT_TEXT, {
+        documentDate: '2020-01-01',
+        documentDateSource: 'user',
+        vendor: 'Mine',
+        total: '1.00',
+        receiptSource: 'user',
+      });
+      const data = await createClient(db, alice, { storage }).expectOk(RESET, { id: doc.id, fields: ['RECEIPT'] });
+      expect(data.resetDocumentMetadata).toMatchObject({
+        documentDate: '2020-01-01',
+        documentDateSource: 'user',
+        vendor: 'Joe’s Diner',
+        total: '12.50',
+        currency: 'EUR',
+        receiptSource: 'extracted',
+      });
+    });
+
+    it('resets both at once', async () => {
+      const doc = await withText(alice, RECEIPT_TEXT, { documentDateSource: 'user', receiptSource: 'user' });
+      const data = await createClient(db, alice, { storage }).expectOk(RESET, {
+        id: doc.id,
+        fields: ['DATE', 'RECEIPT'],
+      });
+      expect(data.resetDocumentMetadata).toMatchObject({ documentDateSource: 'extracted', receiptSource: 'extracted' });
+    });
+
+    it('does not read again an extracted field it was not asked about', async () => {
+      // The stored text has since changed under the receipt; only the date was asked for.
+      const doc = await withText(alice, RECEIPT_TEXT, {
+        documentDateSource: 'user',
+        vendor: 'REWE',
+        total: '9.99',
+        receiptSource: 'extracted',
+      });
+      const data = await createClient(db, alice, { storage }).expectOk(RESET, { id: doc.id, fields: ['DATE'] });
+      expect(data.resetDocumentMetadata).toMatchObject({ vendor: 'REWE', total: '9.99', receiptSource: 'extracted' });
+    });
+
+    it('clears the fields of a document with no text, and hands them back', async () => {
+      const doc = await insertDocument(alice, {
+        documentDate: '2020-01-01',
+        documentDateSource: 'user',
+        vendor: 'Mine',
+        receiptSource: 'user',
+      });
+      const data = await createClient(db, alice, { storage }).expectOk(RESET, {
+        id: doc.id,
+        fields: ['DATE', 'RECEIPT'],
+      });
+      // No source either: nothing was read, and the next run is free to read one.
+      expect(data.resetDocumentMetadata).toMatchObject({
+        documentDate: null,
+        documentDateSource: null,
+        vendor: null,
+        receiptSource: null,
+      });
+    });
+
+    it('refuses a document that is being processed, and leaves it alone', async () => {
+      const doc = await withText(alice, RECEIPT_TEXT, { status: 'processing', documentDateSource: 'user' });
+      const error = await createClient(db, alice, { storage }).expectError(RESET, { id: doc.id, fields: ['DATE'] });
+      expect(error.code).toBe(ErrorCode.Conflict);
+      const [row] = await db.select().from(documents).where(eq(documents.id, doc.id));
+      expect(row?.documentDateSource).toBe('user');
+    });
+
+    it('refuses an empty list of fields', async () => {
+      const doc = await withText(alice, RECEIPT_TEXT);
+      const error = await createClient(db, alice, { storage }).expectError(RESET, { id: doc.id, fields: [] });
+      expect(error.code).toBe(ErrorCode.BadUserInput);
+    });
+
+    it("answers NOT_FOUND for someone else's document", async () => {
+      const doc = await withText(bob, RECEIPT_TEXT, { documentDateSource: 'user', receiptSource: 'user' });
+      const error = await createClient(db, alice, { storage }).expectError(RESET, {
+        id: doc.id,
+        fields: ['DATE', 'RECEIPT'],
+      });
+      expect(error.code).toBe(ErrorCode.NotFound);
+      const [row] = await db.select().from(documents).where(eq(documents.id, doc.id));
+      expect(row).toMatchObject({ documentDateSource: 'user', receiptSource: 'user' });
     });
   });
 

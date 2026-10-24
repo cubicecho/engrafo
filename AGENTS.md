@@ -402,6 +402,15 @@ always writes them, null when the new text has none, so a re-run does not keep
 the last run's guess. `setDocumentDate` sets or clears the date and marks it
 `user`, so a cleared date stays cleared: null with source `user` means "the
 user says there is none". `metadataPatch` is where the rule is written.
+The way back is `resetDocumentMetadata(id, fields)`, with `DATE` and `RECEIPT`
+reset separately because their sources are separate: it hands the fields named
+back and reads them from the stored text there and then (`readMetadata`, the
+step's own code), on a copy of the row whose named sources are cleared and
+whose others are marked `user`, so the same rule writes it and a field not
+named is not read again behind the caller's back. A document with no text gets
+nulls, no source. Only a `ready` or `failed` document, as with reprocess: one
+in the pipeline is `CONFLICT`, since its metadata step would race the write.
+Nothing is re-indexed, because no passage carries a date or a receipt.
 
 **The date parser is pure and takes the first plausible date.**
 `findDocumentDate` in `metadata/document-date.ts` reads ISO (`2025-03-12`),
@@ -417,7 +426,7 @@ two-digit year last. It has no clock: the step hands it today.
 **A receipt is three fields with one source, and a total is never a float.**
 `vendor`, `total` and `currency` share `receiptSource`: an edit to any of them
 (`setDocumentReceipt` sets all three at once) takes the whole receipt over, and
-the step leaves it alone from then on. The receipt's date is `documentDate`,
+the step leaves it alone from then on, until a `RECEIPT` reset hands it back. The receipt's date is `documentDate`,
 not a column of its own. `total` is Postgres `numeric` with no fixed scale,
 written and read as a decimal string (`12.50`, `1.250` for a three-decimal
 currency) and exposed as drizzle-graphql's `Decimal` scalar: not minor units,
