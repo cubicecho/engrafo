@@ -1,3 +1,10 @@
+# [4.12.0](https://github.com/cubicecho/engrafo/compare/v4.11.0...v4.12.0) (2026-10-24)
+
+
+### Features
+
+* reset a document's date or receipt to automatic ([02e4dc2](https://github.com/cubicecho/engrafo/commit/02e4dc2bcaeef162faf4996345197c687b33e761)), closes [#42](https://github.com/cubicecho/engrafo/issues/42)
+
 # [4.11.0](https://github.com/cubicecho/engrafo/compare/v4.10.0...v4.11.0) (2026-10-24)
 
 
