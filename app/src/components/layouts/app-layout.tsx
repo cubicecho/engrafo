@@ -5,10 +5,11 @@ import { SavedSearchesSidebarSection } from '@/components/domain/saved-searches'
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
-import { FileText, type IconProps, Settings } from '@/components/ui/icons';
+import { FileText, type IconProps, Settings, Trash2 } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { ROUTES } from '@/lib/routes';
 import { useSignOut } from '@/lib/sign-out';
+import { useTrashCount } from '@/lib/trash';
 import type { SlotNode } from '@/lib/utils';
 
 type NavItem = {
@@ -18,12 +19,15 @@ type NavItem = {
   end: boolean;
   /** Where the sidebar draws it: with the places, or at the foot with sign-out, as cubeui apps put Settings. */
   placement: 'main' | 'footer';
+  /** Whether the row wears the trash's count. */
+  counted?: boolean;
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
   // `end` so "Documents" is not also marked active on /documents/:id — that
   // route is a document, not the list, and two lit rows read as a bug.
   { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true, placement: 'main' },
+  { to: ROUTES.trash, label: 'Trash', icon: Trash2, end: true, placement: 'main', counted: true },
   { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false, placement: 'footer' },
 ];
 
@@ -40,14 +44,20 @@ function useNavLink({ to, end }: NavItem) {
   return { href: to, onClick, active };
 }
 
-function RailLink({ item }: { item: NavItem }) {
-  const Icon = item.icon;
-  return <SidebarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} />;
+/** One row of the nav, with the count it wears, if any. */
+interface NavLinkProps {
+  item: NavItem;
+  count?: number | undefined;
 }
 
-function BarLink({ item }: { item: NavItem }) {
+function RailLink({ item, count }: NavLinkProps) {
   const Icon = item.icon;
-  return <BarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} />;
+  return <SidebarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
+}
+
+function BarLink({ item, count }: NavLinkProps) {
+  const Icon = item.icon;
+  return <BarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
 }
 
 function Brand() {
@@ -74,6 +84,9 @@ interface AppLayoutProps {
  */
 export function AppLayout({ contentSlot }: AppLayoutProps) {
   const signOut = useSignOut();
+  // Refetched by name after every delete, restore and purge, so it needs no poll of its own.
+  const trashCount = useTrashCount();
+  const countOf = (item: NavItem) => (item.counted ? trashCount : undefined);
 
   return (
     // `h-svh`, not `min-h-svh`: PageLayout is a sticky chassis that scrolls its
@@ -95,7 +108,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
               <SidebarSection
                 as="nav"
                 label="Main"
-                contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} />)}
+                contentSlot={MAIN_ITEMS.map((item) => <RailLink key={item.to} item={item} count={countOf(item)} />)}
               />
               <ArchiveSidebarSection />
               <SavedSearchesSidebarSection />
@@ -114,7 +127,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
       }
       navLabel="Main"
       // The bar has no foot, so every place is an icon in it, Settings included.
-      navSlot={NAV_ITEMS.map((item) => <BarLink key={item.to} item={item} />)}
+      navSlot={NAV_ITEMS.map((item) => <BarLink key={item.to} item={item} count={countOf(item)} />)}
       // No theme picker in the bar: the compact one is 130px wide and pushes the bar past a 320px
       // viewport. On a phone the theme is one tap away, on the Settings screen.
       actionSlot={

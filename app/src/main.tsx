@@ -14,6 +14,7 @@ import { DocumentsRoute } from '@/routes/documents';
 import { LoginPage } from '@/routes/login';
 import { SettingsRoute } from '@/routes/settings';
 import { SsoPage } from '@/routes/sso';
+import { TrashRoute } from '@/routes/trash';
 import { VerifyPage } from '@/routes/verify';
 import './index.css';
 
@@ -55,6 +56,7 @@ createRoot(root).render(
             <Route path={ROUTES.sso} element={<SsoPage />} />
             <Route path={ROUTES.documents} element={<RequireAuth contentSlot={<DocumentsRoute />} />} />
             <Route path={ROUTES.document} element={<RequireAuth contentSlot={<DocumentRoute />} />} />
+            <Route path={ROUTES.trash} element={<RequireAuth contentSlot={<TrashRoute />} />} />
             <Route path={ROUTES.settings} element={<RequireAuth contentSlot={<SettingsRoute />} />} />
             <Route path="*" element={<Navigate to={ROUTES.documents} replace />} />
           </Routes>

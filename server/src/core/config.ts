@@ -13,9 +13,10 @@ import {
   METADATA_DEFAULTS,
   OCR_DEFAULTS,
   STORAGE_DEFAULTS,
+  TRASH_DEFAULTS,
   WATCH_DEFAULTS,
 } from './defaults.ts';
-import { MS_PER_SECOND } from './wire.ts';
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from './wire.ts';
 
 /** Signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production-0123456789';
@@ -471,5 +472,25 @@ export function watchConfig(): WatchConfig | null {
     owner: process.env.WATCH_OWNER?.trim().toLowerCase() || null,
     pollMs: envPositiveInteger(process.env.WATCH_POLL_SECONDS, WATCH_DEFAULTS.pollSeconds) * MS_PER_SECOND,
     stableMs: envPositiveInteger(process.env.WATCH_STABLE_SECONDS, WATCH_DEFAULTS.stableSeconds) * MS_PER_SECOND,
+  };
+}
+
+/** The trash, as configured. */
+export interface TrashConfig {
+  /** How long a document stays in the trash, in days. */
+  retentionDays: number;
+  /** How often expired documents are purged, in milliseconds. */
+  purgeIntervalMs: number;
+}
+
+/**
+ * Reads the trash's settings. Always on: a deletion is always recoverable for a while.
+ *
+ * @returns The settings.
+ */
+export function trashConfig(): TrashConfig {
+  return {
+    retentionDays: envPositiveInteger(process.env.TRASH_RETENTION_DAYS, TRASH_DEFAULTS.retentionDays),
+    purgeIntervalMs: TRASH_DEFAULTS.purgeIntervalMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND,
   };
 }

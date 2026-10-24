@@ -1,6 +1,7 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, DocumentStatus, documents } from '@cubicecho/engrafo-db/schema';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { notTrashed } from '../trash/trash.ts';
 import { filterConditions, matchesNothing, type SearchFilter } from './filters.ts';
 
 /** One page of a filtered list. */
@@ -41,7 +42,12 @@ export async function browseDocuments(
     .select()
     .from(documents)
     .where(
-      and(eq(documents.userId, userId), ne(documents.status, DocumentStatus.PendingUpload), filterConditions(filter)),
+      and(
+        eq(documents.userId, userId),
+        ne(documents.status, DocumentStatus.PendingUpload),
+        notTrashed(),
+        filterConditions(filter),
+      ),
     )
     .orderBy(sql`${documents.documentDate} desc nulls last`, desc(documents.createdAt), desc(documents.id))
     // One more than asked for says whether there is another page, without a count.

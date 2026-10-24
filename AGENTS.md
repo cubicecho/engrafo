@@ -44,8 +44,8 @@ engrafo/
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
 │       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
-│       ├── routes/          # login, verify, documents (upload + search), document (detail), settings
-│       ├── lib/             # apollo, auth, upload, query, format, archive, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
+│       ├── routes/          # login, verify, documents (upload + search), document (detail), trash, settings
+│       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -82,6 +82,7 @@ engrafo/
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), browse (filters, no search), resolvers
+│       ├── trash/           # trash (notTrashed, trash/restore/purge, deleteStoredFiles), resolvers (trash, restore, purge, empty), purger (the timer)
 │       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -194,8 +195,8 @@ in `folders/names.ts`, and every write that adds or changes a name takes
 `lockNames` (a per-user advisory lock) first, or two requests could both pass
 it. A rename or move onto a taken name is `CONFLICT`, never an overwrite; an
 upload is numbered instead (`scan (2)`), since the same filename twice is not a
-mistake. `deleteFolder` takes everything under it, objects first, under the same
-lock so an upload into it either goes with the rest or finds the folder gone;
+mistake. `deleteFolder` puts everything under it in the trash (see the trash rule below), under the
+same lock so an upload into it either goes with the rest or finds the folder gone;
 `documents.folder_id` is `ON DELETE RESTRICT` so the database can never drop a
 document whose objects are still in the bucket. The behaviour follows
 mcp-ragdown's, which is where the folder name rule comes from.
@@ -236,7 +237,7 @@ to megabytes, no query here reads it, and a list of a thousand documents should
 not drag it along. `createS3Storage` returns a `StorageSet { files, text }`
 sharing one pair of clients; `storeContent()` in `pipeline/content.ts` is the
 only writer, and empty text stores no object at all. The detail page fetches the
-text over a presigned `TEXT` URL, and `deleteDocument` deletes from both buckets.
+text over a presigned `TEXT` URL, and `purgeTrash` deletes from both buckets.
 
 **Search is the one place document text sits in Postgres, and it is an index.**
 The `index` step, last in `STEPS`, cuts the text into passages (paragraphs packed
@@ -662,6 +663,38 @@ so the NULs' side says which UTF-16 it is); then, for HTML only, the page's
 `<meta>` because an editor that re-saves a page rarely fixes its declaration.
 The stored text is always UTF-8, so nothing downstream knows.
 
+**Deleting is putting in the trash; only a purge removes objects.** `deleteDocument`
+stamps `documents.deleted_at` and touches nothing else, so the row, its objects in both
+buckets and its `document_chunks` stay, and `restoreDocument` is the column back to null —
+searchable again at once, with no re-index. A trashed row is out of every read but the
+trash's: the generated ones through the `documents` entry in `tenancy.ts`'s `scope` (ANDed
+with the user, built from the `table` argument because a relation read hands an alias), and
+every hand-written one through `notTrashed()` in `trash/trash.ts` — `loadOwned` (so every
+document mutation answers `NOT_FOUND` for one), search's three reads (the passage reads
+always go through the `documents` subquery now), browse, duplicates, the receipts export,
+the MCP door's `sharedDocuments`, the watched folder's checksum dedupe (dropping a trashed
+file in again files a new copy), and the runner's `execute`, `resume` and `catchUp`. A new
+read of `documents` needs it too, and nothing will say so. drizzle-graphql's own
+`softDelete` is not used: it generates `restoreDocuments` whatever `features` says, and a
+restore here has to follow the name rule and restart the pipeline. A trashed document holds
+no name: `uq_documents_user_folder_title` is partial (`WHERE deleted_at IS NULL`) and
+`namesIn` skips them, so a restore takes `lockNames` and numbers itself with `freeName`
+(`scan (2)`) when the name was taken since. `deleteFolder` deletes the folder rows and moves
+everything in them to the trash with `folder_id` null (rows already trashed lose their folder
+too, since the foreign key is RESTRICT), so a document from a deleted folder restores at the
+top level; recording the path it came from would mean a folder that exists only in the trash.
+A `pending_upload` row is not a document and is still deleted at once, with its object. The
+runner skips a trashed document, so `restoreDocument` re-emits one still `uploaded` or
+`processing`. `purgeTrash` deletes objects then rows inside one transaction holding the rows
+`FOR UPDATE`, so a restore racing it either wins or finds the row gone. It is called by
+`purgeDocument`, `emptyTrash`, and `createTrashPurger` (`trash/purger.ts`), which index.ts
+starts after listening — once at once, then every `TRASH_DEFAULTS.purgeIntervalMinutes` — for
+documents trashed more than `TRASH_RETENTION_DAYS` (`TRASH_DEFAULTS.retentionDays`, 30) ago,
+and `stopOnSignals` stops beside the watcher. The app's Trash page lists `trash { documents }`
+(plain rows, like duplicates: relation fields are not loaded, so the folder is named from the
+archive query); the nav row's badge is `trash { count }`, refetched by name (`TRASH_QUERY_NAMES`)
+after every delete, restore and purge rather than polled.
+
 **Report `NOT_FOUND`, never `FORBIDDEN`.** "You may not touch this" confirms the
 row exists, which is itself something the caller is not entitled to know.
 `loadOwned` in `documents/resolvers.ts` returns `NOT_FOUND` for an id that is not
@@ -767,7 +800,7 @@ the environment and falls back to them. Only config, preflight and the db
 package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
-**Every log line says where it came from.** `[server]`, `[db]`, `[auth]`,
+**Every log line says where it came from.** `[server]`, `[db]`, `[auth]`, `[trash]`,
 `[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[backup]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it

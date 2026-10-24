@@ -10,6 +10,7 @@ import { parseOrThrow } from '../core/validation.ts';
 import { loadOwned } from '../documents/resolvers.ts';
 import { folderAndDescendants, folderPaths } from '../folders/names.ts';
 import { readMetadata } from '../pipeline/steps/metadata.ts';
+import { notTrashed } from '../trash/trash.ts';
 import { csvCell, csvText } from './csv.ts';
 import { calendarDaySchema } from './schemas.ts';
 
@@ -229,6 +230,7 @@ export function applyMetadataExtension(schema: GraphQLSchema): GraphQLSchema {
         and(
           eq(documents.userId, userId),
           ne(documents.status, DocumentStatus.PendingUpload),
+          notTrashed(),
           or(isNotNull(documents.vendor), isNotNull(documents.total)),
           from ? gte(documents.documentDate, from) : undefined,
           to ? lte(documents.documentDate, to) : undefined,

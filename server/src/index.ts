@@ -22,6 +22,7 @@ import {
   port,
   s3Config,
   secureLocalNet,
+  trashConfig,
   watchConfig,
 } from './core/config.ts';
 import { SEARCH_DEFAULTS } from './core/defaults.ts';
@@ -36,6 +37,7 @@ import { detectOcr } from './pipeline/steps/ocr.ts';
 import { detectThumbnailTools } from './pipeline/thumbnail.ts';
 import { createLocalEmbedder } from './search/embedder.ts';
 import { createS3Storage } from './storage/s3.ts';
+import { createTrashPurger } from './trash/purger.ts';
 import { createWatcher, type Watcher } from './watch/watcher.ts';
 
 export type { Context } from './core/context.ts';
@@ -126,6 +128,9 @@ const pipeline = createPipeline({
 const watch = watchConfig();
 const watcher: Watcher | null = watch === null ? null : createWatcher({ db, storage, events, config: watch });
 
+// Always on: what has sat in the trash past its retention period is deleted for good, at boot and hourly.
+const trashPurger = createTrashPurger({ db, storage, config: trashConfig() });
+
 // After migrate: the provider may be a pairing, which lives in the database.
 const authHost = await createAuthHost(db);
 const app = createApp({
@@ -171,12 +176,14 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
     console.log(`[pipeline] running new steps on ${caughtUp} finished document(s)`);
   }
   watcher?.start();
+  trashPurger.start();
 });
 // The watcher first, and waited for, so the file it is filing is either filed and removed or
-// untouched. Then the pipeline: a run the exit cuts off is not a failure, and the next boot resumes it.
+// untouched. The purger too, so a purge is not cut off between its objects and its rows. Then the
+// pipeline: a run the exit cuts off is not a failure, and the next boot resumes it.
 stopOnSignals(server, {
   before: async () => {
-    await watcher?.stop();
+    await Promise.all([watcher?.stop(), trashPurger.stop()]);
     pipeline.stop();
   },
   after: closeDatabase,

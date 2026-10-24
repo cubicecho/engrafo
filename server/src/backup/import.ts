@@ -14,6 +14,7 @@ import { receiptSchema } from '../metadata/resolvers.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType, SNIFF_BYTES, sniffMimeType } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { notTrashed } from '../trash/trash.ts';
 import { ensureFolders } from '../watch/ingest.ts';
 import { folderNames, MANIFEST_NAME, type ManifestDocument, manifestSchema } from './manifest.ts';
 import type { ImportJob } from './state.ts';
@@ -103,7 +104,8 @@ async function readKnown(db: DB, userId: string): Promise<Known> {
   const rows = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.userId, userId), isNotNull(documents.checksumSha256)));
+    // A copy in the trash does not count as filed, as for the watched folder.
+    .where(and(eq(documents.userId, userId), isNotNull(documents.checksumSha256), notTrashed()));
   const known: Known = { filed: new Map(), pending: new Map() };
   for (const row of rows) {
     const checksum = row.checksumSha256 ?? '';

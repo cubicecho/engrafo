@@ -1,6 +1,7 @@
 import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, DocumentStatus, documents, type Folder, folders } from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray, ne } from 'drizzle-orm';
+import { notTrashed } from '../trash/trash.ts';
 
 // What an MCP client may see of one user's archive: the folders whose MCP switch is on, and
 // every folder inside one of them. Everything else (other folders, the top level, other users)
@@ -119,6 +120,7 @@ export async function sharedDocuments(db: DB, userId: string, folderIds: readonl
         inArray(documents.folderId, [...folderIds]),
         // A row whose bytes never arrived is not a document yet.
         ne(documents.status, DocumentStatus.PendingUpload),
+        notTrashed(),
       ),
     )
     .orderBy(documents.createdAt);

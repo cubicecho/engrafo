@@ -1,5 +1,5 @@
 import { documents, folders } from '@cubicecho/engrafo-db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
 import {
@@ -149,7 +149,7 @@ describe('folders', () => {
   });
 
   describe('deleting', () => {
-    it('deletes the folder, the folders under it and every document in them, with their files', async () => {
+    it('deletes the folder and the folders under it, and trashes every document in them', async () => {
       const a = await folder('A');
       const b = await folder('B', a);
       const inA = await upload('one.pdf', a);
@@ -161,13 +161,29 @@ describe('folders', () => {
       const textKey = `text/${userId}/${inB.id}`;
       storage.text.objects.set(textKey, { body: Buffer.from('words'), contentType: 'text/plain' });
       await db.update(documents).set({ contentKey: textKey }).where(eq(documents.id, inB.id));
+      await db
+        .update(documents)
+        .set({ status: 'ready' })
+        .where(inArray(documents.id, [inA.id, inB.id]));
+      const pending = await upload('half.pdf', b);
 
       expect((await client().expectOk(DELETE_FOLDER, { id: a })).deleteFolder).toBe(true);
 
       expect(await db.select({ id: folders.id }).from(folders)).toEqual([]);
-      expect(await db.select({ id: documents.id }).from(documents)).toEqual([{ id: outside.id }]);
-      expect([...storage.files.objects.keys()]).toEqual([outside.originalKey]);
-      expect(storage.text.objects.size).toBe(0);
+      // In the trash, out of the folders that are gone; an upload that never finished is not a
+      // document yet and goes at once.
+      const rows = await db
+        .select({ id: documents.id, folderId: documents.folderId, deletedAt: documents.deletedAt })
+        .from(documents);
+      expect(rows.map((row) => row.id).sort()).toEqual([inA.id, inB.id, outside.id].sort());
+      expect(rows.find((row) => row.id === pending.id)).toBeUndefined();
+      for (const row of rows.filter((r) => r.id !== outside.id)) {
+        expect(row.folderId).toBeNull();
+        expect(row.deletedAt).toBeInstanceOf(Date);
+      }
+      // The files wait for the purge.
+      expect(storage.files.objects.size).toBe(3);
+      expect(storage.text.objects.size).toBe(1);
     });
 
     it('answers NOT_FOUND for someone else’s folder, and leaves it be', async () => {

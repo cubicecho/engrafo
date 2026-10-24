@@ -43,6 +43,7 @@ function doc(values: Partial<Document> = {}): Document {
     mimeType: 'application/pdf',
     sizeBytes: 1,
     checksumSha256: null,
+    deletedAt: null,
     originalKey: 'originals/u/scan',
     archiveKey: null,
     contentKey: null,

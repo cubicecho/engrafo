@@ -11,6 +11,8 @@ export const ROUTES = Object.freeze({
   documents: '/',
   /** One document. Build a link to it with {@link documentPath}. */
   document: '/documents/:id',
+  /** Deleted documents, until they are restored or deleted for good. */
+  trash: '/trash',
   settings: '/settings',
   login: '/login',
   /** Where a magic link lands, carrying its token in the query string. */

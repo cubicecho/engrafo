@@ -39,6 +39,7 @@ import { formatBytes, joinStats } from '@/lib/format';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { ROUTES } from '@/lib/routes';
+import { TRASH_QUERY_NAMES } from '@/lib/trash';
 import { cn, type SlotNode } from '@/lib/utils';
 
 const DocumentDetail = graphql(`
@@ -329,7 +330,9 @@ export function DocumentRoute() {
   const [setReceipt] = useMutation(SetDocumentReceipt);
   const [resetMetadata, resetState] = useMutation(ResetDocumentMetadata);
   // The sidebar's tree still lists it until the archive is read again.
-  const [remove, removeState] = useMutation(DeleteDocument, { refetchQueries: [ARCHIVE_QUERY_NAME] });
+  const [remove, removeState] = useMutation(DeleteDocument, {
+    refetchQueries: [ARCHIVE_QUERY_NAME, ...TRASH_QUERY_NAMES],
+  });
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const busy = doc ? isInProgress(doc.status) : false;
@@ -476,9 +479,9 @@ export function DocumentRoute() {
             iconSlot={<Trash2 />}
             content={<WideLabel text="Delete" />}
             aria-label="Delete"
-            title="Delete this document?"
-            description="The uploaded file, its searchable PDF and the text extracted from it are deleted from storage and cannot be recovered."
-            confirmLabel="Delete"
+            title="Move this document to the trash?"
+            description="It waits in the Trash, where it can be restored, until it is deleted for good."
+            confirmLabel="Move to trash"
             onConfirm={() => deleteThis(doc.id)}
           />
         </>
@@ -587,9 +590,9 @@ export function DocumentRoute() {
                 variant="outline"
                 iconSlot={<Trash2 />}
                 content="Delete this copy"
-                title="Delete this copy?"
-                description="This copy's uploaded file, its searchable PDF and its extracted text are deleted from storage. Your other copies are kept."
-                confirmLabel="Delete"
+                title="Move this copy to the trash?"
+                description="Your other copies are kept. This one waits in the Trash, where it can be restored, until it is deleted for good."
+                confirmLabel="Move to trash"
                 onConfirm={() => deleteThis(doc.id)}
               />
             }
