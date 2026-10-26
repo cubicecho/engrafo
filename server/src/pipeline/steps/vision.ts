@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ask, type SideTaskInput } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db';
+import { VisionImageDetail } from '@cubicecho/engrafo-db/schema';
 import { OCR_DEFAULTS, VISION_DEFAULTS } from '../../core/defaults.ts';
 import { errorMessage } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
@@ -92,12 +93,20 @@ export function rasterArgs(
  *
  * @param image - The page's bytes.
  * @param mimeType - The image's media type, which the data URL carries.
+ * @param detail - How closely the model looks at it, the admin's setting.
  * @returns The instruction's object and the page it applies to, as OpenAI content parts.
  */
-export function pageInput(image: Buffer, mimeType: string): SideTaskInput {
+export function pageInput(
+  image: Buffer,
+  mimeType: string,
+  detail: VisionImageDetail = VisionImageDetail.Auto,
+): SideTaskInput {
+  const url = `data:${mimeType};base64,${image.toString('base64')}`;
   return [
     { type: 'text', text: 'Transcribe this page.' },
-    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${image.toString('base64')}` } },
+    // `auto` is sent as no `detail` at all, which is what it means, and what a server that does
+    // not know the field has always been sent.
+    { type: 'image_url', image_url: detail === VisionImageDetail.Auto ? { url } : { url, detail } },
   ];
 }
 
@@ -178,8 +187,8 @@ async function transcribe(storage: StorageSet, doc: Document, vision: VisionConf
     const label = `page ${index + 1} of ${pages.length}`;
     const image = await readFile(page.file);
     try {
-      const text = await ask(vision, vision.model, TRANSCRIBE, pageInput(image, page.mimeType), {
-        maxTokens: VISION_DEFAULTS.pageMaxTokens,
+      const text = await ask(vision, vision.model, TRANSCRIBE, pageInput(image, page.mimeType, vision.imageDetail), {
+        maxTokens: vision.maxResponseTokens,
         // Transcription, not generation: the same page twice should read the same way twice.
         temperature: 0,
         onNotice: notice,

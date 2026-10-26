@@ -19,7 +19,10 @@ interface OpenAIRequest {
   temperature?: number;
   max_tokens?: number;
   max_completion_tokens?: number;
-  messages: Array<{ role: string; content: string | Array<{ type: string; image_url?: { url: string } }> }>;
+  messages: Array<{
+    role: string;
+    content: string | Array<{ type: string; image_url?: { url: string; detail?: string } }>;
+  }>;
 }
 
 /**
@@ -63,6 +66,8 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
     apiKey: '',
     model: 'test-vlm',
     requestTimeoutSeconds: 30,
+    maxResponseTokens: 8192,
+    imageDetail: 'auto',
     auto: true,
   };
   return { vision, bodies, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
@@ -73,6 +78,8 @@ const VISION: VisionConfig = {
   apiKey: '',
   model: 'test-vlm',
   requestTimeoutSeconds: 30,
+  maxResponseTokens: 8192,
+  imageDetail: 'auto',
   auto: false,
 };
 const CONFIG: RunConfig = {
@@ -195,6 +202,15 @@ describe('vision step', () => {
       { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${PIXEL.toString('base64')}` } },
     ]);
   });
+
+  it('sends the image detail the admin chose, and none at all for auto', () => {
+    const image = (detail?: 'auto' | 'low' | 'high') =>
+      (pageInput(PIXEL, 'image/png', detail)[1] as unknown as { image_url: Record<string, string> }).image_url;
+    expect(image('low').detail).toBe('low');
+    expect(image('high').detail).toBe('high');
+    expect(image('auto')).not.toHaveProperty('detail');
+    expect(image()).not.toHaveProperty('detail');
+  });
 });
 
 describe('vision step against an OpenAI-compatible endpoint', () => {
@@ -213,6 +229,22 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       const parts = request.messages.at(-1)?.content as Array<{ type: string }>;
       expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
       expect(shownImage(request)).toBe(`data:image/jpeg;base64,${PIXEL.toString('base64')}`);
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('caps the reply and sets the detail as the admin set them', async () => {
+    const endpoint = await fakeEndpoint(() => 'INVOICE 4821');
+    try {
+      await runStep({
+        ...CONFIG,
+        vision: { ...endpoint.vision, maxResponseTokens: 1024, imageDetail: 'low' },
+      });
+      const [request] = endpoint.bodies;
+      expect(request.max_tokens ?? request.max_completion_tokens).toBe(1024);
+      const parts = request.messages.at(-1)?.content as Array<{ image_url?: { detail?: string } }>;
+      expect(parts[1].image_url?.detail).toBe('low');
     } finally {
       await endpoint.close();
     }

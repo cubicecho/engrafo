@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import type { VisionSettingsInput } from '@/__generated__/graphql';
-import { VISION_TIMEOUT_DEFAULT_SECONDS, VisionSettingsCard } from './vision-settings';
+import { VisionImageDetail, type VisionSettingsInput } from '@/__generated__/graphql';
+import {
+  VISION_MAX_RESPONSE_DEFAULT_TOKENS,
+  VISION_TIMEOUT_DEFAULT_SECONDS,
+  VisionSettingsCard,
+} from './vision-settings';
 
 /**
  * The vision model card, against a mock server built from the real SDL. The server keeps what is
@@ -23,6 +27,8 @@ interface StoredSettings {
   hasApiKey: boolean;
   auto: boolean;
   requestTimeoutSeconds: number;
+  maxResponseTokens: number;
+  imageDetail: VisionImageDetail;
 }
 
 const OFF: StoredSettings = {
@@ -31,6 +37,8 @@ const OFF: StoredSettings = {
   hasApiKey: false,
   auto: true,
   requestTimeoutSeconds: VISION_TIMEOUT_DEFAULT_SECONDS,
+  maxResponseTokens: VISION_MAX_RESPONSE_DEFAULT_TOKENS,
+  imageDetail: VisionImageDetail.Auto,
 };
 const ON_OLLAMA: StoredSettings = { ...OFF, baseUrl: OLLAMA, model: 'qwen2.5vl:7b' };
 
@@ -76,6 +84,8 @@ function server(initial: StoredSettings, listError?: string): Server {
             hasApiKey: input.apiKey === undefined ? stored.hasApiKey : input.apiKey !== '',
             auto: input.auto,
             requestTimeoutSeconds: input.requestTimeoutSeconds ?? VISION_TIMEOUT_DEFAULT_SECONDS,
+            maxResponseTokens: input.maxResponseTokens ?? VISION_MAX_RESPONSE_DEFAULT_TOKENS,
+            imageDetail: input.imageDetail ?? VisionImageDetail.Auto,
           };
           return view();
         },
@@ -132,8 +142,35 @@ export const PicksAModelAndSaves: Story = {
       model: 'gemma3:12b',
       auto: false,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: VisionImageDetail.Auto,
     });
     await expect('apiKey' in (picking.saves[0] ?? {})).toBe(false);
+  },
+};
+
+const tuning = server(ON_OLLAMA);
+
+/** Under Advanced: a shorter cap on each reply and low detail, sent as the server spells them. */
+export const SetsReplyLengthAndDetail: Story = {
+  parameters: { apolloClient: { resolvers: tuning.resolvers } },
+  play: async ({ canvas }) => {
+    await canvas.findByText('Connected');
+    await userEvent.click(canvas.getByRole('button', { name: 'Advanced' }));
+    const cap = await canvas.findByRole('spinbutton', { name: /Longest reply/ });
+    await expect(cap).toHaveAttribute('placeholder', String(VISION_MAX_RESPONSE_DEFAULT_TOKENS));
+    await expect(canvas.getByRole('radio', { name: /^Auto/ })).toBeChecked();
+
+    // Below the floor is refused here, before a save can be.
+    await userEvent.type(cap, '100');
+    await expect(await canvas.findByText('At least 256 tokens')).toBeInTheDocument();
+    await userEvent.clear(cap);
+    await userEvent.type(cap, '2048');
+    await userEvent.click(canvas.getByRole('radio', { name: /^Low/ }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Saved')).toBeInTheDocument();
+    await expect(tuning.saves[0]).toMatchObject({ maxResponseTokens: 2048, imageDetail: VisionImageDetail.Low });
   },
 };
 

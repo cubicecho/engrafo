@@ -1,4 +1,11 @@
-import { type Document, DocumentStatus, documents, processingSteps, StepStatus } from '@cubicecho/engrafo-db/schema';
+import {
+  type Document,
+  DocumentStatus,
+  documents,
+  processingSteps,
+  StepStatus,
+  VisionImageDetail,
+} from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray, or } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
@@ -22,6 +29,16 @@ import { isConfigured, readVisionSettings, saveVisionSettings } from './settings
 // the base URL it was stored with.
 
 const VISION_SDL = parse(`
+  "How closely the model looks at a page: OpenAI's image \`detail\`."
+  enum VisionImageDetail {
+    "Sent as no \`detail\`, so the server decides."
+    AUTO
+    "The page scaled to fit 512×512. Much faster on a local model; fine print may be lost."
+    LOW
+    "The page at full size."
+    HIGH
+  }
+
   "How the vision model that re-reads scanned pages is set up. The admin's to read and change."
   type VisionSettings {
     "The OpenAI-compatible base URL, or null when none is set."
@@ -34,6 +51,10 @@ const VISION_SDL = parse(`
     auto: Boolean!
     "How long one page may take, in seconds."
     requestTimeoutSeconds: Int!
+    "The longest reply one page may get, in tokens."
+    maxResponseTokens: Int!
+    "How closely the model looks at a page."
+    imageDetail: VisionImageDetail!
     "Whether a base URL and a model are both set, so documents can be read."
     configured: Boolean!
   }
@@ -47,6 +68,10 @@ const VISION_SDL = parse(`
     auto: Boolean!
     "Left out or null is the default."
     requestTimeoutSeconds: Int
+    "Left out or null is the default."
+    maxResponseTokens: Int
+    "Left out or null is AUTO."
+    imageDetail: VisionImageDetail
   }
 
   "A model an endpoint offers, as its \`/models\` lists it."
@@ -91,6 +116,12 @@ const VISION_SDL = parse(`
 // transaction, so running them again over a finished document is safe.
 const RERUN_STEPS = [VISION_STEP, 'metadata', 'index'];
 
+const VISION_DETAIL_BY_NAME = {
+  AUTO: VisionImageDetail.Auto,
+  LOW: VisionImageDetail.Low,
+  HIGH: VisionImageDetail.High,
+} as const;
+
 const settingsInputSchema = z.object({
   baseUrl: z
     .string()
@@ -124,6 +155,24 @@ const settingsInputSchema = z.object({
     )
     .nullish()
     .transform((value) => value ?? null),
+  maxResponseTokens: z
+    .number()
+    .int()
+    .min(
+      VISION_DEFAULTS.minPageMaxTokens,
+      `A reply may be capped at no fewer than ${VISION_DEFAULTS.minPageMaxTokens} tokens.`,
+    )
+    .max(
+      VISION_DEFAULTS.maxPageMaxTokens,
+      `A reply may be capped at no more than ${VISION_DEFAULTS.maxPageMaxTokens} tokens.`,
+    )
+    .nullish()
+    .transform((value) => value ?? null),
+  // The SDL's names are the stored values in capitals.
+  imageDetail: z
+    .enum(['AUTO', 'LOW', 'HIGH'])
+    .nullish()
+    .transform((value) => (value ? VISION_DETAIL_BY_NAME[value] : null)),
 });
 
 /**
@@ -148,6 +197,8 @@ async function visionSettings(context: Context) {
     hasApiKey: Boolean(row?.apiKey),
     auto: row?.auto ?? false,
     requestTimeoutSeconds: row?.requestTimeoutSeconds ?? VISION_DEFAULTS.requestTimeoutSeconds,
+    maxResponseTokens: row?.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
+    imageDetail: (row?.imageDetail ?? VisionImageDetail.Auto).toUpperCase(),
     configured: isConfigured(row),
   };
 }

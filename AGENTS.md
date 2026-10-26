@@ -622,7 +622,12 @@ form's model list is filled from, as soon as the stored endpoint is known)
 sends the stored key only to the base URL it was stored with, and refuses
 redirects. `PipelineConfig` is still decided at boot, but the runner calls
 `loadVision()` at the start of every run and hands the steps a `RunConfig`
-with `vision`, so a change reaches the next document without a restart. The
+with `vision`, so a change reaches the next document without a restart. Under
+Advanced the admin also sets the longest reply (`max_response_tokens`, null is
+`VISION_DEFAULTS.pageMaxTokens`) and the image `detail` (`low`, `high`, or
+`auto`, which null means and which sends no `detail` at all): a local encoder's
+prefill grows with the square of the page's size, and `low` (512×512) is what
+makes it fast, at the cost of fine print. The
 `vision` step sits after `ebook` and before `metadata`, breaking "new steps go
 last" because it produces text. It runs when a model is set up, the document is
 a PDF or an image, and either `visionRequested` is set or the model is on
