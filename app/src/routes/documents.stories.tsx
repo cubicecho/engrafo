@@ -134,6 +134,20 @@ export const ExportingReceipts: Story = {
   },
 };
 
+/** Before the archive is in: a loading state, not "No documents yet" for an archive that has some. */
+export const Loading: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: archiveServer({ folders: [], documents: [document({ title: 'Tax return' })] }),
+      delay: 100_000,
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    await expect(canvas.queryByText('No documents yet')).not.toBeInTheDocument();
+  },
+};
+
 /** The other empty-looking state, so the two can be compared side by side in the sidebar. */
 export const Unreachable: Story = {
   parameters: {

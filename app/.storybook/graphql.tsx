@@ -6,6 +6,7 @@ import { buildSchema, print } from 'graphql';
 import { GraphQLHandler, type types as graphqlMocks } from 'graphql-mocks';
 import { type ReactElement, type ReactNode, useMemo } from 'react';
 import schemaSource from '@/__generated__/schema.graphql?raw';
+import { sessionOverLink } from '@/lib/apollo';
 
 // `graphql-mocks` publishes its types only through the namespace on the package root; there is
 // no `graphql-mocks/types` entry in its exports map.
@@ -31,6 +32,11 @@ export interface ApolloParameters {
   resolvers?: ResolverMap;
   /** Milliseconds before the mock server answers. Set it to keep a story in its loading state. */
   delay?: number;
+  /**
+   * Called where the app would reload into sign-in, after a `resolvers` server answers
+   * `UNAUTHENTICATED`. The token is dropped either way, by the app's own link.
+   */
+  onSessionOver?: () => void;
 }
 
 // Built once. `buildSchema` on the full SDL is not cheap, and a browser-mode run renders every
@@ -103,10 +109,14 @@ function MockServer({ parameters, children }: { parameters: ApolloParameters; ch
   const client = useMemo(
     () =>
       new ApolloClient({
-        link: handlerLink(parameters.resolvers ?? {}, parameters.delay ?? 0),
+        // The app's own session link in front, so a story sees the token dropped as the app would.
+        link: ApolloLink.from([
+          sessionOverLink(parameters.onSessionOver ?? (() => undefined)),
+          handlerLink(parameters.resolvers ?? {}, parameters.delay ?? 0),
+        ]),
         cache: new InMemoryCache(),
       }),
-    [parameters.resolvers, parameters.delay],
+    [parameters.resolvers, parameters.delay, parameters.onSessionOver],
   );
 
   return <ApolloProvider client={client}>{children}</ApolloProvider>;

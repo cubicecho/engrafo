@@ -1,5 +1,6 @@
 import type { MockLink } from '@apollo/client/testing';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { GraphQLError } from 'graphql';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import {
   CompleteDocumentUploadDocument,
@@ -223,6 +224,47 @@ export const StorageRefusesTheUpload: Story = {
     await waitFor(() =>
       expect(canvas.getByRole('listitem')).toHaveTextContent(/Storage rejected the upload \(HTTP 403\)/i),
     );
+  },
+};
+
+/**
+ * The server refuses before there is anything to PUT: a type its allowlist has since dropped, or
+ * a full disk. The row says why, and the bucket is never asked.
+ */
+export const ServerRefusesTheUpload: Story = {
+  parameters: {
+    apolloClient: {
+      mocks: [
+        {
+          request: {
+            query: CreateDocumentUploadDocument,
+            variables: {
+              input: {
+                filename: 'scan.pdf',
+                mimeType: 'application/pdf',
+                sizeBytes: SCAN_BYTES,
+                ocr: true,
+                folderId: null,
+              },
+            },
+          },
+          result: {
+            errors: [
+              new GraphQLError('This server no longer accepts PDFs', { extensions: { code: 'BAD_USER_INPUT' } }),
+            ],
+          },
+        },
+      ],
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.upload(fileInput(canvasElement), file('scan.pdf', SCAN_BYTES));
+
+    const job = await canvas.findByRole('listitem');
+    await waitFor(() => expect(job).toHaveTextContent('This server no longer accepts PDFs'));
+    await expect(job).toHaveTextContent('Failed');
+    await expect(args.onChanged).not.toHaveBeenCalled();
   },
 };
 
