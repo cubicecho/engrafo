@@ -28,6 +28,10 @@ export const processingSteps = pgTable(
     status: stepStatus('status').notNull().default('queued'),
     attempts: integer('attempts').notNull().default(0),
     error: text('error'),
+    // How far a running step has got, for a step that can say: the vision model's pages read and
+    // the pages there are. Both null when it has not said, and cleared each time the step starts.
+    progressDone: integer('progress_done'),
+    progressTotal: integer('progress_total'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

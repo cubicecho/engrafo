@@ -34,6 +34,8 @@ function step(overrides: Partial<Step>): Step {
     error: null,
     startedAt: '2026-09-02T11:04:00.000Z',
     finishedAt: '2026-09-02T11:04:02.000Z',
+    progressDone: null,
+    progressTotal: null,
     ...overrides,
   };
 }
@@ -902,6 +904,53 @@ export const ReadingWithVision: Story = {
     await expect(await canvas.findByRole('tab', { name: 'History Processing' })).toBeInTheDocument();
     // Queued again, so it is no longer something to start.
     await expect(canvas.queryByRole('button', { name: /vision model/ })).not.toBeInTheDocument();
+  },
+};
+
+const PAGES = 12;
+const PAGES_READ = 2;
+
+/**
+ * The vision model partway through a scan: the History tab says which page it is on, so it can be
+ * followed from the preview, and the step's row says it again with a bar.
+ */
+export const ReadingPages: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => ({
+            ...SCAN(),
+            status: DocumentStatusEnum.Processing,
+            processingSteps: [
+              step({ step: 'inspect' }),
+              step({ step: 'ocr' }),
+              step({
+                step: 'vision',
+                status: StepStatusEnum.Running,
+                finishedAt: null,
+                progressDone: PAGES_READ,
+                progressTotal: PAGES,
+              }),
+              step({ step: 'index', status: StepStatusEnum.Queued, finishedAt: null }),
+            ],
+          }),
+          documentFileUrl: () => textUrl(TEXT),
+          serverConfig: serverConfig({ visionAvailable: true }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('tab', { name: 'History Page 3/12' })).toBeInTheDocument();
+
+    await openTab(canvas, 'History');
+    const rows = within(canvas.getByRole('list', { name: 'Pipeline steps' })).getAllByRole('listitem');
+    await expect(rows[2]).toHaveTextContent('Page 3 of 12');
+    const bar = within(rows[2]).getByRole('progressbar', { name: 'Vision model progress' });
+    await expect(bar).toHaveAttribute('aria-valuenow', String(PAGES_READ));
+    await expect(bar).toHaveAttribute('aria-valuemax', String(PAGES));
+    await expect(bar).toHaveAttribute('aria-valuetext', 'Page 3 of 12');
   },
 };
 

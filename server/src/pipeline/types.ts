@@ -41,6 +41,12 @@ export interface StepContext {
   embedder: Embedder;
   /** Scratch space for this run, removed when the run ends however it ends. */
   tmpDir: string;
+  /**
+   * Records how far the step has got, which the document page shows while it runs: `done` of
+   * `total` units (the vision step's are pages). Optional to call; a step that never does shows
+   * as running with no count.
+   */
+  reportProgress(done: number, total: number): Promise<void>;
 }
 
 /** The columns a step may write back onto its document. */

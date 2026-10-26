@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import { textStep } from '../../pipeline/steps/text.ts';
 import type { RunConfig, StepContext } from '../../pipeline/types.ts';
-import { createFakeEmbedder, createFakeStorage, createTestDb, type FakeStorage } from '../helpers.ts';
+import { createFakeEmbedder, createFakeStorage, createTestDb, type FakeStorage, noProgress } from '../helpers.ts';
 
 const CONFIG: RunConfig = {
   ocrAvailable: true,
@@ -67,6 +67,7 @@ describe('text step', () => {
       storage,
       config: CONFIG,
       embedder: createFakeEmbedder(),
+      reportProgress: noProgress,
       tmpDir,
     });
   });

@@ -37,6 +37,7 @@ import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
 import { DOCUMENT_TAB_PARAM, type DocumentTab, documentTab, tabSearch } from '@/lib/document-tabs';
 import { formatBytes, joinStats } from '@/lib/format';
 import { FULL_WIDTH_BODY } from '@/lib/page';
+import { stepProgress } from '@/lib/pipeline-steps';
 import { queryLike } from '@/lib/query';
 import { ROUTES } from '@/lib/routes';
 import { TRASH_QUERY_NAMES } from '@/lib/trash';
@@ -78,6 +79,8 @@ const DocumentDetail = graphql(`
         error
         startedAt
         finishedAt
+        progressDone
+        progressTotal
       }
     }
   }
@@ -243,12 +246,28 @@ function readsWithVision(mimeType: string): boolean {
   return mimeType === 'application/pdf' || mimeType.startsWith('image/');
 }
 
+interface CountedStep {
+  step: string;
+  status: StepStatus;
+  progressDone?: number | null | undefined;
+  progressTotal?: number | null | undefined;
+}
+
 /**
  * The mark on the History tab while there is something to see there: the pipeline still running,
- * or stopped on a failure. Named, so it is read as part of the tab's name.
+ * or stopped on a failure. Named, so it is read as part of the tab's name. A running step that
+ * counts (the vision model's pages) shows its count instead, so it can be followed from any tab.
  */
-function historyMark(status: DocumentStatus): SlotNode {
+function historyMark(status: DocumentStatus, steps: readonly CountedStep[]): SlotNode {
   if (isInProgress(status)) {
+    const counting = steps.find(
+      (step) => step.status === StepStatus.Running && step.progressDone != null && (step.progressTotal ?? 0) > 0,
+    );
+    if (counting?.progressDone != null && counting.progressTotal != null) {
+      return (
+        <Badge variant="info">{stepProgress(counting.step, counting.progressDone, counting.progressTotal).short}</Badge>
+      );
+    }
     return <Badge variant="info" pulse label="Processing" />;
   }
   if (status === DocumentStatus.Failed) {
@@ -623,7 +642,11 @@ export function DocumentRoute() {
                   <TabsTrigger value="text" linkSlot={tabLink('text')}>
                     Text
                   </TabsTrigger>
-                  <TabsTrigger value="history" linkSlot={tabLink('history')} trailingSlot={historyMark(doc.status)}>
+                  <TabsTrigger
+                    value="history"
+                    linkSlot={tabLink('history')}
+                    trailingSlot={historyMark(doc.status, doc.processingSteps)}
+                  >
                     History
                   </TabsTrigger>
                 </TabsList>

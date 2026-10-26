@@ -146,6 +146,7 @@ async function runStep(config: RunConfig, document: Document = doc(), body: Buff
     storage.files.objects.set(document.archiveKey, { body, contentType: 'application/pdf' });
   }
   const tmpDir = await mkdtemp(join(tmpdir(), 'engrafo-vision-test-'));
+  const progress: Array<[done: number, total: number]> = [];
   try {
     const run = visionStep.run({
       doc: document,
@@ -154,8 +155,11 @@ async function runStep(config: RunConfig, document: Document = doc(), body: Buff
       config,
       embedder: createFakeEmbedder(),
       tmpDir,
+      reportProgress: async (done, total) => {
+        progress.push([done, total]);
+      },
     });
-    return { patch: await run, storage };
+    return { patch: await run, storage, progress };
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -216,10 +220,14 @@ describe('vision step', () => {
 });
 
 describe('vision step against an OpenAI-compatible endpoint', () => {
-  it('shows the page to the model as uploaded, at temperature 0, and stores what comes back', async () => {
+  it('shows the page to the model as uploaded, at the set temperature, and stores what comes back', async () => {
     const endpoint = await fakeEndpoint(() => 'INVOICE 4821\nDue on receipt');
     try {
-      const { patch, storage } = await runStep({ ...CONFIG, vision: endpoint.vision });
+      const { patch, storage, progress } = await runStep({ ...CONFIG, vision: endpoint.vision });
+      expect(progress).toEqual([
+        [0, 1],
+        [1, 1],
+      ]);
 
       expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe('INVOICE 4821\nDue on receipt');
       expect(patch?.contentBytes).toBe(27);
@@ -335,9 +343,19 @@ describe.skipIf((hasPillow && hasGhostscript && hasMagick) === false)('documents
       await exec('magick', ['-size', '600x800', 'xc:white', '-size', '600x400', 'xc:gray', pdf]);
       const document = doc({ mimeType: 'application/pdf', archiveKey: 'archives/u/scan.pdf' });
 
-      const { patch, storage } = await runStep({ ...CONFIG, vision: endpoint.vision }, document, await readFile(pdf));
+      const { patch, storage, progress } = await runStep(
+        { ...CONFIG, vision: endpoint.vision },
+        document,
+        await readFile(pdf),
+      );
 
       expect(endpoint.bodies).toHaveLength(2);
+      // Said before each page is sent, then once all are read.
+      expect(progress).toEqual([
+        [0, 2],
+        [1, 2],
+        [2, 2],
+      ]);
       const stored = storage.text.objects.get(patch?.contentKey ?? '')?.body.toString() ?? '';
       const sizes = stored.split('\n\n').map((line) => Number(line.match(/(\d+)/)?.[1]));
       expect(sizes).toHaveLength(2);

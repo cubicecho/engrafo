@@ -13,7 +13,7 @@ import type { VisionConfig } from '../../vision/settings.ts';
 import { storeContent } from '../content.ts';
 import { pngHasTransparency, toOpaquePng } from '../image.ts';
 import { isImage, isOcrable, needsPngForOcr } from '../mime.ts';
-import type { PipelineStep } from '../types.ts';
+import type { PipelineStep, StepContext } from '../types.ts';
 
 const exec = promisify(execFile);
 
@@ -173,7 +173,13 @@ async function pageImages(storage: StorageSet, doc: Document, dir: string): Prom
  * @throws When there are too many pages, a page does not come back, or every page came back
  *   blank, with a message saying which.
  */
-async function transcribe(storage: StorageSet, doc: Document, vision: VisionConfig, dir: string): Promise<string> {
+async function transcribe(
+  storage: StorageSet,
+  doc: Document,
+  vision: VisionConfig,
+  dir: string,
+  reportProgress: StepContext['reportProgress'],
+): Promise<string> {
   const pages = await pageImages(storage, doc, dir);
   if (pages === null) {
     throw new Error(`More than ${VISION_DEFAULTS.maxPages} pages, which is more than the vision model is given.`);
@@ -185,6 +191,7 @@ async function transcribe(storage: StorageSet, doc: Document, vision: VisionConf
   const transcript: string[] = [];
   for (const [index, page] of pages.entries()) {
     const label = `page ${index + 1} of ${pages.length}`;
+    await reportProgress(index, pages.length);
     const image = await readFile(page.file);
     try {
       const text = await ask(vision, vision.model, TRANSCRIBE, pageInput(image, page.mimeType, vision.imageDetail), {
@@ -197,6 +204,7 @@ async function transcribe(storage: StorageSet, doc: Document, vision: VisionConf
       throw new Error(`The vision model did not read ${label}: ${errorMessage(error)}`);
     }
   }
+  await reportProgress(pages.length, pages.length);
 
   // Every page blank is a model that answered without reading, not a blank document, and
   // `storeContent` would take the empty string as "no text" and drop the object the text is in.
@@ -228,7 +236,7 @@ export const visionStep: PipelineStep = {
   name: VISION_STEP,
   enabled: (doc, { vision }) =>
     vision !== null && isOcrable(doc.mimeType) && (doc.visionRequested || (vision.auto && doc.ocrRequested)),
-  async run({ doc, storage, config, tmpDir }) {
+  async run({ doc, storage, config, tmpDir, reportProgress }) {
     const { vision } = config;
     if (vision === null) {
       return undefined;
@@ -241,7 +249,7 @@ export const visionStep: PipelineStep = {
 
     let content: string;
     try {
-      content = await transcribe(storage, doc, vision, dir);
+      content = await transcribe(storage, doc, vision, dir, reportProgress);
     } catch (error) {
       if (doc.visionRequested) {
         throw error;

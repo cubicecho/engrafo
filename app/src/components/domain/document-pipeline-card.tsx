@@ -3,8 +3,9 @@ import { CardLayout } from '@/components/card-layout';
 import { StepStatusBadge } from '@/components/domain/status-badge';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { Progress } from '@/components/ui/progress';
 import { formatAgo, formatDateTime, joinStats } from '@/lib/format';
-import { stepInfo } from '@/lib/pipeline-steps';
+import { stepInfo, stepProgress } from '@/lib/pipeline-steps';
 
 /** One row of `processing_steps`, as the detail query selects it. */
 export interface PipelineStep {
@@ -17,6 +18,9 @@ export interface PipelineStep {
   /** Why the step failed, when it did. */
   error: string | null;
   finishedAt: string | null;
+  /** How many of `progressTotal` a step that counts has finished. Null until it says. */
+  progressDone?: number | null | undefined;
+  progressTotal?: number | null | undefined;
 }
 
 interface DocumentPipelineCardProps {
@@ -42,6 +46,22 @@ function stepLine(step: PipelineStep): string | null {
   return info.description || null;
 }
 
+/** The count and bar under a running step that has said how far it has got, else nothing. */
+function runningProgress(step: PipelineStep) {
+  const { progressDone, progressTotal } = step;
+  if (step.status !== StepStatusEnum.Running || progressDone == null || progressTotal == null || progressTotal <= 0) {
+    return null;
+  }
+  const { line } = stepProgress(step.step, progressDone, progressTotal);
+  const label = stepInfo(step.step).label;
+  return (
+    <span className="flex flex-col gap-1.5">
+      <span>{line}</span>
+      <Progress value={progressDone} max={progressTotal} label={`${label} progress`} valueLabel={line} />
+    </span>
+  );
+}
+
 /** How far the pipeline got with a document: one row per step, with its status and what went wrong. */
 export function DocumentPipelineCard({ ocrRequested, visionRequested, uploadedAt, steps }: DocumentPipelineCardProps) {
   return (
@@ -61,11 +81,14 @@ export function DocumentPipelineCard({ ocrRequested, visionRequested, uploadedAt
               key={step.id}
               className="px-0"
               title={stepInfo(step.step).label}
-              description={joinStats(
-                stepLine(step),
-                step.attempts > 1 && `${step.attempts} attempts`,
-                step.finishedAt && formatAgo(step.finishedAt),
-              )}
+              description={
+                runningProgress(step) ??
+                joinStats(
+                  stepLine(step),
+                  step.attempts > 1 && `${step.attempts} attempts`,
+                  step.finishedAt && formatAgo(step.finishedAt),
+                )
+              }
               meta={<StepStatusBadge status={step.status} />}
             />
           ))}

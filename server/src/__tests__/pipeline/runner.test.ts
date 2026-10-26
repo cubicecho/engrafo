@@ -130,6 +130,51 @@ describe('pipeline runner', () => {
     expect((await stepsOf(doc.id)).find((step) => step.step === 'flaky')?.attempts).toBe(2);
   });
 
+  it('records how far a running step has got, and starts a re-run from nothing', async () => {
+    const seen: Array<[number | null, number | null]> = [];
+    let shouldFail = true;
+    const paged: PipelineStep = {
+      name: 'paged',
+      enabled: () => true,
+      run: async ({ doc, reportProgress }) => {
+        const [row] = await stepsOf(doc.id);
+        seen.push([row.progressDone, row.progressTotal]);
+        await reportProgress(1, 3);
+        const [after] = await stepsOf(doc.id);
+        seen.push([after.progressDone, after.progressTotal]);
+        if (shouldFail) {
+          throw new Error('page 2 of 3');
+        }
+        return undefined;
+      },
+    };
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [paged],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+      log: () => {},
+    });
+    const doc = await insertDocument();
+
+    await pipeline.run(doc.id);
+    // A failure keeps the count, so the timeline can say where it stopped.
+    expect((await stepsOf(doc.id))[0]).toMatchObject({ status: 'failed', progressDone: 1, progressTotal: 3 });
+
+    shouldFail = false;
+    await db.update(documents).set({ status: 'uploaded' }).where(eq(documents.id, doc.id));
+    await pipeline.run(doc.id);
+
+    expect(seen).toEqual([
+      [null, null],
+      [1, 3],
+      [null, null],
+      [1, 3],
+    ]);
+  });
+
   it('runs a document emitted twice only once', async () => {
     let runs = 0;
     const slow: PipelineStep = {

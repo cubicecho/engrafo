@@ -2,7 +2,7 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { metadataPatch, metadataStep } from '../../pipeline/steps/metadata.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
-import { createFakeEmbedder, createFakeStorage, type TestDb } from '../helpers.ts';
+import { createFakeEmbedder, createFakeStorage, noProgress, type TestDb } from '../helpers.ts';
 
 const CONFIG: RunConfig = {
   ocrAvailable: false,
@@ -114,7 +114,14 @@ describe('the metadata step', () => {
     const storage = createFakeStorage();
     const receipt = 'Bäckerei Müller\nIssued 1 March 2024\nBrot 3,50\nSumme EUR 3,50';
     storage.text.objects.set('text/u/d', { body: Buffer.from(receipt), contentType: 'text/plain' });
-    const context = { db: {} as TestDb, storage, config: CONFIG, embedder: createFakeEmbedder(), tmpDir: '/tmp' };
+    const context = {
+      db: {} as TestDb,
+      storage,
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+      reportProgress: noProgress,
+      tmpDir: '/tmp',
+    };
 
     expect(metadataStep.enabled(doc(), CONFIG)).toBe(true);
     expect(await metadataStep.run({ ...context, doc: doc({ contentKey: 'text/u/d' }) })).toEqual({
