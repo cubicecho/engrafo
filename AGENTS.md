@@ -42,7 +42,7 @@ engrafo/
 │       ├── components/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
-│       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page
+│       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page; require-auth: the gate in front of it
 │       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
 │       ├── routes/          # login, verify, documents (upload + search), document (detail), trash, settings
 │       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()

@@ -23,6 +23,12 @@ const config: StorybookConfig = {
 
   framework: { name: '@storybook/react-vite', options: {} },
 
+  // The vendored primitives' own stories, from the Storybook cubeui publishes, so they can be
+  // looked up from here without being copied in.
+  refs: {
+    cubeui: { title: 'cubeui', url: 'https://cubicecho.github.io/cubeui/storybook' },
+  },
+
   // This is a private app, not a library. Nothing here needs to be reported upstream, and CI
   // should not make a network call it does not need.
   core: { disableTelemetry: true },

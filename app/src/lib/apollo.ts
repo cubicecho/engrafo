@@ -18,17 +18,29 @@ const httpLink = new HttpLink({
   },
 });
 
-// A session that expired, was signed out elsewhere or was lost to a server
-// restart fails every request the same way. Drop it and start over at sign-in rather than rendering a page
-// of errors.
-const errorLink = new ErrorLink(({ error }) => {
-  const isSessionOver =
-    CombinedGraphQLErrors.is(error) && error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED');
-  const isOtherFailure = isSessionOver === false;
-  if (isOtherFailure) {
-    return;
-  }
-  clearToken();
+/**
+ * Drops the token when the server says the session is over, then hands the redirect to the
+ * caller. A session that expired, was signed out elsewhere or was lost to a server restart
+ * fails every request the same way, so starting over at sign-in beats a page of errors.
+ *
+ * @param onSessionOver - Where to go once the token is gone. The app reloads into sign-in;
+ *   a story records the call instead, since a reload would take the story with it.
+ * @returns The link, to put in front of whatever sends the request.
+ */
+export function sessionOverLink(onSessionOver: () => void): ApolloLink {
+  return new ErrorLink(({ error }) => {
+    const isSessionOver =
+      CombinedGraphQLErrors.is(error) && error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED');
+    const isOtherFailure = isSessionOver === false;
+    if (isOtherFailure) {
+      return;
+    }
+    clearToken();
+    onSessionOver();
+  });
+}
+
+const errorLink = sessionOverLink(() => {
   if (window.location.pathname !== ROUTES.login) {
     window.location.assign(ROUTES.login);
   }

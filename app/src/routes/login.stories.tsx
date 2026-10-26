@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent } from 'storybook/test';
+import { GraphQLError } from 'graphql';
+import { Route, Routes } from 'react-router';
+import { expect, fn, userEvent, type within } from 'storybook/test';
+import { clearToken, getToken } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { LoginPage } from './login';
 
@@ -42,13 +45,53 @@ function newInstance() {
   };
 }
 
+const EMAIL = 'archivist@example.com';
+
+const signInRequests = fn();
+
+/** A server whose `requestSignIn` answers with `answer`, recording each address it was asked for. */
+function signIn(answer: () => unknown) {
+  return {
+    Query: resolvers(null).Query,
+    Mutation: {
+      requestSignIn: (_parent: unknown, args: { email: string }) => {
+        signInRequests(args.email);
+        return answer();
+      },
+    },
+  };
+}
+
+/** The page, and the archive it sends a signed-in reader on to. */
+function Framed() {
+  return (
+    <Routes>
+      <Route path={ROUTES.login} element={<LoginPage />} />
+      <Route path={ROUTES.documents} element={<h1>The archive</h1>} />
+    </Routes>
+  );
+}
+
+/** Types the address and asks for a link, as a reader would. */
+async function requestLink(canvas: ReturnType<typeof within>, email = EMAIL) {
+  await userEvent.type(await canvas.findByRole('textbox', { name: /email/i }), email);
+  await userEvent.click(canvas.getByRole('button', { name: 'Send sign-in link' }));
+}
+
 const meta = {
   title: 'Routes/Login',
   component: LoginPage,
+  render: () => <Framed />,
   parameters: {
     layout: 'fullscreen',
     router: { initialEntries: [ROUTES.login] },
     apolloClient: { resolvers: resolvers(null) },
+  },
+  beforeEach: () => {
+    signInRequests.mockClear();
+    // A token left by another story would send this page straight on to the archive.
+    clearToken();
+    return () => clearToken();
   },
 } satisfies Meta<typeof LoginPage>;
 
@@ -114,5 +157,107 @@ export const SetUpNewInstance: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Connect' }));
     await expect(await canvas.findByText('Paired with heautou')).toBeInTheDocument();
     await expect(await canvas.findByRole('link', { name: 'Sign in with heautou' })).toBeInTheDocument();
+  },
+};
+
+/** An address the browser can tell is not one: the form stays, and nothing is asked of the server. */
+export const InvalidAddress: Story = {
+  parameters: { apolloClient: { resolvers: signIn(() => ({ sent: true, magicLink: null, session: null })) } },
+  play: async ({ canvas }) => {
+    await requestLink(canvas, 'not-an-address');
+    await expect(canvas.getByRole('textbox', { name: /email/i })).toBeInvalid();
+    await expect(signInRequests).not.toHaveBeenCalled();
+    await expect(canvas.queryByText(/We sent a sign-in link/)).not.toBeInTheDocument();
+  },
+};
+
+/** The link is on its way: the page says where, and offers to start again with another address. */
+export const LinkSent: Story = {
+  parameters: { apolloClient: { resolvers: signIn(() => ({ sent: true, magicLink: null, session: null })) } },
+  play: async ({ canvas }) => {
+    await requestLink(canvas);
+    await expect(await canvas.findByText(`We sent a sign-in link to ${EMAIL}.`)).toBeInTheDocument();
+    await expect(canvas.getByText('Open the link in that email to finish signing in.')).toBeInTheDocument();
+    await expect(canvas.queryByRole('link', { name: 'Sign in now' })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Use a different email' }));
+    await expect(await canvas.findByRole('textbox', { name: /email/i })).toBeInTheDocument();
+    await expect(signInRequests).toHaveBeenCalledOnce();
+    await expect(signInRequests).toHaveBeenCalledWith(EMAIL);
+  },
+};
+
+/**
+ * An instance that exposes its links hands this one back: followed on this origin, whatever
+ * origin `APP_URL` gave it, so a development server sends the reader to Vite, not to itself.
+ */
+export const LinkShown: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: signIn(() => ({
+        sent: true,
+        magicLink: 'http://localhost:3004/auth/verify?token=link-token',
+        session: null,
+      })),
+    },
+  },
+  play: async ({ canvas }) => {
+    await requestLink(canvas);
+    const link = await canvas.findByRole('link', { name: 'Sign in now' });
+    await expect(link).toHaveAttribute('href', `${ROUTES.verify}?token=link-token`);
+    await expect(
+      canvas.getByText('This instance exposes sign-in links, so you can skip the email.'),
+    ).toBeInTheDocument();
+  },
+};
+
+/** On a `SECURE_LOCAL_NET` instance the answer is a session: kept, and straight on to the archive. */
+export const SignedInDirectly: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: signIn(() => ({ sent: false, magicLink: null, session: { token: 'a-new-session' } })),
+    },
+  },
+  play: async ({ canvas }) => {
+    await requestLink(canvas);
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'The archive' })).toBeInTheDocument();
+    await expect(getToken()).toBe('a-new-session');
+  },
+};
+
+/** Too many requests for one address or from one network: the server's reason is on the page. */
+export const RateLimited: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: signIn(() => {
+        throw new GraphQLError('Too many sign-in attempts. Try again in a minute.', {
+          extensions: { code: 'TOO_MANY_REQUESTS' },
+        });
+      }),
+    },
+  },
+  play: async ({ canvas }) => {
+    await requestLink(canvas);
+    const alert = await canvas.findByRole('alert');
+    await expect(alert).toHaveTextContent('Could not send the sign-in link');
+    await expect(alert).toHaveTextContent('Too many sign-in attempts. Try again in a minute.');
+    // Still the form, so the reader can try again once the limit has passed.
+    await expect(canvas.getByRole('textbox', { name: /email/i })).toHaveValue(EMAIL);
+  },
+};
+
+/** A request that fails for any other reason says so too, rather than claiming a link was sent. */
+export const RequestFails: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: signIn(() => {
+        throw new Error('The server is restarting');
+      }),
+    },
+  },
+  play: async ({ canvas }) => {
+    await requestLink(canvas);
+    const alert = await canvas.findByRole('alert');
+    await expect(alert).toHaveTextContent('The server is restarting');
+    await expect(canvas.queryByText(/We sent a sign-in link/)).not.toBeInTheDocument();
   },
 };
