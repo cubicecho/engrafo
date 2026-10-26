@@ -1,3 +1,11 @@
+# [4.14.0](https://github.com/cubicecho/engrafo/compare/v4.13.0...v4.14.0) (2026-10-26)
+
+
+### Features
+
+* **vision:** set the longest reply and the image detail in Settings ([4974964](https://github.com/cubicecho/engrafo/commit/4974964d286f0715bb9fc4f6eee895524e99c76e))
+* **vision:** set the sampling temperature in Settings, 0.6 by default ([935c68b](https://github.com/cubicecho/engrafo/commit/935c68bdd85cbcf51112f0a227ccfcbc3c347f69))
+
 # [4.13.0](https://github.com/cubicecho/engrafo/compare/v4.12.0...v4.13.0) (2026-10-24)
 
 
