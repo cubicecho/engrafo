@@ -133,3 +133,37 @@ export const UnknownStep: Story = {
     await expect(within(row).getByText('translate')).toBeInTheDocument();
   },
 };
+
+/** The vision step running before it has rendered the pages: what it does, and no bar yet. */
+export const RunningBeforeACount: Story = {
+  args: { ocrRequested: true, steps: [step({ step: 'vision', status: StepStatusEnum.Running, finishedAt: null })] },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Reads the pages with a vision model')).toBeInTheDocument();
+    await expect(canvas.queryByRole('progressbar')).not.toBeInTheDocument();
+  },
+};
+
+const DONE = 3;
+const TOTAL = 10;
+
+/** A step that counts but names no unit says only how many are done. */
+export const CountingWithoutAUnit: Story = {
+  args: {
+    ocrRequested: false,
+    steps: [
+      step({
+        step: 'translate',
+        status: StepStatusEnum.Running,
+        finishedAt: null,
+        progressDone: DONE,
+        progressTotal: TOTAL,
+      }),
+    ],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('3 of 10')).toBeInTheDocument();
+    const bar = canvas.getByRole('progressbar', { name: 'translate progress' });
+    await expect(bar).toHaveAttribute('aria-valuenow', String(DONE));
+    await expect(within(bar.parentElement ?? bar).queryByText(/Page/)).not.toBeInTheDocument();
+  },
+};

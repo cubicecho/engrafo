@@ -1,0 +1,81 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0b16146f-98eb-4ecd-8ff4-ead2f47d282d",
+  "prevIds": [
+    "1f32dccb-6966-4b4c-abbd-e1efd3cda19d"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "processing_steps",
+        "progress_done"
+      ],
+      "writes": [
+        "s|col|public.processing_steps.progress_done",
+        "n|col|public.processing_steps.progress_done",
+        "e|col|public.processing_steps.progress_done"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "processing_steps",
+        "progress_total"
+      ],
+      "writes": [
+        "s|col|public.processing_steps.progress_total",
+        "n|col|public.processing_steps.progress_total",
+        "e|col|public.processing_steps.progress_total"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "processing_steps",
+        "name": "progress_done",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "processing_steps",
+        "name": "progress_total",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

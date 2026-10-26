@@ -267,6 +267,9 @@ export function bornDigitalPdf(text: string): Buffer {
   return Buffer.from(pdf, 'latin1');
 }
 
+/** A step context's `reportProgress` for a test that does not look at it. */
+export async function noProgress(): Promise<void> {}
+
 /**
  * An embedder that needs no model: each word is hashed to one of the vector's dimensions, so
  * texts that share words point the same way and the cosine is their overlap. Deterministic,

@@ -637,6 +637,11 @@ a PDF or an image, and either `visionRequested` is set or the model is on
 archive (already deskewed and upright) at 200 DPI with Ghostscript; an image
 goes as uploaded, WebP, GIF and a see-through PNG as `toOpaquePng`, and a TIFF
 as a PNG per frame, so a multi-page scan keeps its later pages.
+The step reports each page through `reportProgress(done, total)` on its context, which writes
+`processing_steps.progress_done` / `progress_total` (cleared whenever a step starts). The
+document page polls while it runs, shows "Page 3 of 12" with a bar on the step's History row,
+and swaps the History tab's dot for "Page 3/12"; any step can report, and the app says only
+"3 of 12" for one with no `unit` in `lib/pipeline-steps.ts`.
 
 **All pages or nothing, and who asked decides what a failure means.** A page
 that does not come back, every page blank (a model that did not read, not a

@@ -16,7 +16,14 @@ import {
   thumbnailSource,
 } from '../../pipeline/thumbnail.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
-import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, epubFile, type FakeStorage } from '../helpers.ts';
+import {
+  bornDigitalPdf,
+  createFakeEmbedder,
+  createFakeStorage,
+  epubFile,
+  type FakeStorage,
+  noProgress,
+} from '../helpers.ts';
 
 const exec = promisify(execFile);
 
@@ -163,6 +170,7 @@ describe('thumbnail step', { timeout: 60_000 }, () => {
       storage,
       config,
       embedder: createFakeEmbedder(),
+      reportProgress: noProgress,
       tmpDir: dir,
     });
   }

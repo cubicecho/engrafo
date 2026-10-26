@@ -6,7 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ebookStep } from '../../pipeline/steps/ebook.ts';
 import { inspectStep } from '../../pipeline/steps/inspect.ts';
 import type { RunConfig, StepContext } from '../../pipeline/types.ts';
-import { createFakeEmbedder, createFakeStorage, createTestDb, epubFile, type FakeStorage } from '../helpers.ts';
+import {
+  createFakeEmbedder,
+  createFakeStorage,
+  createTestDb,
+  epubFile,
+  type FakeStorage,
+  noProgress,
+} from '../helpers.ts';
 
 const CONFIG: RunConfig = {
   ocrAvailable: true,
@@ -80,6 +87,7 @@ describe('ebook step', () => {
       storage,
       config: CONFIG,
       embedder: createFakeEmbedder(),
+      reportProgress: noProgress,
       tmpDir,
     });
   });

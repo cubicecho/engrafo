@@ -6,6 +6,11 @@ export interface StepInfo {
   description: string;
   /** Why a step ends up `skipped`, said instead of `description` once it has. */
   skipped: string;
+  /**
+   * What the step counts when it reports progress, as a capitalised noun: `Page`. A step with one
+   * says which item it is on ("Page 3 of 12"); one without says only how many are done.
+   */
+  unit?: string;
 }
 
 // Keyed by the name the server stores on every `processing_steps` row (server/src/pipeline/steps).
@@ -39,6 +44,7 @@ const STEPS: Readonly<Record<string, StepInfo>> = Object.freeze({
     label: 'Vision model',
     description: 'Reads the pages with a vision model',
     skipped: 'No vision model is set up, or it was not asked for',
+    unit: 'Page',
   },
   metadata: {
     label: 'Metadata',
@@ -62,4 +68,30 @@ const STEPS: Readonly<Record<string, StepInfo>> = Object.freeze({
 export function stepInfo(step: string): StepInfo {
   // Own keys only: a step called `constructor` must not find Object's.
   return (Object.hasOwn(STEPS, step) ? STEPS[step] : undefined) ?? { label: step, description: '', skipped: '' };
+}
+
+/** How far a running step has got, in the words the timeline and the tab say it. */
+export interface StepProgress {
+  /** "Page 3 of 12", or "3 of 12" for a step that names no unit. */
+  line: string;
+  /** "Page 3/12", for a tab. */
+  short: string;
+}
+
+/**
+ * Words for a step's reported progress.
+ *
+ * @param step - The step's stored name.
+ * @param done - How many units are finished.
+ * @param total - How many there are.
+ * @returns What to say. A step with a unit names the one it is on, the one after the last done,
+ *   so the first page reads "Page 1" while it is being read, not "Page 0".
+ */
+export function stepProgress(step: string, done: number, total: number): StepProgress {
+  const { unit } = stepInfo(step);
+  if (unit === undefined) {
+    return { line: `${done} of ${total}`, short: `${done}/${total}` };
+  }
+  const current = Math.min(done + 1, total);
+  return { line: `${unit} ${current} of ${total}`, short: `${unit} ${current}/${total}` };
 }

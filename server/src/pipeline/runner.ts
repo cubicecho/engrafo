@@ -183,12 +183,16 @@ export function createPipeline({
           status: StepStatus.Running,
           attempts,
           error: null,
+          progressDone: null,
+          progressTotal: null,
           startedAt: new Date(),
           finishedAt: null,
         });
+        const reportProgress = (progressDone: number, progressTotal: number) =>
+          setStep(documentId, step.name, { progressDone, progressTotal });
 
         try {
-          const patch = await step.run({ doc, db, storage, config: runConfig, embedder, tmpDir });
+          const patch = await step.run({ doc, db, storage, config: runConfig, embedder, tmpDir, reportProgress });
           if (patch && Object.keys(patch).length > 0) {
             const [updated] = await db.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
             if (!updated) {

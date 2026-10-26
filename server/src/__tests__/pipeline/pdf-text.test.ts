@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { detectPdfText } from '../../pipeline/pdf-text.ts';
 import { pdfTextStep } from '../../pipeline/steps/pdf-text.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
-import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb } from '../helpers.ts';
+import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb, noProgress } from '../helpers.ts';
 
 const CONFIG: RunConfig = {
   ocrAvailable: true,
@@ -82,6 +82,7 @@ describe.skipIf((await detectPdfText()) === false)('pdftotext integration', () =
         storage,
         config: CONFIG,
         embedder: createFakeEmbedder(),
+        reportProgress: noProgress,
         tmpDir,
       });
 
