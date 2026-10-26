@@ -1,6 +1,3 @@
-import { Monitor, Moon, Sun } from "@/components/ui/icons";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { usePalettePreference, useThemePreference } from "@/components/ui/theme-preference";
 import {
   DARK_ONLY_PALETTES,
   isPalettePreference,
@@ -9,6 +6,9 @@ import {
   type ThemePreference,
 } from "@/components/ui/theme-preference-base";
 import { cn } from "@/lib/utils";
+import { Monitor, Moon, Sun } from "@/components/ui/icons";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { usePalettePreference, useThemePreference } from "@/components/ui/theme-preference";
 
 type ThemePickerProps = {
   /**

@@ -1,8 +1,8 @@
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import type { ComponentPropsWithRef } from "react";
 import { CHECKBOX_CLASS } from "@/components/ui/checkbox-base";
-import { Check } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
+import { Check } from "@/components/ui/icons";
 
 /**
  * radix's props, with `className` re-declared for `exactOptionalPropertyTypes`. Every prop of the

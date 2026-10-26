@@ -1,7 +1,7 @@
 import { Children, createContext, isValidElement, type ReactNode, useContext } from "react";
-import { CircleAlert, Info, TriangleAlert } from "@/components/ui/icons";
 import { IconClassContext } from "@/components/ui/icons-base";
 import { cn, type SlotNode } from "@/lib/utils";
+import { CircleAlert, Info, TriangleAlert } from "@/components/ui/icons";
 
 /** The kinds of callout, which pick its tint, icon and role. */
 export type AlertVariant = "default" | "info" | "warning" | "destructive";

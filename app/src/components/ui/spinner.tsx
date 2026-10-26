@@ -1,3 +1,5 @@
+import { type SpinnerProps, spinnerClass } from "@/components/ui/spinner-base";
+import { cn } from "@/lib/utils";
 /**
  * The web spinner: shadcn's — `LoaderCircle` with `animate-spin`, a
  * `role="status"` named `Loading`. `spinner.tsx` is the native counterpart and
@@ -12,8 +14,6 @@
  * a button's label, a muted line — unless `className` names one.
  */
 import { LoaderCircle } from "@/components/ui/icons";
-import { type SpinnerProps, spinnerClass } from "@/components/ui/spinner-base";
-import { cn } from "@/lib/utils";
 
 export type { SpinnerProps };
 

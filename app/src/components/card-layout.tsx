@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Children } from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DescriptionHint,
   DescriptionHintText,
   type DescriptionPlacement,
 } from "@/components/ui/description-hint";
-import { cn, type SlotNode } from "@/lib/utils";
 
 export type CardLayoutProps = {
   /** The body. */

@@ -13,7 +13,7 @@ export type Ink = {
  * ink must not flip when the theme does. A chip that reads in light mode and vanishes in dark
  * mode is the bug this whole function exists to stop.
  */
-export const INK: Ink = { dark: '#000000', light: '#ffffff' };
+export const INK: Ink = { dark: "#000000", light: "#ffffff" };
 
 /** `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, with or without the `#`. */
 const HEX = /^#?(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -40,16 +40,16 @@ function channels(hex: string): [number, number, number] | undefined {
     return undefined;
   }
 
-  const digits = hex.replace('#', '');
+  const digits = hex.replace("#", "");
   // Shorthand doubles each digit — `#f80` is `#ff8800`, not `#0f0800`. auto-cal's version slices
   // fixed offsets out of the string instead, so a three-digit colour parses as something else
   // entirely and returns an ink for a colour nobody picked.
   const full =
     digits.length <= SHORTHAND_DIGITS
       ? digits
-          .split('')
+          .split("")
           .map((digit) => digit + digit)
-          .join('')
+          .join("")
       : digits;
 
   return [RED, GREEN, BLUE].map(
@@ -73,7 +73,9 @@ const FLARE = 0.05;
 /** WCAG 2.x relative luminance. The piecewise curve is the standard sRGB transfer function. */
 function luminance([r, g, b]: [number, number, number]): number {
   const linear = ([r, g, b] as const).map((channel) =>
-    channel <= SRGB_LINEAR_BELOW ? channel / SRGB_LINEAR_DIVISOR : ((channel + SRGB_OFFSET) / SRGB_SCALE) ** SRGB_GAMMA,
+    channel <= SRGB_LINEAR_BELOW
+      ? channel / SRGB_LINEAR_DIVISOR
+      : ((channel + SRGB_OFFSET) / SRGB_SCALE) ** SRGB_GAMMA,
   ) as [number, number, number];
 
   return RED_WEIGHT * linear[0] + GREEN_WEIGHT * linear[1] + BLUE_WEIGHT * linear[2];
@@ -96,7 +98,10 @@ function contrast(a: number, b: number): number {
  * <span style={{ background: tag.color, color: readableTextColor(tag.color) }}>{tag.name}</span>
  * ```
  */
-export function readableTextColor(color: string | null | undefined, ink: Ink = INK): string | undefined {
+export function readableTextColor(
+  color: string | null | undefined,
+  ink: Ink = INK,
+): string | undefined {
   if (!color) {
     return undefined;
   }

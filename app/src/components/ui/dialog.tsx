@@ -1,6 +1,5 @@
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
-import { Button } from "@/components/ui/button";
 import type {
   DialogCloseProps,
   DialogContentProps,
@@ -12,8 +11,9 @@ import type {
   DialogTriggerProps,
 } from "@/components/ui/dialog-base";
 import { DIALOG_CONTENT_CLASS } from "@/components/ui/dialog-base";
-import { X } from "@/components/ui/icons";
 import { bridgePress, cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { X } from "@/components/ui/icons";
 
 /** The shared contract, widened to what the radix part (or element) underneath accepts. */
 type Wide<Base, Radix> = Base & Omit<Radix, keyof Base>;

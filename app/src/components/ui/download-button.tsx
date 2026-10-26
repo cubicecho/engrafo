@@ -1,3 +1,9 @@
+import {
+  type DownloadButtonProps,
+  type DownloadContent,
+  type DownloadDestination,
+  useDownload,
+} from "@/components/ui/download-button-base";
 /**
  * The web download button: the browser's own download, through an `<a download>`.
  * `download-button.tsx` is the native counterpart and `download-button-base.ts` holds what they
@@ -8,12 +14,6 @@
  * install an Expo module to click a link.
  */
 import { Button } from "@/components/ui/button";
-import {
-  type DownloadButtonProps,
-  type DownloadContent,
-  type DownloadDestination,
-  useDownload,
-} from "@/components/ui/download-button-base";
 import { Download } from "@/components/ui/icons";
 
 export type { DownloadButtonProps, DownloadContent, DownloadDestination };

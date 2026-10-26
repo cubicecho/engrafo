@@ -1,6 +1,5 @@
 import { Select as SelectPrimitive } from "radix-ui";
 import type { ComponentPropsWithRef, ElementType } from "react";
-import { Check, ChevronDown, ChevronUp } from "@/components/ui/icons";
 import {
   SELECT_CONTENT_CLASS,
   SELECT_ICON_CLASS,
@@ -12,6 +11,7 @@ import {
   SELECT_TRIGGER_TEXT_CLASS,
 } from "@/components/ui/select-base";
 import { cn } from "@/lib/utils";
+import { Check, ChevronDown, ChevronUp } from "@/components/ui/icons";
 
 // Each part's props are radix's, with `className` re-declared: radix types it `className?: string`,
 // which under `exactOptionalPropertyTypes` rejects the `cond ? "x" : undefined` call sites pass.

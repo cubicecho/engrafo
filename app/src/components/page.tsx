@@ -1,7 +1,7 @@
 import { Children, Fragment, isValidElement, type ReactElement } from "react";
+import { cn, type SlotNode } from "@/lib/utils";
 import { EmptyState, type EmptyStateProps } from "@/components/empty-state";
 import { PageHeader, type PageHeaderProps } from "@/components/page-header";
-import { cn, type SlotNode } from "@/lib/utils";
 
 type PageProps = {
   className?: string;

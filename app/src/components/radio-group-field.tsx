@@ -2,8 +2,6 @@ import type { AnyFieldApi, DeepKeys } from "@tanstack/react-form";
 import { useStore } from "@tanstack/react-form";
 import type { ReactNode } from "react";
 import * as React from "react";
-import { FieldDescription, FieldError, FieldTitle } from "@/components/ui/field";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { messageOf } from "@/lib/error-message";
 import {
   type BindableForm,
@@ -13,6 +11,8 @@ import {
   type ValuesOf,
 } from "@/lib/form-binding";
 import { cn, type SlotNode } from "@/lib/utils";
+import { FieldDescription, FieldError, FieldTitle } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 /** One choice. `description` is the line under it — what picking this one means. */
 export type RadioOption = {

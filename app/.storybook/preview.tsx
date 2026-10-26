@@ -1,46 +1,12 @@
-import type { MockLink } from '@apollo/client/testing';
 import { withThemeByClassName } from '@storybook/addon-themes';
 import type { Preview, ReactRenderer } from '@storybook/react-vite';
-import { print } from 'graphql';
-import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { addons } from 'storybook/internal/preview-api';
-import { type ApolloClientAddonState, EVENTS } from 'storybook-addon-apollo-client';
 import { ROUTES } from '../src/lib/routes';
 import { type ApolloParameters, withApollo } from './graphql';
 
 // The app's own stylesheet, tokens and all. A harness that renders these components from a
 // second set of tokens is not showing the same components, and the drift would be invisible.
 import '../src/index.css';
-
-function mockName(mock: MockLink.MockedResponse): string {
-  const operation = mock.request.query.definitions.find((definition) => definition.kind === 'OperationDefinition');
-  return operation && 'name' in operation && operation.name ? operation.name.value : 'Unnamed';
-}
-
-function stringify(value: unknown): string | undefined {
-  try {
-    return value === undefined ? undefined : JSON.stringify(value, null, 2);
-  } catch {
-    return undefined;
-  }
-}
-
-function panelState(mocks: readonly MockLink.MockedResponse[], activeIndex: number): ApolloClientAddonState {
-  const mock = mocks[activeIndex];
-  const options = mocks.map(mockName);
-  if (!mock) {
-    return { options, activeIndex: -1 };
-  }
-  return {
-    options,
-    activeIndex,
-    query: print(mock.request.query),
-    variables: stringify(mock.request.variables),
-    result: stringify('result' in mock ? mock.result : undefined),
-    error: 'error' in mock && mock.error ? String(mock.error) : undefined,
-  };
-}
 
 const preview: Preview = {
   parameters: {
@@ -57,19 +23,9 @@ const preview: Preview = {
       // stated; nothing upstream checks a story against it.
       const parameters: ApolloParameters | undefined = context.parameters.apolloClient;
 
-      // The addon ships a panel and no decorator, so the mocks it displays have to be handed to
-      // it from here. Only `mocks` has anything to show — a `resolvers` story has no list of
-      // canned responses to page through.
-      useEffect(() => {
-        const mocks = parameters?.mocks ?? [];
-        const channel = addons.getChannel();
-        const emit = (index: number) => channel.emit(EVENTS.RESULT, panelState(mocks, index));
-
-        emit(mocks.length ? 0 : -1);
-        channel.on(EVENTS.REQUEST, emit);
-        return () => channel.off(EVENTS.REQUEST, emit);
-      }, [parameters]);
-
+      // The addon draws its panel from `parameters.apolloClient.mocks` by itself (v11 adds that
+      // decorator from main.ts); the provider is still ours, because a `resolvers` story runs a
+      // mock server the addon knows nothing about, and every story needs a client either way.
       return withApollo(<Story />, parameters);
     },
 

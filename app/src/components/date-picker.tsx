@@ -1,15 +1,15 @@
 import { format as formatDateFns } from "date-fns";
 import type { AriaAttributes, ComponentProps, ReactNode } from "react";
 import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 // `DateRange` comes from the registry's own calendar contract, not react-day-picker: the native
 // `Calendar` implements the same shape and cannot import from a web library.
 import type { DateRange } from "@/components/ui/calendar-base";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, X } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 export type { DateRange };
 

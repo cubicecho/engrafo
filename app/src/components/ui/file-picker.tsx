@@ -1,5 +1,4 @@
 import { type DragEvent, type ReactNode, useRef, useState } from "react";
-import { buttonTextVariants, buttonVariants } from "@/components/ui/button";
 import {
   acceptsFile,
   FILE_PICKER_HINT_CLASS,
@@ -10,8 +9,9 @@ import {
   type FilePickerProps,
   type PickedFile,
 } from "@/components/ui/file-picker-base";
-import { Upload } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
+import { buttonTextVariants, buttonVariants } from "@/components/ui/button";
+import { Upload } from "@/components/ui/icons";
 
 type PickOptions = Pick<
   FilePickerProps,

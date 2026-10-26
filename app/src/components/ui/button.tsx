@@ -2,10 +2,10 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { IconClassContext } from "@/components/ui/icons-base";
-import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TooltipSide } from "@/components/ui/tooltip-base";
 import { cn, type SlotNode } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** The button's container classes for each `variant` and `size`. */
 const buttonVariants = cva(
