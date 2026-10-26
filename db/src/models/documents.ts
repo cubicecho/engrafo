@@ -40,6 +40,14 @@ export const documentStatus = pgEnum('document_status', [
 export const fieldSource = pgEnum('field_source', ['extracted', 'user']);
 
 /**
+ * How a document's stored text is written. `markdown` has headings the index cuts it by and the
+ * app can draw formatted: a Markdown upload, an ebook's chapters, a web page's h1-h6, and what a
+ * vision model wrote when it was asked for Markdown. `plain` is everything else, an OCR sidecar
+ * included, whose line breaks are the page's and would be lost if read as Markdown.
+ */
+export const contentFormat = pgEnum('content_format', ['plain', 'markdown']);
+
+/**
  * One row per uploaded file: its metadata and the keys of its objects. The bytes and the
  * extracted text live in the buckets, never here.
  */
@@ -74,6 +82,8 @@ export const documents = pgTable(
     // tool, or a render that failed, which never fails the document.
     thumbnailKey: text('thumbnail_key'),
     contentBytes: bigint('content_bytes', { mode: 'number' }),
+    // How the text at contentKey is written. Set with it, by storeContent.
+    contentFormat: contentFormat('content_format').notNull().default('plain'),
     // The date on the document (a receipt's, a letter's), not when it was uploaded: a calendar
     // day with no time and no zone, which is what is printed on paper.
     documentDate: date('document_date', { mode: 'string' }),
@@ -133,6 +143,13 @@ export const FieldSource = {
   Extracted: 'extracted',
   User: 'user',
 } as const satisfies Record<string, FieldSource>;
+/** One value of the `contentFormat` enum. */
+export type ContentFormat = (typeof contentFormat.enumValues)[number];
+/** The formats by name. */
+export const ContentFormat = {
+  Plain: 'plain',
+  Markdown: 'markdown',
+} as const satisfies Record<string, ContentFormat>;
 /** One value of the `documentStatus` enum. */
 export type DocumentStatus = (typeof documentStatus.enumValues)[number];
 /** The statuses by name, for code that sets or compares one. */

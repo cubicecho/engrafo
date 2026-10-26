@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent } from 'storybook/test';
+import { ContentFormatEnum } from '@/__generated__/graphql';
 import { MOCK_BUCKET_DENIED } from '../../../.storybook/mock-bucket.ts';
 import { DocumentTextCard } from './document-text-card';
 
@@ -114,5 +115,60 @@ export const NothingStored: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.queryByRole('heading', { name: 'Text' })).not.toBeInTheDocument();
     await expect(canvas.queryByRole('button', { name: 'Download text' })).not.toBeInTheDocument();
+  },
+};
+
+const NOTES =
+  '# Kettle manual\n\nFill to the line.\nThen boil.\n\n- Descale monthly\n\n![Diagram](https://tracker.example/pixel.png)';
+
+/**
+ * Text stored as Markdown opens formatted: its heading is a heading and its list a list. An image
+ * is said by its alt text and never fetched, so the page tells no server the document was opened.
+ * Plain shows the characters stored.
+ */
+export const MarkdownFormatted: Story = {
+  args: {
+    doc: {
+      id: ID,
+      contentKey: 'text/notes.txt',
+      contentBytes: NOTES.length,
+      contentFormat: ContentFormatEnum.Markdown,
+    },
+  },
+  parameters: { apolloClient: { resolvers: { Query: { documentFileUrl: () => textUrl(NOTES) } } } },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Kettle manual' })).toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Formatted' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(canvas.getByRole('listitem')).toHaveTextContent('Descale monthly');
+    await expect(canvas.getByText('[Diagram]')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('img')).toBeNull();
+    await expect(canvas.getByRole('button', { name: 'Copy text' })).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Plain' }));
+    await expect(canvas.queryByRole('heading', { name: 'Kettle manual' })).not.toBeInTheDocument();
+    await expect(canvas.getByText(/# Kettle manual/)).toBeInTheDocument();
+  },
+};
+
+const SCAN = 'INVOICE 4821\nDue on receipt';
+
+/**
+ * Plain text opens as it is stored, line breaks and all, which Markdown would join into one
+ * paragraph. Formatted is still there to ask for.
+ */
+export const PlainOpensPlain: Story = {
+  args: {
+    doc: { id: ID, contentKey: 'text/scan.txt', contentBytes: SCAN.length, contentFormat: ContentFormatEnum.Plain },
+  },
+  parameters: { apolloClient: { resolvers: { Query: { documentFileUrl: () => textUrl(SCAN) } } } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/INVOICE 4821/)).toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Plain' })).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Formatted' }));
+    await expect(canvas.getByRole('button', { name: 'Formatted' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      canvas.getByText('INVOICE 4821 Due on receipt', { normalizer: (text) => text.replace(/\s+/g, ' ').trim() }),
+    ).toBeInTheDocument();
   },
 };

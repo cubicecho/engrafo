@@ -629,7 +629,10 @@ Advanced the admin also sets the longest reply (`max_response_tokens`, null is
 prefill grows with the square of the page's size, and `low` (512×512) is what
 makes it fast, at the cost of fine print. The temperature is a setting too
 (null is `VISION_DEFAULTS.temperature`, 0.6, not 0: greedy decoding on a
-thinking model loops until it hits the reply cap). The
+thinking model loops until it hits the reply cap). "What it writes" is plain text or
+Markdown (`text_format`, null is plain): Markdown sends `TRANSCRIBE_MARKDOWN`
+instead of `TRANSCRIBE` and takes off a fence wrapped round a whole answer
+(`unfence`). The
 `vision` step sits after `ebook` and before `metadata`, breaking "new steps go
 last" because it produces text. It runs when a model is set up, the document is
 a PDF or an image, and either `visionRequested` is set or the model is on
@@ -659,6 +662,18 @@ unknown tab (or Sign-in for a non-admin) opens the first. The document page is
 Preview / Text / History (the pipeline timeline), with the alerts above the
 tabs and Receipt and Details beside them; a type the preview card does not
 frame has no Preview tab and opens on Text.
+
+**Stored text says how it is written.** `documents.content_format` is `plain` or
+`markdown`, and `storeContent` sets it with the key: from the type by default
+(`hasHeadings`: Markdown, EPUB and HTML are stored with headings), or as the vision
+step passes it. The index cuts by headings (`chunkSections`) when it is
+`markdown`, not by the type, so a scan read as Markdown is searched by section;
+`mayBeReceipt` still goes by the type, since a scan is a receipt however it was
+read. The text download and the export name it `.md`. The Text tab draws it with
+cubeui's `Markdown` (formatted) or a `CodeBlock` (plain), opening on formatted
+only for Markdown, because Markdown joins an OCR sidecar's lines into one
+paragraph. An image in the text is drawn as its alt text and never fetched, for
+the reason the preview never frames an HTML upload.
 
 **A text upload is read in the encoding it was saved in.** Plain text,
 Markdown, CSV and HTML all reach the text step as bytes, and `decodeText`

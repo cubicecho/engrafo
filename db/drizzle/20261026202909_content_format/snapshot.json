@@ -1,0 +1,112 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "fd69438f-58b7-45af-bc8d-03a3ee578e62",
+  "prevIds": [
+    "1f32dccb-6966-4b4c-abbd-e1efd3cda19d"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "content_format"
+      ],
+      "writes": [
+        "s|enum|public.content_format",
+        "n|enum|public.content_format",
+        "e|enum|public.content_format",
+        "n|type|public.content_format"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "documents",
+        "content_format"
+      ],
+      "writes": [
+        "s|col|public.documents.content_format",
+        "n|col|public.documents.content_format",
+        "e|col|public.documents.content_format"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|enum|public.content_format"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "text_format"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.text_format",
+        "n|col|public.vision_settings.text_format",
+        "e|col|public.vision_settings.text_format"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|enum|public.content_format"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "content_format",
+        "values": [
+          "plain",
+          "markdown"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "documents",
+        "name": "content_format",
+        "type": "content_format",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'plain'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "text_format",
+        "type": "content_format",
+        "typeSchema": "public",
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

@@ -48,6 +48,7 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    contentFormat: 'plain',
     thumbnailKey: null,
     documentDate: null,
     documentDateSource: null,

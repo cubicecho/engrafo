@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes, useLocation } from 'react-router';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { type DocumentDetailQuery, DocumentStatusEnum, FieldSourceEnum, StepStatusEnum } from '@/__generated__/graphql';
+import {
+  ContentFormatEnum,
+  type DocumentDetailQuery,
+  DocumentStatusEnum,
+  FieldSourceEnum,
+  StepStatusEnum,
+} from '@/__generated__/graphql';
 import { useArchive } from '@/lib/archive';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
@@ -51,6 +57,7 @@ function document(overrides: Partial<Document>): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    contentFormat: ContentFormatEnum.Plain,
     ocrRequested: false,
     visionRequested: false,
     status: DocumentStatusEnum.Ready,

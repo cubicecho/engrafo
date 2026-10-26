@@ -52,6 +52,7 @@ export type DocumentPatch = Partial<
     | 'archiveKey'
     | 'contentKey'
     | 'contentBytes'
+    | 'contentFormat'
     | 'thumbnailKey'
     | 'documentDate'
     | 'documentDateSource'

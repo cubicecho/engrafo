@@ -22,6 +22,8 @@ export interface VisionConfig {
   imageDetail: dbSchema.VisionImageDetail;
   /** The sampling temperature. */
   temperature: number;
+  /** What the model is asked to write: the page's text as it reads, or Markdown. */
+  textFormat: dbSchema.ContentFormat;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
   auto: boolean;
 }
@@ -41,6 +43,8 @@ export interface VisionSettingsUpdate {
   imageDetail: dbSchema.VisionImageDetail | null;
   /** Null is `VISION_DEFAULTS.temperature`. */
   temperature: number | null;
+  /** Null is plain. */
+  textFormat: dbSchema.ContentFormat | null;
 }
 
 /**
@@ -83,6 +87,7 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     maxResponseTokens: row.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: row.imageDetail ?? dbSchema.VisionImageDetail.Auto,
     temperature: row.temperature ?? VISION_DEFAULTS.temperature,
+    textFormat: row.textFormat ?? dbSchema.ContentFormat.Plain,
     auto: row.auto,
   };
 }
