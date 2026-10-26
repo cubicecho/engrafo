@@ -627,7 +627,9 @@ Advanced the admin also sets the longest reply (`max_response_tokens`, null is
 `VISION_DEFAULTS.pageMaxTokens`) and the image `detail` (`low`, `high`, or
 `auto`, which null means and which sends no `detail` at all): a local encoder's
 prefill grows with the square of the page's size, and `low` (512×512) is what
-makes it fast, at the cost of fine print. The
+makes it fast, at the cost of fine print. The temperature is a setting too
+(null is `VISION_DEFAULTS.temperature`, 0.6, not 0: greedy decoding on a
+thinking model loops until it hits the reply cap). The
 `vision` step sits after `ebook` and before `metadata`, breaking "new steps go
 last" because it produces text. It runs when a model is set up, the document is
 a PDF or an image, and either `visionRequested` is set or the model is on

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, check, doublePrecision, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
  * The vision model that re-reads scanned pages (server/src/vision/): one row or none, the
@@ -33,6 +33,8 @@ export const visionSettings = pgTable(
     maxResponseTokens: integer('max_response_tokens'),
     // The image part's OpenAI `detail`. Null is `auto`, which sends none and leaves it to the server.
     imageDetail: text('image_detail').$type<VisionImageDetail>(),
+    // The sampling temperature. Null is VISION_DEFAULTS.temperature.
+    temperature: doublePrecision('temperature'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -42,6 +44,7 @@ export const visionSettings = pgTable(
     check('vision_settings_singleton', sql`${table.id} = 'vision'`),
     check('vision_settings_image_detail', sql`${table.imageDetail} in ('auto', 'low', 'high')`),
     check('vision_settings_max_response_tokens', sql`${table.maxResponseTokens} > 0`),
+    check('vision_settings_temperature', sql`${table.temperature} between 0 and 2`),
   ],
 );
 

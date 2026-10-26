@@ -189,8 +189,7 @@ async function transcribe(storage: StorageSet, doc: Document, vision: VisionConf
     try {
       const text = await ask(vision, vision.model, TRANSCRIBE, pageInput(image, page.mimeType, vision.imageDetail), {
         maxTokens: vision.maxResponseTokens,
-        // Transcription, not generation: the same page twice should read the same way twice.
-        temperature: 0,
+        temperature: vision.temperature,
         onNotice: notice,
       });
       transcript.push(text.trim());

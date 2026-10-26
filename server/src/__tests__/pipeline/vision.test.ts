@@ -68,6 +68,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
     requestTimeoutSeconds: 30,
     maxResponseTokens: 8192,
     imageDetail: 'auto',
+    temperature: 0.6,
     auto: true,
   };
   return { vision, bodies, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
@@ -80,6 +81,7 @@ const VISION: VisionConfig = {
   requestTimeoutSeconds: 30,
   maxResponseTokens: 8192,
   imageDetail: 'auto',
+  temperature: 0.6,
   auto: false,
 };
 const CONFIG: RunConfig = {
@@ -224,7 +226,7 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
 
       const [request] = endpoint.bodies;
       expect(request.model).toBe('test-vlm');
-      expect(request.temperature).toBe(0);
+      expect(request.temperature).toBe(0.6);
       expect(request.messages[0]).toMatchObject({ role: 'system', content: TRANSCRIBE });
       const parts = request.messages.at(-1)?.content as Array<{ type: string }>;
       expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
@@ -234,15 +236,16 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
     }
   });
 
-  it('caps the reply and sets the detail as the admin set them', async () => {
+  it('caps the reply, sets the detail and the temperature as the admin set them', async () => {
     const endpoint = await fakeEndpoint(() => 'INVOICE 4821');
     try {
       await runStep({
         ...CONFIG,
-        vision: { ...endpoint.vision, maxResponseTokens: 1024, imageDetail: 'low' },
+        vision: { ...endpoint.vision, maxResponseTokens: 1024, imageDetail: 'low', temperature: 0 },
       });
       const [request] = endpoint.bodies;
       expect(request.max_tokens ?? request.max_completion_tokens).toBe(1024);
+      expect(request.temperature).toBe(0);
       const parts = request.messages.at(-1)?.content as Array<{ image_url?: { detail?: string } }>;
       expect(parts[1].image_url?.detail).toBe('low');
     } finally {

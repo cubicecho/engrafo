@@ -34,6 +34,7 @@ export const VisionSettingsDocument = graphql(`
       requestTimeoutSeconds
       maxResponseTokens
       imageDetail
+      temperature
       configured
     }
   }
@@ -49,6 +50,7 @@ const SetVisionSettings = graphql(`
       requestTimeoutSeconds
       maxResponseTokens
       imageDetail
+      temperature
       configured
     }
   }
@@ -62,6 +64,12 @@ export const VISION_MAX_RESPONSE_DEFAULT_TOKENS = 8192;
 /** The bounds the server holds the cap to (`VISION_DEFAULTS`), checked here to say so before a save. */
 const VISION_MAX_RESPONSE_MIN_TOKENS = 256;
 const VISION_MAX_RESPONSE_MAX_TOKENS = 131_072;
+
+/** The server's own temperature, shown as the field's placeholder. */
+export const VISION_TEMPERATURE_DEFAULT = 0.6;
+/** The highest the server takes (`VISION_DEFAULTS.maxTemperature`). */
+const VISION_TEMPERATURE_MAX = 2;
+const VISION_TEMPERATURE_STEP = 0.1;
 
 const IMAGE_DETAILS = [
   {
@@ -118,6 +126,8 @@ interface VisionFormValues {
   /** Null is the server's default. */
   maxResponseTokens: number | null;
   imageDetail: string;
+  /** Null is the server's default. */
+  temperature: number | null;
 }
 
 function toValues(settings: Settings): VisionFormValues {
@@ -131,6 +141,7 @@ function toValues(settings: Settings): VisionFormValues {
     maxResponseTokens:
       settings.maxResponseTokens === VISION_MAX_RESPONSE_DEFAULT_TOKENS ? null : settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
+    temperature: settings.temperature === VISION_TEMPERATURE_DEFAULT ? null : settings.temperature,
   };
 }
 
@@ -144,6 +155,7 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
     requestTimeoutSeconds: value.requestTimeoutSeconds,
     maxResponseTokens: value.maxResponseTokens,
     imageDetail: isImageDetail(value.imageDetail) ? value.imageDetail : VisionImageDetail.Auto,
+    temperature: value.temperature,
     ...(apiKey ? { apiKey } : {}),
   };
 }
@@ -157,6 +169,7 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     requestTimeoutSeconds: settings.requestTimeoutSeconds,
     maxResponseTokens: settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
+    temperature: settings.temperature,
     ...change,
   };
 }
@@ -453,6 +466,27 @@ function VisionForm({ settings }: { settings: Settings }) {
                     return value > VISION_MAX_RESPONSE_MAX_TOKENS
                       ? `At most ${VISION_MAX_RESPONSE_MAX_TOKENS.toLocaleString()} tokens`
                       : undefined;
+                  },
+                }}
+              />
+              <NumberField
+                form={form}
+                name="temperature"
+                label="Temperature"
+                min={0}
+                max={VISION_TEMPERATURE_MAX}
+                step={VISION_TEMPERATURE_STEP}
+                placeholder={String(VISION_TEMPERATURE_DEFAULT)}
+                description="How much randomness the model reads with, from 0 to 2. At 0 the same page reads the same way twice, but a thinking model can get stuck repeating itself until the reply is cut off."
+                validators={{
+                  onChange: ({ value }) => {
+                    if (value === null) {
+                      return undefined;
+                    }
+                    if (value < 0) {
+                      return 'At least 0';
+                    }
+                    return value > VISION_TEMPERATURE_MAX ? `At most ${VISION_TEMPERATURE_MAX}` : undefined;
                   },
                 }}
               />

@@ -55,6 +55,8 @@ const VISION_SDL = parse(`
     maxResponseTokens: Int!
     "How closely the model looks at a page."
     imageDetail: VisionImageDetail!
+    "The sampling temperature pages are read at, 0 to 2."
+    temperature: Float!
     "Whether a base URL and a model are both set, so documents can be read."
     configured: Boolean!
   }
@@ -72,6 +74,8 @@ const VISION_SDL = parse(`
     maxResponseTokens: Int
     "Left out or null is AUTO."
     imageDetail: VisionImageDetail
+    "Left out or null is the default."
+    temperature: Float
   }
 
   "A model an endpoint offers, as its \`/models\` lists it."
@@ -173,6 +177,12 @@ const settingsInputSchema = z.object({
     .enum(['AUTO', 'LOW', 'HIGH'])
     .nullish()
     .transform((value) => (value ? VISION_DETAIL_BY_NAME[value] : null)),
+  temperature: z
+    .number()
+    .min(0, 'The temperature is at least 0.')
+    .max(VISION_DEFAULTS.maxTemperature, `The temperature is at most ${VISION_DEFAULTS.maxTemperature}.`)
+    .nullish()
+    .transform((value) => value ?? null),
 });
 
 /**
@@ -199,6 +209,7 @@ async function visionSettings(context: Context) {
     requestTimeoutSeconds: row?.requestTimeoutSeconds ?? VISION_DEFAULTS.requestTimeoutSeconds,
     maxResponseTokens: row?.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: (row?.imageDetail ?? VisionImageDetail.Auto).toUpperCase(),
+    temperature: row?.temperature ?? VISION_DEFAULTS.temperature,
     configured: isConfigured(row),
   };
 }

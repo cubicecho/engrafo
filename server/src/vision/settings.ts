@@ -20,6 +20,8 @@ export interface VisionConfig {
   maxResponseTokens: number;
   /** The image part's `detail`. `auto` sends none. */
   imageDetail: dbSchema.VisionImageDetail;
+  /** The sampling temperature. */
+  temperature: number;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
   auto: boolean;
 }
@@ -37,6 +39,8 @@ export interface VisionSettingsUpdate {
   maxResponseTokens: number | null;
   /** Null is `auto`. */
   imageDetail: dbSchema.VisionImageDetail | null;
+  /** Null is `VISION_DEFAULTS.temperature`. */
+  temperature: number | null;
 }
 
 /**
@@ -78,6 +82,7 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     requestTimeoutSeconds: row.requestTimeoutSeconds ?? VISION_DEFAULTS.requestTimeoutSeconds,
     maxResponseTokens: row.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: row.imageDetail ?? dbSchema.VisionImageDetail.Auto,
+    temperature: row.temperature ?? VISION_DEFAULTS.temperature,
     auto: row.auto,
   };
 }
