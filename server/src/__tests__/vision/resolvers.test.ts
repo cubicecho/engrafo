@@ -9,10 +9,11 @@ import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events
 import { readVisionSettings, saveVisionSettings } from '../../vision/settings.ts';
 import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
 
-const SETTINGS = '{ visionSettings { baseUrl model hasApiKey auto requestTimeoutSeconds configured } }';
+const SETTINGS =
+  '{ visionSettings { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature configured } }';
 const SET = `
   mutation ($input: VisionSettingsInput!) {
-    setVisionSettings(input: $input) { baseUrl model hasApiKey auto requestTimeoutSeconds configured }
+    setVisionSettings(input: $input) { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature configured }
   }
 `;
 const MODELS =
@@ -65,6 +66,9 @@ describe('vision settings', () => {
       hasApiKey: false,
       auto: false,
       requestTimeoutSeconds: 600,
+      maxResponseTokens: 8192,
+      imageDetail: 'AUTO',
+      temperature: 0.6,
       configured: false,
     });
   });
@@ -88,6 +92,9 @@ describe('vision settings', () => {
       hasApiKey: true,
       auto: true,
       requestTimeoutSeconds: 600,
+      maxResponseTokens: 8192,
+      imageDetail: 'AUTO',
+      temperature: 0.6,
       configured: true,
     });
     expect(JSON.stringify(await admin.expectOk(SETTINGS))).not.toContain('sk-secret');
@@ -134,6 +141,45 @@ describe('vision settings', () => {
     expect(ok.setVisionSettings.requestTimeoutSeconds).toBe(120);
   });
 
+  it('stores the reply cap and the image detail, and refuses a cap out of bounds', async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
+    const data = await admin.expectOk(SET, { input: { ...base, maxResponseTokens: 2048, imageDetail: 'LOW' } });
+    expect(data.setVisionSettings).toMatchObject({ maxResponseTokens: 2048, imageDetail: 'LOW' });
+    expect(await readVisionSettings(db)).toMatchObject({ maxResponseTokens: 2048, imageDetail: 'low' });
+
+    for (const maxResponseTokens of [10, 1_000_000]) {
+      const refused = await admin.expectError(SET, { input: { ...base, maxResponseTokens } });
+      expect(refused.code).toBe(ErrorCode.BadUserInput);
+    }
+
+    // Left out is the default again, as for the timeout.
+    const reset = await admin.expectOk(SET, { input: base });
+    expect(reset.setVisionSettings).toMatchObject({ maxResponseTokens: 8192, imageDetail: 'AUTO' });
+    expect(await readVisionSettings(db)).toMatchObject({ maxResponseTokens: null, imageDetail: null });
+  });
+
+  it('stores the temperature, takes 0, and refuses one out of bounds', async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
+    const data = await admin.expectOk(SET, { input: { ...base, temperature: 0.2 } });
+    expect(data.setVisionSettings.temperature).toBe(0.2);
+    expect((await readVisionSettings(db))?.temperature).toBe(0.2);
+
+    // 0 is a setting, not "left out".
+    const greedy = await admin.expectOk(SET, { input: { ...base, temperature: 0 } });
+    expect(greedy.setVisionSettings.temperature).toBe(0);
+
+    for (const temperature of [-0.1, 2.5]) {
+      const refused = await admin.expectError(SET, { input: { ...base, temperature } });
+      expect(refused.code).toBe(ErrorCode.BadUserInput);
+    }
+
+    const reset = await admin.expectOk(SET, { input: base });
+    expect(reset.setVisionSettings.temperature).toBe(0.6);
+    expect((await readVisionSettings(db))?.temperature).toBeNull();
+  });
+
   it('tells any signed-in caller whether a model is set up, and a visitor nothing', async () => {
     await saveVisionSettings(db, {
       baseUrl: 'http://box/v1',
@@ -141,6 +187,9 @@ describe('vision settings', () => {
       apiKey: undefined,
       auto: true,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
     });
     expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
       visionAvailable: true,
@@ -187,6 +236,9 @@ describe('visionModels', () => {
       apiKey: 'sk-stored',
       auto: false,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
     });
 
     await admin.expectOk(MODELS, { baseUrl: endpoint.baseUrl, apiKey: 'sk-typed' });
@@ -245,6 +297,9 @@ describe('readDocumentWithVision', () => {
       apiKey: undefined,
       auto: false,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
     });
   });
 
@@ -337,6 +392,9 @@ describe('readDocumentWithVision', () => {
       apiKey: null,
       auto: false,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
     });
     const doc = await insertDocument({});
     expect((await client().expectError(READ, { id: doc.id })).code).toBe(ErrorCode.BadUserInput);

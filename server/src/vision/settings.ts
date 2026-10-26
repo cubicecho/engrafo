@@ -16,6 +16,12 @@ export interface VisionConfig {
   model: string;
   /** How long one page may take. */
   requestTimeoutSeconds: number;
+  /** The longest reply one page may get, in tokens. */
+  maxResponseTokens: number;
+  /** The image part's `detail`. `auto` sends none. */
+  imageDetail: dbSchema.VisionImageDetail;
+  /** The sampling temperature. */
+  temperature: number;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
   auto: boolean;
 }
@@ -29,6 +35,12 @@ export interface VisionSettingsUpdate {
   auto: boolean;
   /** Null is `VISION_DEFAULTS.requestTimeoutSeconds`. */
   requestTimeoutSeconds: number | null;
+  /** Null is `VISION_DEFAULTS.pageMaxTokens`. */
+  maxResponseTokens: number | null;
+  /** Null is `auto`. */
+  imageDetail: dbSchema.VisionImageDetail | null;
+  /** Null is `VISION_DEFAULTS.temperature`. */
+  temperature: number | null;
 }
 
 /**
@@ -68,6 +80,9 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     apiKey: row.apiKey ?? '',
     model: row.model,
     requestTimeoutSeconds: row.requestTimeoutSeconds ?? VISION_DEFAULTS.requestTimeoutSeconds,
+    maxResponseTokens: row.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
+    imageDetail: row.imageDetail ?? dbSchema.VisionImageDetail.Auto,
+    temperature: row.temperature ?? VISION_DEFAULTS.temperature,
     auto: row.auto,
   };
 }

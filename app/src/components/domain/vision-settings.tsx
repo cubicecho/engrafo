@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useMemo, useState } from 'react';
 import { graphql } from '@/__generated__';
-import type { VisionSettingsInput, VisionSettingsQuery } from '@/__generated__/graphql';
+import { VisionImageDetail, type VisionSettingsInput, type VisionSettingsQuery } from '@/__generated__/graphql';
 import { ComboboxField, InputField, NumberField, useAppForm } from '@/components/app-form';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -32,6 +32,9 @@ export const VisionSettingsDocument = graphql(`
       hasApiKey
       auto
       requestTimeoutSeconds
+      maxResponseTokens
+      imageDetail
+      temperature
       configured
     }
   }
@@ -45,6 +48,9 @@ const SetVisionSettings = graphql(`
       hasApiKey
       auto
       requestTimeoutSeconds
+      maxResponseTokens
+      imageDetail
+      temperature
       configured
     }
   }
@@ -52,6 +58,40 @@ const SetVisionSettings = graphql(`
 
 /** The server's own default for one page, in seconds, shown as the field's placeholder. */
 export const VISION_TIMEOUT_DEFAULT_SECONDS = 600;
+
+/** The server's own cap on one page's reply, in tokens, shown as the field's placeholder. */
+export const VISION_MAX_RESPONSE_DEFAULT_TOKENS = 8192;
+/** The bounds the server holds the cap to (`VISION_DEFAULTS`), checked here to say so before a save. */
+const VISION_MAX_RESPONSE_MIN_TOKENS = 256;
+const VISION_MAX_RESPONSE_MAX_TOKENS = 131_072;
+
+/** The server's own temperature, shown as the field's placeholder. */
+export const VISION_TEMPERATURE_DEFAULT = 0.6;
+/** The highest the server takes (`VISION_DEFAULTS.maxTemperature`). */
+const VISION_TEMPERATURE_MAX = 2;
+const VISION_TEMPERATURE_STEP = 0.1;
+
+const IMAGE_DETAILS = [
+  {
+    value: VisionImageDetail.Auto,
+    label: 'Auto',
+    description: 'The server decides. Most read the page at full size.',
+  },
+  {
+    value: VisionImageDetail.High,
+    label: 'High',
+    description: 'The page at full size. Fine print is read; a large page is slow on a local model.',
+  },
+  {
+    value: VisionImageDetail.Low,
+    label: 'Low',
+    description: 'The page scaled to fit 512×512. Much faster on a local model, but small text may be lost.',
+  },
+];
+
+function isImageDetail(value: string): value is VisionImageDetail {
+  return IMAGE_DETAILS.some((option) => option.value === value);
+}
 
 /** Known-good base URLs, as the line under the field says them. */
 const BASE_URL_HELP =
@@ -83,6 +123,11 @@ interface VisionFormValues {
   mode: string;
   /** Null is the server's default. */
   requestTimeoutSeconds: number | null;
+  /** Null is the server's default. */
+  maxResponseTokens: number | null;
+  imageDetail: string;
+  /** Null is the server's default. */
+  temperature: number | null;
 }
 
 function toValues(settings: Settings): VisionFormValues {
@@ -93,6 +138,10 @@ function toValues(settings: Settings): VisionFormValues {
     mode: settings.auto ? MODE_AUTO : MODE_ASKED,
     requestTimeoutSeconds:
       settings.requestTimeoutSeconds === VISION_TIMEOUT_DEFAULT_SECONDS ? null : settings.requestTimeoutSeconds,
+    maxResponseTokens:
+      settings.maxResponseTokens === VISION_MAX_RESPONSE_DEFAULT_TOKENS ? null : settings.maxResponseTokens,
+    imageDetail: settings.imageDetail,
+    temperature: settings.temperature === VISION_TEMPERATURE_DEFAULT ? null : settings.temperature,
   };
 }
 
@@ -104,6 +153,9 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
     model: value.model?.trim() || null,
     auto: value.mode === MODE_AUTO,
     requestTimeoutSeconds: value.requestTimeoutSeconds,
+    maxResponseTokens: value.maxResponseTokens,
+    imageDetail: isImageDetail(value.imageDetail) ? value.imageDetail : VisionImageDetail.Auto,
+    temperature: value.temperature,
     ...(apiKey ? { apiKey } : {}),
   };
 }
@@ -115,6 +167,9 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     model: settings.model ?? null,
     auto: settings.auto,
     requestTimeoutSeconds: settings.requestTimeoutSeconds,
+    maxResponseTokens: settings.maxResponseTokens,
+    imageDetail: settings.imageDetail,
+    temperature: settings.temperature,
     ...change,
   };
 }
@@ -378,18 +433,65 @@ function VisionForm({ settings }: { settings: Settings }) {
         <Disclosure
           title="Advanced"
           contentSlot={
-            <NumberField
-              form={form}
-              name="requestTimeoutSeconds"
-              label="Time per page (seconds)"
-              integer
-              min={1}
-              placeholder={String(VISION_TIMEOUT_DEFAULT_SECONDS)}
-              description="How long one page may take before the read fails. A large model on a CPU is slow."
-              validators={{
-                onChange: ({ value }) => (value !== null && value < 1 ? 'At least one second' : undefined),
-              }}
-            />
+            <div className="flex flex-col gap-4">
+              <NumberField
+                form={form}
+                name="requestTimeoutSeconds"
+                label="Time per page (seconds)"
+                integer
+                min={1}
+                placeholder={String(VISION_TIMEOUT_DEFAULT_SECONDS)}
+                description="How long one page may take before the read fails. A large model on a CPU is slow."
+                validators={{
+                  onChange: ({ value }) => (value !== null && value < 1 ? 'At least one second' : undefined),
+                }}
+              />
+              <NumberField
+                form={form}
+                name="maxResponseTokens"
+                label="Longest reply (tokens)"
+                integer
+                min={VISION_MAX_RESPONSE_MIN_TOKENS}
+                max={VISION_MAX_RESPONSE_MAX_TOKENS}
+                placeholder={String(VISION_MAX_RESPONSE_DEFAULT_TOKENS)}
+                description="Where one page's answer is cut off. A dense page of text is about 1,500 tokens; a model that starts repeating itself runs all the way to this, on every page."
+                validators={{
+                  onChange: ({ value }) => {
+                    if (value === null) {
+                      return undefined;
+                    }
+                    if (value < VISION_MAX_RESPONSE_MIN_TOKENS) {
+                      return `At least ${VISION_MAX_RESPONSE_MIN_TOKENS.toLocaleString()} tokens`;
+                    }
+                    return value > VISION_MAX_RESPONSE_MAX_TOKENS
+                      ? `At most ${VISION_MAX_RESPONSE_MAX_TOKENS.toLocaleString()} tokens`
+                      : undefined;
+                  },
+                }}
+              />
+              <NumberField
+                form={form}
+                name="temperature"
+                label="Temperature"
+                min={0}
+                max={VISION_TEMPERATURE_MAX}
+                step={VISION_TEMPERATURE_STEP}
+                placeholder={String(VISION_TEMPERATURE_DEFAULT)}
+                description="How much randomness the model reads with, from 0 to 2. At 0 the same page reads the same way twice, but a thinking model can get stuck repeating itself until the reply is cut off."
+                validators={{
+                  onChange: ({ value }) => {
+                    if (value === null) {
+                      return undefined;
+                    }
+                    if (value < 0) {
+                      return 'At least 0';
+                    }
+                    return value > VISION_TEMPERATURE_MAX ? `At most ${VISION_TEMPERATURE_MAX}` : undefined;
+                  },
+                }}
+              />
+              <RadioGroupField form={form} name="imageDetail" label="Image detail" options={IMAGE_DETAILS} />
+            </div>
           }
         />
         {error ? <Alert variant="destructive" title="Could not save" description={error} /> : null}

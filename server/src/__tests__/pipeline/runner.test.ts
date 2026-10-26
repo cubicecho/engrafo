@@ -344,6 +344,9 @@ describe('pipeline runner', () => {
       apiKey: undefined,
       auto: false,
       requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
     });
     await pipeline.run((await insertDocument()).id);
 

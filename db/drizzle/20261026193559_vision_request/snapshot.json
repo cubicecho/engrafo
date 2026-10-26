@@ -1,0 +1,203 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "1f32dccb-6966-4b4c-abbd-e1efd3cda19d",
+  "prevIds": [
+    "b373ec40-faed-47da-bbf9-1e821ecc96b9"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "max_response_tokens"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.max_response_tokens",
+        "n|col|public.vision_settings.max_response_tokens",
+        "e|col|public.vision_settings.max_response_tokens"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "image_detail"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.image_detail",
+        "n|col|public.vision_settings.image_detail",
+        "e|col|public.vision_settings.image_detail"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "temperature"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.temperature",
+        "n|col|public.vision_settings.temperature",
+        "e|col|public.vision_settings.temperature"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_image_detail",
+        "n|ck|public.vision_settings.vision_settings_image_detail",
+        "e|ck|public.vision_settings.vision_settings_image_detail",
+        "n|con|public.vision_settings.vision_settings_image_detail"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.image_detail",
+        "n|col|public.vision_settings.auto"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_max_response_tokens",
+        "n|ck|public.vision_settings.vision_settings_max_response_tokens",
+        "e|ck|public.vision_settings.vision_settings_max_response_tokens",
+        "n|con|public.vision_settings.vision_settings_max_response_tokens"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.max_response_tokens"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_temperature",
+        "n|ck|public.vision_settings.vision_settings_temperature",
+        "e|ck|public.vision_settings.vision_settings_temperature",
+        "n|con|public.vision_settings.vision_settings_temperature"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.temperature"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "max_response_tokens",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "image_detail",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "temperature",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_image_detail",
+        "value": "\"image_detail\" in ('auto', 'low', 'high')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_max_response_tokens",
+        "value": "\"max_response_tokens\" > 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_temperature",
+        "value": "\"temperature\" between 0 and 2",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

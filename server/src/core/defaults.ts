@@ -220,9 +220,23 @@ export interface VisionSettings {
   /**
    * The most a page's answer may run to. A dense A4 page of prose is around 1,500 tokens, and a
    * page truncated at the ceiling is silently half a page, so this is set where a page cannot
-   * plausibly reach it.
+   * plausibly reach it. The admin's "longest reply" replaces it when set: a model that loops
+   * repeats itself all the way to this, which at local speeds is a minute a page.
    */
   pageMaxTokens: number;
+  /** The shortest "longest reply" the admin may set, in tokens: below it a page of text cannot fit. */
+  minPageMaxTokens: number;
+  /** The longest "longest reply" the admin may set, in tokens. */
+  maxPageMaxTokens: number;
+  /**
+   * The sampling temperature a page is read at, unless the admin sets one. Not 0: greedy decoding
+   * on a reasoning model loops, repeating a line until the reply hits `pageMaxTokens`, and a little
+   * randomness is what breaks the loop. The cost is that the same page may read slightly
+   * differently twice.
+   */
+  temperature: number;
+  /** The highest temperature the admin may set. OpenAI's ceiling; past it the output is noise. */
+  maxTemperature: number;
   /**
    * Past this many pages the step declines rather than spending hours on one document. The
    * pipeline has no queue, so a 600-page scan at half a minute a page is the whole archive stalled
@@ -245,6 +259,10 @@ export const VISION_DEFAULTS: Readonly<VisionSettings> = Object.freeze({
   maxRequestTimeoutSeconds: 3600,
   pageDpi: 200,
   pageMaxTokens: 8192,
+  minPageMaxTokens: 256,
+  maxPageMaxTokens: 131_072,
+  temperature: 0.6,
+  maxTemperature: 2,
   maxPages: 200,
   rasterTimeoutMinutes: 10,
   modelsTimeoutSeconds: 5,

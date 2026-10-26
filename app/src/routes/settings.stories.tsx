@@ -60,6 +60,9 @@ const RESOLVERS = {
         hasApiKey: false,
         auto: true,
         requestTimeoutSeconds: 600,
+        maxResponseTokens: 8192,
+        imageDetail: 'AUTO',
+        temperature: 0.6,
         configured: true,
       };
     },
