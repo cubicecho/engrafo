@@ -1,12 +1,321 @@
 {
-  "version": "8",
+  "type": "base",
+  "version": "9",
   "dialect": "postgres",
   "id": "a2cf042f-9d85-4ac1-81c6-504635b56cab",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "document_status"
+      ],
+      "writes": [
+        "s|enum|public.document_status",
+        "n|enum|public.document_status",
+        "e|enum|public.document_status",
+        "n|type|public.document_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "step_status"
+      ],
+      "writes": [
+        "s|enum|public.step_status",
+        "n|enum|public.step_status",
+        "e|enum|public.step_status",
+        "n|type|public.step_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "documents"
+      ],
+      "writes": [
+        "s|tbl|public.documents",
+        "n|tbl|public.documents",
+        "e|tbl|public.documents",
+        "n|rel|public.documents",
+        "n|type|public.documents",
+        "n|rel|public.documents_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.document_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "processing_steps"
+      ],
+      "writes": [
+        "s|tbl|public.processing_steps",
+        "n|tbl|public.processing_steps",
+        "e|tbl|public.processing_steps",
+        "n|rel|public.processing_steps",
+        "n|type|public.processing_steps",
+        "n|rel|public.processing_steps_pkey",
+        "n|rel|public.uq_processing_steps_document_step"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.step_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "users"
+      ],
+      "writes": [
+        "s|tbl|public.users",
+        "n|tbl|public.users",
+        "e|tbl|public.users",
+        "n|rel|public.users",
+        "n|type|public.users",
+        "n|rel|public.users_pkey",
+        "n|rel|public.users_email_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "documents",
+        "idx_documents_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_documents_user_id",
+        "n|idx|public.idx_documents_user_id",
+        "e|idx|public.idx_documents_user_id",
+        "n|rel|public.idx_documents_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|col|public.documents.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "documents",
+        "idx_documents_user_created"
+      ],
+      "writes": [
+        "s|idx|public.idx_documents_user_created",
+        "n|idx|public.idx_documents_user_created",
+        "e|idx|public.idx_documents_user_created",
+        "n|rel|public.idx_documents_user_created"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|col|public.documents.user_id",
+        "n|col|public.documents.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "documents",
+        "idx_documents_user_checksum"
+      ],
+      "writes": [
+        "s|idx|public.idx_documents_user_checksum",
+        "n|idx|public.idx_documents_user_checksum",
+        "e|idx|public.idx_documents_user_checksum",
+        "n|rel|public.idx_documents_user_checksum"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|col|public.documents.user_id",
+        "n|col|public.documents.checksum_sha256"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "documents",
+        "idx_documents_status"
+      ],
+      "writes": [
+        "s|idx|public.idx_documents_status",
+        "n|idx|public.idx_documents_status",
+        "e|idx|public.idx_documents_status",
+        "n|rel|public.idx_documents_status"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|col|public.documents.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "processing_steps",
+        "idx_processing_steps_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_processing_steps_user_id",
+        "n|idx|public.idx_processing_steps_user_id",
+        "e|idx|public.idx_processing_steps_user_id",
+        "n|rel|public.idx_processing_steps_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public",
+        "n|col|public.processing_steps.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "processing_steps",
+        "idx_processing_steps_document_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_processing_steps_document_id",
+        "n|idx|public.idx_processing_steps_document_id",
+        "e|idx|public.idx_processing_steps_document_id",
+        "n|rel|public.idx_processing_steps_document_id"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public",
+        "n|col|public.processing_steps.document_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "documents"
+      ],
+      "writes": [
+        "s|fk|public.documents.documents_user_id_users_id_fkey",
+        "n|fk|public.documents.documents_user_id_users_id_fkey",
+        "e|fk|public.documents.documents_user_id_users_id_fkey",
+        "n|con|public.documents.documents_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.documents.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "processing_steps"
+      ],
+      "writes": [
+        "s|fk|public.processing_steps.processing_steps_user_id_users_id_fkey",
+        "n|fk|public.processing_steps.processing_steps_user_id_users_id_fkey",
+        "e|fk|public.processing_steps.processing_steps_user_id_users_id_fkey",
+        "n|con|public.processing_steps.processing_steps_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.processing_steps.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "processing_steps"
+      ],
+      "writes": [
+        "s|fk|public.processing_steps.processing_steps_document_id_documents_id_fkey",
+        "n|fk|public.processing_steps.processing_steps_document_id_documents_id_fkey",
+        "e|fk|public.processing_steps.processing_steps_document_id_documents_id_fkey",
+        "n|con|public.processing_steps.processing_steps_document_id_documents_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.processing_steps",
+        "n|sch|public",
+        "n|tbl|public.documents",
+        "n|sch|public",
+        "n|col|public.processing_steps.document_id",
+        "n|col|public.documents.id",
+        "e|uniqueness|public.documents.id"
+      ]
+    }
+  ],
   "ddl": [
     {
+      "schema": "public",
+      "name": "documents",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "processing_steps",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "users",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "document_status",
       "values": [
         "pending_upload",
         "uploaded",
@@ -14,11 +323,11 @@
         "ready",
         "failed"
       ],
-      "name": "document_status",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
+      "schema": "public",
+      "name": "step_status",
       "values": [
         "queued",
         "running",
@@ -26,29 +335,12 @@
         "skipped",
         "failed"
       ],
-      "name": "step_status",
-      "entityType": "enums",
-      "schema": "public"
+      "entityType": "enums"
     },
     {
-      "isRlsEnabled": false,
-      "name": "documents",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "processing_steps",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "users",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
+      "schema": "public",
+      "table": "documents",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -56,12 +348,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "user_id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -69,25 +361,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "documents",
       "name": "title",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -95,12 +374,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
       "name": "original_filename",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -108,25 +387,38 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
       "name": "mime_type",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
-      "type": "bigint",
+      "type": "text",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
       "name": "size_bytes",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "checksum_sha256",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -134,12 +426,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "checksum_sha256",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "original_key",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -147,25 +439,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "original_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "documents",
       "name": "archive_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -173,12 +452,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "content_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "content_key",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
+      "name": "content_bytes",
       "type": "bigint",
       "typeSchema": null,
       "notNull": false,
@@ -186,12 +478,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "content_bytes",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "ocr_requested",
       "type": "boolean",
       "typeSchema": null,
       "notNull": true,
@@ -199,12 +491,12 @@
       "default": "true",
       "generated": null,
       "identity": null,
-      "name": "ocr_requested",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "status",
       "type": "document_status",
       "typeSchema": "public",
       "notNull": true,
@@ -212,12 +504,12 @@
       "default": "'pending_upload'",
       "generated": null,
       "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "error",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -225,25 +517,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "error",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "documents",
       "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -251,12 +530,25 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -264,25 +556,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "processing_steps",
       "name": "user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
-    },
-    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -290,12 +569,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "document_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "document_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "step",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -303,12 +595,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "step",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "position",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -316,12 +608,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "position",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "status",
       "type": "step_status",
       "typeSchema": "public",
       "notNull": true,
@@ -329,12 +621,12 @@
       "default": "'queued'",
       "generated": null,
       "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "attempts",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -342,12 +634,12 @@
       "default": "0",
       "generated": null,
       "identity": null,
-      "name": "attempts",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "error",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -355,25 +647,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "error",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "processing_steps",
       "name": "started_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -381,12 +660,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "finished_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "finished_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -394,12 +686,12 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "id",
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -407,12 +699,12 @@
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "email",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -420,12 +712,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "email",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "name",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -433,25 +725,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
+      "entityType": "columns"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "users",
       "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -459,12 +738,25 @@
       "default": "now()",
       "generated": null,
       "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
+      "name": "idx_documents_user_id",
       "nameExplicit": true,
       "columns": [
         {
@@ -480,12 +772,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_documents_user_id",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "idx_documents_user_created",
       "nameExplicit": true,
       "columns": [
         {
@@ -508,12 +800,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_documents_user_created",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "idx_documents_user_checksum",
       "nameExplicit": true,
       "columns": [
         {
@@ -536,12 +828,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_documents_user_checksum",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "documents",
+      "name": "idx_documents_status",
       "nameExplicit": true,
       "columns": [
         {
@@ -557,12 +849,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_documents_status",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "documents"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "idx_processing_steps_user_id",
       "nameExplicit": true,
       "columns": [
         {
@@ -578,12 +870,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_processing_steps_user_id",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "idx_processing_steps_document_id",
       "nameExplicit": true,
       "columns": [
         {
@@ -599,29 +891,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "idx_processing_steps_document_id",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "indexes"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
+      "schema": "public",
+      "table": "documents",
       "name": "documents_user_id_users_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "documents"
-    },
-    {
       "nameExplicit": false,
       "columns": [
         "user_id"
@@ -633,12 +908,29 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "processing_steps_user_id_users_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "processing_steps_user_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "processing_steps_document_id_documents_id_fkey",
       "nameExplicit": false,
       "columns": [
         "document_id"
@@ -650,64 +942,60 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "processing_steps_document_id_documents_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "fks"
     },
     {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "documents_pkey",
       "schema": "public",
       "table": "documents",
-      "entityType": "pks"
-    },
-    {
+      "name": "documents_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "processing_steps_pkey",
+      "entityType": "pks"
+    },
+    {
       "schema": "public",
       "table": "processing_steps",
-      "entityType": "pks"
-    },
-    {
+      "name": "processing_steps_pkey",
       "columns": [
         "id"
       ],
       "nameExplicit": false,
-      "name": "users_pkey",
-      "schema": "public",
-      "table": "users",
       "entityType": "pks"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "users_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "processing_steps",
+      "name": "uq_processing_steps_document_step",
       "nameExplicit": true,
       "columns": [
         "document_id",
         "step"
       ],
       "nullsNotDistinct": false,
-      "name": "uq_processing_steps_document_step",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "processing_steps"
+      "entityType": "uniques"
     },
     {
+      "schema": "public",
+      "table": "users",
+      "name": "users_email_key",
       "nameExplicit": false,
       "columns": [
         "email"
       ],
       "nullsNotDistinct": false,
-      "name": "users_email_key",
-      "schema": "public",
-      "table": "users",
       "entityType": "uniques"
     }
-  ],
-  "renames": []
+  ]
 }
