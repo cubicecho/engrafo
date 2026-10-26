@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { VisionImageDetail, type VisionSettingsInput } from '@/__generated__/graphql';
+import { VisionImageDetail, type VisionSettingsInput, VisionTextFormat } from '@/__generated__/graphql';
 import {
   VISION_MAX_RESPONSE_DEFAULT_TOKENS,
   VISION_TEMPERATURE_DEFAULT,
@@ -31,6 +31,7 @@ interface StoredSettings {
   maxResponseTokens: number;
   imageDetail: VisionImageDetail;
   temperature: number;
+  textFormat: VisionTextFormat;
 }
 
 const OFF: StoredSettings = {
@@ -42,6 +43,7 @@ const OFF: StoredSettings = {
   maxResponseTokens: VISION_MAX_RESPONSE_DEFAULT_TOKENS,
   imageDetail: VisionImageDetail.Auto,
   temperature: VISION_TEMPERATURE_DEFAULT,
+  textFormat: VisionTextFormat.Plain,
 };
 const ON_OLLAMA: StoredSettings = { ...OFF, baseUrl: OLLAMA, model: 'qwen2.5vl:7b' };
 
@@ -90,6 +92,7 @@ function server(initial: StoredSettings, listError?: string): Server {
             maxResponseTokens: input.maxResponseTokens ?? VISION_MAX_RESPONSE_DEFAULT_TOKENS,
             imageDetail: input.imageDetail ?? VisionImageDetail.Auto,
             temperature: input.temperature ?? VISION_TEMPERATURE_DEFAULT,
+            textFormat: input.textFormat ?? VisionTextFormat.Plain,
           };
           return view();
         },
@@ -149,6 +152,7 @@ export const PicksAModelAndSaves: Story = {
       maxResponseTokens: null,
       imageDetail: VisionImageDetail.Auto,
       temperature: null,
+      textFormat: VisionTextFormat.Plain,
     });
     await expect('apiKey' in (picking.saves[0] ?? {})).toBe(false);
   },
@@ -187,6 +191,22 @@ export const SetsReplyLengthAndDetail: Story = {
       imageDetail: VisionImageDetail.Low,
       temperature: 0.3,
     });
+  },
+};
+
+const toMarkdown = server(ON_OLLAMA);
+
+/** Asking for Markdown: plain is what a stored model starts on, and the save says MARKDOWN. */
+export const WritesMarkdown: Story = {
+  parameters: { apolloClient: { resolvers: toMarkdown.resolvers } },
+  play: async ({ canvas }) => {
+    await canvas.findByText('Connected');
+    await expect(canvas.getByRole('radio', { name: /^Plain text/ })).toBeChecked();
+    await userEvent.click(canvas.getByRole('radio', { name: /^Markdown/ }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Saved')).toBeInTheDocument();
+    await expect(toMarkdown.saves[0]).toMatchObject({ textFormat: VisionTextFormat.Markdown });
   },
 };
 

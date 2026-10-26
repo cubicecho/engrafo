@@ -60,6 +60,7 @@ const DocumentDetail = graphql(`
       archiveKey
       contentKey
       contentBytes
+      contentFormat
       ocrRequested
       visionRequested
       status

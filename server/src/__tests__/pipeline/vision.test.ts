@@ -7,7 +7,14 @@ import { promisify } from 'node:util';
 import { resetAll } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db/schema';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pageInput, rasterArgs, TRANSCRIBE, visionStep } from '../../pipeline/steps/vision.ts';
+import {
+  pageInput,
+  rasterArgs,
+  TRANSCRIBE,
+  TRANSCRIBE_MARKDOWN,
+  unfence,
+  visionStep,
+} from '../../pipeline/steps/vision.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
 import type { VisionConfig } from '../../vision/settings.ts';
 import { createFakeEmbedder, createFakeStorage } from '../helpers.ts';
@@ -69,6 +76,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
     maxResponseTokens: 8192,
     imageDetail: 'auto',
     temperature: 0.6,
+    textFormat: 'plain',
     auto: true,
   };
   return { vision, bodies, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
@@ -82,6 +90,7 @@ const VISION: VisionConfig = {
   maxResponseTokens: 8192,
   imageDetail: 'auto',
   temperature: 0.6,
+  textFormat: 'plain',
   auto: false,
 };
 const CONFIG: RunConfig = {
@@ -108,6 +117,7 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    contentFormat: 'plain',
     thumbnailKey: null,
     documentDate: null,
     documentDateSource: null,
@@ -219,6 +229,19 @@ describe('vision step', () => {
   });
 });
 
+describe('unfence', () => {
+  it('takes the fence off an answer that is one fenced block', () => {
+    expect(unfence('```markdown\n# Invoice\n\nDue now.\n```')).toBe('# Invoice\n\nDue now.');
+    expect(unfence('```\n# Invoice\n```')).toBe('# Invoice');
+  });
+
+  it('leaves a page that has a code block among its text alone', () => {
+    const page = 'Run this:\n\n```\nmake\n```';
+    expect(unfence(page)).toBe(page);
+    expect(unfence('# Plain heading')).toBe('# Plain heading');
+  });
+});
+
 describe('vision step against an OpenAI-compatible endpoint', () => {
   it('shows the page to the model as uploaded, at the set temperature, and stores what comes back', async () => {
     const endpoint = await fakeEndpoint(() => 'INVOICE 4821\nDue on receipt');
@@ -239,6 +262,36 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       const parts = request.messages.at(-1)?.content as Array<{ type: string }>;
       expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
       expect(shownImage(request)).toBe(`data:image/jpeg;base64,${PIXEL.toString('base64')}`);
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('stores plain text by default, said as plain', async () => {
+    const endpoint = await fakeEndpoint(() => '# 4711');
+    try {
+      const { patch } = await runStep({ ...CONFIG, vision: endpoint.vision });
+      expect(patch?.contentFormat).toBe('plain');
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('asks for Markdown when the admin chose it, takes a fence off, and stores it as Markdown', async () => {
+    const endpoint = await fakeEndpoint(
+      () => '```markdown\n# Invoice 4821\n\n| Item | Total |\n| --- | --- |\n| Kettle | 12.50 |\n```',
+    );
+    try {
+      const { patch, storage } = await runStep({
+        ...CONFIG,
+        vision: { ...endpoint.vision, textFormat: 'markdown' },
+      });
+
+      expect(endpoint.bodies[0]?.messages[0]).toMatchObject({ role: 'system', content: TRANSCRIBE_MARKDOWN });
+      expect(patch?.contentFormat).toBe('markdown');
+      const stored = storage.text.objects.get(patch?.contentKey ?? '');
+      expect(stored?.body.toString()).toBe('# Invoice 4821\n\n| Item | Total |\n| --- | --- |\n| Kettle | 12.50 |');
+      expect(stored?.contentType).toBe('text/markdown; charset=utf-8');
     } finally {
       await endpoint.close();
     }

@@ -392,6 +392,7 @@ describe('pipeline runner', () => {
       maxResponseTokens: null,
       imageDetail: null,
       temperature: null,
+      textFormat: null,
     });
     await pipeline.run((await insertDocument()).id);
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ask, type SideTaskInput } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db';
-import { VisionImageDetail } from '@cubicecho/engrafo-db/schema';
+import { ContentFormat, VisionImageDetail } from '@cubicecho/engrafo-db/schema';
 import { OCR_DEFAULTS, VISION_DEFAULTS } from '../../core/defaults.ts';
 import { errorMessage } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
@@ -38,6 +38,33 @@ export const TRANSCRIBE = [
   'Do not translate, summarise, correct, explain, or add commentary of any kind.',
   'Output the text of the page and nothing else. A page with no text gets an empty answer.',
 ].join(' ');
+
+/**
+ * The instruction when the admin wants Markdown. The same refusals as `TRANSCRIBE`, plus the two
+ * ways a model asked for Markdown goes wrong: inventing structure the page does not have, and
+ * wrapping the whole answer in a code fence.
+ */
+export const TRANSCRIBE_MARKDOWN = [
+  'You are an OCR engine. Transcribe the page image exactly as it reads, top to bottom, as Markdown.',
+  'Write headings as # headings at the level the page gives them, lists as Markdown lists, tables as Markdown tables, and bold or italic only where the page shows it.',
+  'Keep the reading order and the paragraphs; add no headings, lists or emphasis the page does not have.',
+  'Do not translate, summarise, correct, explain, or add commentary of any kind, and do not wrap the answer in a code block.',
+  'Output the Markdown of the page and nothing else. A page with no text gets an empty answer.',
+].join(' ');
+
+// A whole answer inside one fence, which models write for "Markdown" however they are told not to.
+const WHOLE_ANSWER_FENCE = /^```(?:markdown|md)?[ \t]*\n([\s\S]*?)\n?```$/i;
+
+/**
+ * Takes the code fence off an answer that is nothing but one fenced block.
+ *
+ * @param answer - One page's answer, trimmed.
+ * @returns What is inside the fence, or the answer untouched when it is not one fenced block, so
+ *   a page that holds a code block among its text keeps it.
+ */
+export function unfence(answer: string): string {
+  return WHOLE_ANSWER_FENCE.exec(answer)?.[1]?.trim() ?? answer;
+}
 
 // Every frame of a TIFF as its own PNG, laid on white. A scanner's multi-page TIFF is a document
 // of many pages, unlike an animated GIF, so toOpaquePng's first frame alone would drop the rest;
@@ -194,12 +221,14 @@ async function transcribe(
     await reportProgress(index, pages.length);
     const image = await readFile(page.file);
     try {
-      const text = await ask(vision, vision.model, TRANSCRIBE, pageInput(image, page.mimeType, vision.imageDetail), {
+      const markdown = vision.textFormat === ContentFormat.Markdown;
+      const instruction = markdown ? TRANSCRIBE_MARKDOWN : TRANSCRIBE;
+      const text = await ask(vision, vision.model, instruction, pageInput(image, page.mimeType, vision.imageDetail), {
         maxTokens: vision.maxResponseTokens,
         temperature: vision.temperature,
         onNotice: notice,
       });
-      transcript.push(text.trim());
+      transcript.push(markdown ? unfence(text.trim()) : text.trim());
     } catch (error) {
       throw new Error(`The vision model did not read ${label}: ${errorMessage(error)}`);
     }
@@ -257,7 +286,7 @@ export const visionStep: PipelineStep = {
       notice(`${doc.id}: ${errorMessage(error)} Keeping the text it had.`);
       return undefined;
     }
-    return storeContent(storage, doc, content);
+    return storeContent(storage, doc, content, vision.textFormat);
   },
 };
 

@@ -76,6 +76,7 @@ describe('document search', () => {
       'Novel',
       'Title page.\n\n# One\n\nFirst.\n\n# Two\n\nSecond.',
       'application/epub+zip',
+      { contentFormat: 'markdown' },
     );
 
     const passages = await db
@@ -90,7 +91,9 @@ describe('document search', () => {
   });
 
   it('embeds a Markdown passage under its breadcrumb of headings', async () => {
-    await indexed(alice, 'Runbook', '# Backups\n\n## Restore\n\nRun it twice.', 'text/markdown');
+    await indexed(alice, 'Runbook', '# Backups\n\n## Restore\n\nRun it twice.', 'text/markdown', {
+      contentFormat: 'markdown',
+    });
 
     expect(embedder.embedded).toContain('Runbook\nBackups › Restore\n\nRun it twice.');
   });
@@ -114,9 +117,19 @@ describe('document search', () => {
   });
 
   it("embeds a web page's passages under its headings", async () => {
-    await indexed(alice, 'Order', '# Order 1234\n\n## Items\n\nOne kettle.', 'text/html');
+    await indexed(alice, 'Order', '# Order 1234\n\n## Items\n\nOne kettle.', 'text/html', {
+      contentFormat: 'markdown',
+    });
 
     expect(embedder.embedded).toContain('Order\nOrder 1234 › Items\n\nOne kettle.');
+  });
+
+  it('cuts a scan by its headings when the vision model wrote it as Markdown', async () => {
+    await indexed(alice, 'Manual', '# Setup\n\n## Wiring\n\nRed to red.', 'application/pdf', {
+      contentFormat: 'markdown',
+    });
+
+    expect(embedder.embedded).toContain('Manual\nSetup › Wiring\n\nRed to red.');
   });
 
   it('leaves a line starting with "# " alone in anything without headings', async () => {

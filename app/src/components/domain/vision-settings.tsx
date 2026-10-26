@@ -1,7 +1,12 @@
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useMemo, useState } from 'react';
 import { graphql } from '@/__generated__';
-import { VisionImageDetail, type VisionSettingsInput, type VisionSettingsQuery } from '@/__generated__/graphql';
+import {
+  VisionImageDetail,
+  type VisionSettingsInput,
+  type VisionSettingsQuery,
+  VisionTextFormat,
+} from '@/__generated__/graphql';
 import { ComboboxField, InputField, NumberField, useAppForm } from '@/components/app-form';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -35,6 +40,7 @@ export const VisionSettingsDocument = graphql(`
       maxResponseTokens
       imageDetail
       temperature
+      textFormat
       configured
     }
   }
@@ -51,6 +57,7 @@ const SetVisionSettings = graphql(`
       maxResponseTokens
       imageDetail
       temperature
+      textFormat
       configured
     }
   }
@@ -88,6 +95,24 @@ const IMAGE_DETAILS = [
     description: 'The page scaled to fit 512×512. Much faster on a local model, but small text may be lost.',
   },
 ];
+
+const TEXT_FORMATS = [
+  {
+    value: VisionTextFormat.Plain,
+    label: 'Plain text',
+    description: 'The text as it reads on the page, line by line.',
+  },
+  {
+    value: VisionTextFormat.Markdown,
+    label: 'Markdown',
+    description:
+      "The page's headings, lists and tables kept as Markdown, shown formatted on the document's Text tab and searched by section.",
+  },
+];
+
+function isTextFormat(value: string): value is VisionTextFormat {
+  return TEXT_FORMATS.some((option) => option.value === value);
+}
 
 function isImageDetail(value: string): value is VisionImageDetail {
   return IMAGE_DETAILS.some((option) => option.value === value);
@@ -128,6 +153,7 @@ interface VisionFormValues {
   imageDetail: string;
   /** Null is the server's default. */
   temperature: number | null;
+  textFormat: string;
 }
 
 function toValues(settings: Settings): VisionFormValues {
@@ -142,6 +168,7 @@ function toValues(settings: Settings): VisionFormValues {
       settings.maxResponseTokens === VISION_MAX_RESPONSE_DEFAULT_TOKENS ? null : settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
     temperature: settings.temperature === VISION_TEMPERATURE_DEFAULT ? null : settings.temperature,
+    textFormat: settings.textFormat,
   };
 }
 
@@ -156,6 +183,7 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
     maxResponseTokens: value.maxResponseTokens,
     imageDetail: isImageDetail(value.imageDetail) ? value.imageDetail : VisionImageDetail.Auto,
     temperature: value.temperature,
+    textFormat: isTextFormat(value.textFormat) ? value.textFormat : VisionTextFormat.Plain,
     ...(apiKey ? { apiKey } : {}),
   };
 }
@@ -170,6 +198,7 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     maxResponseTokens: settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
     temperature: settings.temperature,
+    textFormat: settings.textFormat,
     ...change,
   };
 }
@@ -430,6 +459,7 @@ function VisionForm({ settings }: { settings: Settings }) {
           />
         )}
         <RadioGroupField form={form} name="mode" label="When it reads" options={RUN_MODES} />
+        <RadioGroupField form={form} name="textFormat" label="What it writes" options={TEXT_FORMATS} />
         <Disclosure
           title="Advanced"
           contentSlot={

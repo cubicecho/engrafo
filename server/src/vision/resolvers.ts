@@ -1,4 +1,5 @@
 import {
+  ContentFormat,
   type Document,
   DocumentStatus,
   documents,
@@ -29,6 +30,14 @@ import { isConfigured, readVisionSettings, saveVisionSettings } from './settings
 // the base URL it was stored with.
 
 const VISION_SDL = parse(`
+  "What the model is asked to write for a page."
+  enum VisionTextFormat {
+    "The page's text as it reads, line by line."
+    PLAIN
+    "Markdown: the page's headings, lists, tables and emphasis kept as Markdown."
+    MARKDOWN
+  }
+
   "How closely the model looks at a page: OpenAI's image \`detail\`."
   enum VisionImageDetail {
     "Sent as no \`detail\`, so the server decides."
@@ -57,6 +66,8 @@ const VISION_SDL = parse(`
     imageDetail: VisionImageDetail!
     "The sampling temperature pages are read at, 0 to 2."
     temperature: Float!
+    "What the model is asked to write."
+    textFormat: VisionTextFormat!
     "Whether a base URL and a model are both set, so documents can be read."
     configured: Boolean!
   }
@@ -76,6 +87,8 @@ const VISION_SDL = parse(`
     imageDetail: VisionImageDetail
     "Left out or null is the default."
     temperature: Float
+    "Left out or null is PLAIN."
+    textFormat: VisionTextFormat
   }
 
   "A model an endpoint offers, as its \`/models\` lists it."
@@ -124,6 +137,11 @@ const VISION_DETAIL_BY_NAME = {
   AUTO: VisionImageDetail.Auto,
   LOW: VisionImageDetail.Low,
   HIGH: VisionImageDetail.High,
+} as const;
+
+const VISION_TEXT_FORMAT_BY_NAME = {
+  PLAIN: ContentFormat.Plain,
+  MARKDOWN: ContentFormat.Markdown,
 } as const;
 
 const settingsInputSchema = z.object({
@@ -177,6 +195,10 @@ const settingsInputSchema = z.object({
     .enum(['AUTO', 'LOW', 'HIGH'])
     .nullish()
     .transform((value) => (value ? VISION_DETAIL_BY_NAME[value] : null)),
+  textFormat: z
+    .enum(['PLAIN', 'MARKDOWN'])
+    .nullish()
+    .transform((value) => (value ? VISION_TEXT_FORMAT_BY_NAME[value] : null)),
   temperature: z
     .number()
     .min(0, 'The temperature is at least 0.')
@@ -210,6 +232,7 @@ async function visionSettings(context: Context) {
     maxResponseTokens: row?.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: (row?.imageDetail ?? VisionImageDetail.Auto).toUpperCase(),
     temperature: row?.temperature ?? VISION_DEFAULTS.temperature,
+    textFormat: (row?.textFormat ?? ContentFormat.Plain).toUpperCase(),
     configured: isConfigured(row),
   };
 }

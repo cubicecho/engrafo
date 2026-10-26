@@ -10,10 +10,10 @@ import { readVisionSettings, saveVisionSettings } from '../../vision/settings.ts
 import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
 
 const SETTINGS =
-  '{ visionSettings { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature configured } }';
+  '{ visionSettings { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature textFormat configured } }';
 const SET = `
   mutation ($input: VisionSettingsInput!) {
-    setVisionSettings(input: $input) { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature configured }
+    setVisionSettings(input: $input) { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature textFormat configured }
   }
 `;
 const MODELS =
@@ -69,6 +69,7 @@ describe('vision settings', () => {
       maxResponseTokens: 8192,
       imageDetail: 'AUTO',
       temperature: 0.6,
+      textFormat: 'PLAIN',
       configured: false,
     });
   });
@@ -95,6 +96,7 @@ describe('vision settings', () => {
       maxResponseTokens: 8192,
       imageDetail: 'AUTO',
       temperature: 0.6,
+      textFormat: 'PLAIN',
       configured: true,
     });
     expect(JSON.stringify(await admin.expectOk(SETTINGS))).not.toContain('sk-secret');
@@ -159,6 +161,18 @@ describe('vision settings', () => {
     expect(await readVisionSettings(db)).toMatchObject({ maxResponseTokens: null, imageDetail: null });
   });
 
+  it('stores the text format, and leaving it out is plain again', async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
+    const data = await admin.expectOk(SET, { input: { ...base, textFormat: 'MARKDOWN' } });
+    expect(data.setVisionSettings.textFormat).toBe('MARKDOWN');
+    expect((await readVisionSettings(db))?.textFormat).toBe('markdown');
+
+    const reset = await admin.expectOk(SET, { input: base });
+    expect(reset.setVisionSettings.textFormat).toBe('PLAIN');
+    expect((await readVisionSettings(db))?.textFormat).toBeNull();
+  });
+
   it('stores the temperature, takes 0, and refuses one out of bounds', async () => {
     const admin = createClient(db, adminId);
     const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
@@ -190,6 +204,7 @@ describe('vision settings', () => {
       maxResponseTokens: null,
       imageDetail: null,
       temperature: null,
+      textFormat: null,
     });
     expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
       visionAvailable: true,
@@ -239,6 +254,7 @@ describe('visionModels', () => {
       maxResponseTokens: null,
       imageDetail: null,
       temperature: null,
+      textFormat: null,
     });
 
     await admin.expectOk(MODELS, { baseUrl: endpoint.baseUrl, apiKey: 'sk-typed' });
@@ -300,6 +316,7 @@ describe('readDocumentWithVision', () => {
       maxResponseTokens: null,
       imageDetail: null,
       temperature: null,
+      textFormat: null,
     });
   });
 
@@ -395,6 +412,7 @@ describe('readDocumentWithVision', () => {
       maxResponseTokens: null,
       imageDetail: null,
       temperature: null,
+      textFormat: null,
     });
     const doc = await insertDocument({});
     expect((await client().expectError(READ, { id: doc.id })).code).toBe(ErrorCode.BadUserInput);

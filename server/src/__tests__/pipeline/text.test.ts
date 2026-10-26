@@ -33,6 +33,7 @@ function doc(values: Partial<Document> = {}): Document {
     archiveKey: null,
     contentKey: null,
     contentBytes: null,
+    contentFormat: 'plain',
     thumbnailKey: null,
     documentDate: null,
     documentDateSource: null,
@@ -106,6 +107,7 @@ describe('text step', () => {
 
     const patch = await textStep.run(await context(doc({ mimeType: 'text/csv' })));
     expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe(csv);
+    expect(patch?.contentFormat).toBe('plain');
   });
 
   it('stores a CSV written in a Windows code page as UTF-8', async () => {
@@ -131,8 +133,10 @@ describe('text step', () => {
     );
   });
 
-  it('stores Markdown as it is, headings and all', async () => {
+  it('stores Markdown as it is, headings and all, and says it is Markdown', async () => {
     const patch = await textStep.run(await context(doc()));
     expect(storage.text.objects.get(patch?.contentKey ?? '')?.body.toString()).toBe(NOTES.trim());
+    expect(patch?.contentFormat).toBe('markdown');
+    expect(storage.text.objects.get(patch?.contentKey ?? '')?.contentType).toBe('text/markdown; charset=utf-8');
   });
 });

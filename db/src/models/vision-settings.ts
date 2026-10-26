@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, doublePrecision, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { contentFormat } from './documents.ts';
 
 /**
  * The vision model that re-reads scanned pages (server/src/vision/): one row or none, the
@@ -35,6 +36,8 @@ export const visionSettings = pgTable(
     imageDetail: text('image_detail').$type<VisionImageDetail>(),
     // The sampling temperature. Null is VISION_DEFAULTS.temperature.
     temperature: doublePrecision('temperature'),
+    // What the model is asked to write. Null is `plain`.
+    textFormat: contentFormat('text_format'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()

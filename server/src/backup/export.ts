@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
-import { type Document, DocumentStatus, documents, folders } from '@cubicecho/engrafo-db/schema';
+import { ContentFormat, type Document, DocumentStatus, documents, folders } from '@cubicecho/engrafo-db/schema';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { folderPaths } from '../folders/names.ts';
 import type { Storage, StorageSet } from '../storage/s3.ts';
@@ -133,7 +133,7 @@ export async function planExport(
     }
     let text: string | null = null;
     if (doc.contentKey) {
-      text = `${TREE.text}/${allocate.text(folder, name, '.txt', doc.id)}`;
+      text = `${TREE.text}/${allocate.text(folder, name, doc.contentFormat === ContentFormat.Markdown ? '.md' : '.txt', doc.id)}`;
       entries.push({ path: text, storage: storage.text, key: doc.contentKey, mtime: doc.updatedAt });
     }
     return {

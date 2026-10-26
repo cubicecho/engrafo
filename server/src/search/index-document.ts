@@ -1,21 +1,21 @@
 import { text } from 'node:stream/consumers';
 import type { DB } from '@cubicecho/engrafo-db';
-import { type Document, documentChunks } from '@cubicecho/engrafo-db/schema';
+import { ContentFormat, type Document, documentChunks } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { SEARCH_DEFAULTS } from '../core/defaults.ts';
-import { CSV_MIME_TYPE, hasHeadings } from '../pipeline/mime.ts';
+import { CSV_MIME_TYPE } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { chunkRows, chunkSections, chunkText, embeddingText, type Passage } from './chunk.ts';
 import type { Embedder } from './embedder.ts';
 
 /** A document's text cut the way its type is written. */
-function passagesOf(mimeType: string, content: string): Passage[] {
-  if (mimeType === CSV_MIME_TYPE) {
+function passagesOf(doc: Document, content: string): Passage[] {
+  if (doc.mimeType === CSV_MIME_TYPE) {
     return chunkRows(content, SEARCH_DEFAULTS.chunkMaxChars);
   }
-  // Only Markdown, an ebook's and a web page's text are written with headings. A scan's line that
-  // happens to start with "# " is just a line.
-  if (hasHeadings(mimeType)) {
+  // Only text stored as Markdown has headings: an upload's, an ebook's, a web page's, or what a
+  // vision model was asked to write. A plain scan's line that happens to start with "# " is a line.
+  if (doc.contentFormat === ContentFormat.Markdown) {
     return chunkSections(content, SEARCH_DEFAULTS.chunkMaxChars);
   }
   return chunkText(content, SEARCH_DEFAULTS.chunkMaxChars).map((passage) => ({ heading: null, content: passage }));
@@ -38,7 +38,7 @@ export async function indexDocument(
   doc: Document,
 ): Promise<number> {
   const content = doc.contentKey ? await text(await storage.text.getStream(doc.contentKey)) : '';
-  const passages = passagesOf(doc.mimeType, content);
+  const passages = passagesOf(doc, content);
   const vectors =
     passages.length > 0
       ? await embedder.embed(passages.map((p) => embeddingText(doc.title, p.content, p.heading)))

@@ -63,6 +63,7 @@ const RESOLVERS = {
         maxResponseTokens: 8192,
         imageDetail: 'AUTO',
         temperature: 0.6,
+        textFormat: 'PLAIN',
         configured: true,
       };
     },

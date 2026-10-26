@@ -1,4 +1,5 @@
 import {
+  ContentFormat,
   type Document,
   DocumentStatus,
   documentChunks,
@@ -15,6 +16,7 @@ import { THUMBNAIL_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { assertNameFree, lockNames, ownedParent, type Tx } from '../folders/names.ts';
+import { textContentType } from '../pipeline/content.ts';
 import { ACCEPTED_MIME_TYPES } from '../pipeline/mime.ts';
 import { THUMBNAIL_MIME_TYPE } from '../pipeline/thumbnail.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -229,8 +231,8 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
         throw documentNotFound();
       }
       return context.storage.text.presignGet(doc.contentKey, {
-        filename: `${titleFromFilename(doc.originalFilename)}.txt`,
-        contentType: 'text/plain; charset=utf-8',
+        filename: `${titleFromFilename(doc.originalFilename)}${doc.contentFormat === ContentFormat.Markdown ? '.md' : '.txt'}`,
+        contentType: textContentType(doc.contentFormat),
         download: args.download,
       });
     }
@@ -352,6 +354,7 @@ export function applyDocumentsExtension(schema: GraphQLSchema): GraphQLSchema {
           archiveKey: null,
           contentKey: null,
           contentBytes: null,
+          contentFormat: ContentFormat.Plain,
           thumbnailKey: null,
         })
         .where(and(eq(documents.id, doc.id), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])))

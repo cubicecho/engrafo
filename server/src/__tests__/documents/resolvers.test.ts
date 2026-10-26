@@ -1,6 +1,6 @@
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
 import {
@@ -233,6 +233,24 @@ describe('document uploads', () => {
     const original = await client().expectOk(query, { id: document.id, variant: 'ORIGINAL' });
     expect(original.documentFileUrl).toBe(`https://s3.test/get/${document.originalKey}`);
     expect((await client().expectError(query, { id: document.id, variant: 'ARCHIVE' })).code).toBe(ErrorCode.NotFound);
+  });
+
+  it('names the text download and its type by how the text is written', async () => {
+    const { document } = await createUpload({ filename: 'notes.pdf' });
+    const contentKey = `text/${userId}/${document.id}.txt`;
+    await db
+      .update(documents)
+      .set({ status: 'ready', contentKey, contentFormat: 'markdown' })
+      .where(eq(documents.id, document.id));
+    const presign = vi.spyOn(storage.text, 'presignGet');
+
+    await client().expectOk('query ($id: UUID!) { documentFileUrl(id: $id, variant: TEXT, download: true) }', {
+      id: document.id,
+    });
+    expect(presign).toHaveBeenCalledWith(
+      contentKey,
+      expect.objectContaining({ filename: 'notes.md', contentType: 'text/markdown; charset=utf-8' }),
+    );
   });
 
   it("signs thumbnail URLs in one call, for the caller's documents that have one", async () => {

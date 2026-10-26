@@ -210,6 +210,18 @@ describe('backups', () => {
       expect(files.get(`${root}/originals/Note_ ideas_.txt`)?.toString()).toBe('plain words');
     });
 
+    it('names text stored as Markdown .md', async () => {
+      await seed(db, storage, alice, {
+        title: 'Manual',
+        body: bornDigitalPdf('Setup'),
+        text: '# Setup\n\nRed to red.',
+        fields: { contentFormat: 'markdown' },
+      });
+      const files = await untar(await exportTar(db, storage, alice));
+
+      expect(files.get('engrafo-export-2026-10-23/text/Manual.md')?.toString()).toBe('# Setup\n\nRed to red.');
+    });
+
     it('holds nothing of anyone else, and no upload still pending', async () => {
       await seedAlice();
       await seed(db, storage, bob, { title: 'Bob only', body: Buffer.from('bob'), mimeType: 'text/plain' });
