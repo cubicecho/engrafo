@@ -1,3 +1,11 @@
+# [4.15.0](https://github.com/cubicecho/engrafo/compare/v4.14.1...v4.15.0) (2026-10-26)
+
+
+### Features
+
+* **vision:** read pages as Markdown, and show Markdown text formatted ([3ee1902](https://github.com/cubicecho/engrafo/commit/3ee190205253453e39a620e07d9c5fc0973ccb09))
+* **vision:** show which page the vision model is reading ([b368eac](https://github.com/cubicecho/engrafo/commit/b368eac955cf761f5eaf943b1693cec5f29adbb7))
+
 ## [4.14.1](https://github.com/cubicecho/engrafo/compare/v4.14.0...v4.14.1) (2026-10-26)
 
 
