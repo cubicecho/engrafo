@@ -1,3 +1,10 @@
+## [4.14.1](https://github.com/cubicecho/engrafo/compare/v4.14.0...v4.14.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **app:** delete and retry update the page at once ([e939095](https://github.com/cubicecho/engrafo/commit/e939095709a937d838caadef8d0c375c2b0a182c)), closes [#4](https://github.com/cubicecho/engrafo/issues/4)
+
 # [4.14.0](https://github.com/cubicecho/engrafo/compare/v4.13.0...v4.14.0) (2026-10-26)
 
 
