@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes, useLocation } from 'react-router';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { type DocumentDetailQuery, DocumentStatusEnum, FieldSourceEnum, StepStatusEnum } from '@/__generated__/graphql';
+import { useArchive } from '@/lib/archive';
 import { clientId } from '@/lib/id';
 import { documentPath, ROUTES } from '@/lib/routes';
 import { SERVER_CONFIG } from '../../.storybook/archive.ts';
@@ -75,12 +76,31 @@ function SearchProbe() {
   );
 }
 
+/**
+ * The archive's documents, as whatever list the reader lands on would draw them: the page a
+ * delete navigates to, here, so a story can see what that page paints first.
+ */
+function ArchiveProbe() {
+  const { result, documents } = useArchive();
+  if (!result.data) {
+    return <p>Loading the archive</p>;
+  }
+  return (
+    <ul aria-label="Archive">
+      {documents.map((doc) => (
+        <li key={doc.id}>{doc.title}</li>
+      ))}
+    </ul>
+  );
+}
+
 /** A route of its own, because the page reads its id off the URL. */
 function Framed() {
   return (
     <div className="h-screen">
       <Routes>
         <Route path={ROUTES.document} element={<DocumentRoute />} />
+        <Route path={ROUTES.documents} element={<ArchiveProbe />} />
       </Routes>
       <SearchProbe />
     </div>
@@ -183,6 +203,49 @@ export const RetryRefused: Story = {
   },
 };
 
+let retried = false;
+
+/**
+ * A retry puts the failed steps back in the queue, and the page shows that as one change: the
+ * badge and the timeline together, not the badge first and the failed run until the next poll.
+ */
+export const Retried: Story = {
+  beforeEach: () => {
+    retried = false;
+  },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () =>
+            retried
+              ? document({
+                  status: DocumentStatusEnum.Uploaded,
+                  processingSteps: [step({ step: 'store' }), step({ step: 'ocr', status: StepStatusEnum.Queued })],
+                })
+              : FAILED_DOCUMENT(),
+        },
+        Mutation: {
+          retryDocumentProcessing: () => {
+            retried = true;
+            return document({ status: DocumentStatusEnum.Uploaded });
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await openTab(canvas, 'History');
+    const steps = () => within(canvas.getByRole('list', { name: 'Pipeline steps' })).getAllByRole('listitem');
+    await waitFor(() => expect(steps().at(-1)).toHaveTextContent('Failed'));
+    await userEvent.click(canvas.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(canvas.queryByRole('alert')).not.toBeInTheDocument());
+    // Not waited for: by the time the failure is gone from the page, the steps are queued too.
+    await expect(steps().at(-1)).toHaveTextContent('Queued');
+    await expect(steps().at(-1)).not.toHaveTextContent('ocrmypdf exited with code 2');
+  },
+};
+
 /**
  * A finished document can be run again, with OCR switched on: the page sends exactly that, and
  * the request is the subject, so it is checked through the resolver's arguments.
@@ -279,6 +342,64 @@ export const DeleteRefused: Story = {
     await expect(await canvas.findByText('Could not delete this document')).toBeInTheDocument();
     // Found, not got: the page is hidden from the tree until the dialog has finished closing.
     await expect(await canvas.findByRole('heading', { level: 1 })).toBeInTheDocument();
+  },
+};
+
+let trashed = false;
+
+/**
+ * A delete lands on the list without the document. The list's refetch never answers here, so
+ * the row can only be gone because the page took it out of the cache before navigating.
+ */
+export const DeletedFromTheList: Story = {
+  beforeEach: () => {
+    trashed = false;
+  },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => (trashed ? null : document({})),
+          folders: () => [],
+          documents: () =>
+            trashed
+              ? new Promise(() => undefined)
+              : [
+                  {
+                    id: ID,
+                    title: 'Lease agreement',
+                    folderId: null,
+                    sizeBytes: 48_211,
+                    status: DocumentStatusEnum.Ready,
+                  },
+                  {
+                    id: clientId(),
+                    title: 'Utility bill',
+                    folderId: null,
+                    sizeBytes: 12_004,
+                    status: DocumentStatusEnum.Ready,
+                  },
+                ],
+          trash: () => ({ count: 1, retentionDays: 30, documents: [] }),
+        },
+        Mutation: {
+          deleteDocument: () => {
+            trashed = true;
+            return true;
+          },
+        },
+      },
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Delete' }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole('alertdialog', {
+      name: 'Move this document to the trash?',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move to trash' }));
+    const list = await canvas.findByRole('list', { name: 'Archive' });
+    await expect(within(list).getByText('Utility bill')).toBeInTheDocument();
+    await expect(within(list).queryByText('Lease agreement')).not.toBeInTheDocument();
   },
 };
 

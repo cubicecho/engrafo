@@ -101,12 +101,12 @@ const DocumentDuplicatesOf = graphql(`
   }
 `);
 
+// Only the id: the answer is a plain row, with no steps, so a status in it would flip the badge
+// while the timeline still showed the failed run. The refetch brings both in one write.
 const RetryProcessing = graphql(`
   mutation RetryDocumentProcessing($id: UUID!) {
     retryDocumentProcessing(id: $id) {
       id
-      status
-      error
     }
   }
 `);
@@ -308,7 +308,10 @@ export function DocumentRoute() {
   const moveTargets = useQuery(MoveTargets, { skip: !moving, fetchPolicy: 'network-only' });
   const [moveDocument] = useMutation(MoveDocumentHere);
   const [reprocessing, setReprocessing] = useState(false);
-  const [retry, retryState] = useMutation(RetryProcessing);
+  const [retry, retryState] = useMutation(RetryProcessing, {
+    refetchQueries: [DocumentDetail],
+    awaitRefetchQueries: true,
+  });
   // Refetched so the timeline shows every step queued again, not the last run's.
   const [reprocess, reprocessState] = useMutation(ReprocessDocument, {
     refetchQueries: [DocumentDetail],
@@ -374,7 +377,13 @@ export function DocumentRoute() {
   function deleteThis(documentId: string) {
     // The failure is drawn from `removeState`; the handler only keeps the rejection handled.
     void remove({ variables: { id: documentId } }).then(
-      () => navigate(ROUTES.documents, { replace: true }),
+      () => {
+        // Out of the cache before the list is drawn: every list there reads it by reference, so
+        // the next page paints without it instead of showing it until the refetch lands.
+        client.cache.evict({ id: client.cache.identify({ __typename: 'Document', id: documentId }) });
+        client.cache.gc();
+        navigate(ROUTES.documents, { replace: true });
+      },
       () => undefined,
     );
   }
