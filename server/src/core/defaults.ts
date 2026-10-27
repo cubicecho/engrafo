@@ -218,15 +218,19 @@ export interface VisionSettings {
    */
   pageDpi: number;
   /**
-   * The most a page's answer may run to. A dense A4 page of prose is around 1,500 tokens, and a
-   * page truncated at the ceiling is silently half a page, so this is set where a page cannot
-   * plausibly reach it. The admin's "longest reply" replaces it when set: a model that loops
-   * repeats itself all the way to this, which at local speeds is a minute a page.
+   * The most a page's answer may run to. A dense page of prose or a long table is 1,000 to 2,600
+   * tokens, so this leaves room over that and no more: a model that loops repeats itself all the
+   * way to it, and at local speeds (~150 tokens/s) 8,192 was a minute a page and 35,000 nearly
+   * four. The admin's "longest reply" replaces it when set.
    */
   pageMaxTokens: number;
   /** The shortest "longest reply" the admin may set, in tokens: below it a page of text cannot fit. */
   minPageMaxTokens: number;
-  /** The longest "longest reply" the admin may set, in tokens. */
+  /**
+   * The longest "longest reply" the admin may set, in tokens: a model's context, not advice. The
+   * settings page suggests staying under 16,384, since a higher limit reads no dense page better
+   * and only makes a loop slower.
+   */
   maxPageMaxTokens: number;
   /**
    * The sampling temperature a page is read at, unless the admin sets one. Not 0: greedy decoding
@@ -258,7 +262,7 @@ export const VISION_DEFAULTS: Readonly<VisionSettings> = Object.freeze({
   minRequestTimeoutSeconds: 10,
   maxRequestTimeoutSeconds: 3600,
   pageDpi: 200,
-  pageMaxTokens: 8192,
+  pageMaxTokens: 4096,
   minPageMaxTokens: 256,
   maxPageMaxTokens: 131_072,
   temperature: 0.6,

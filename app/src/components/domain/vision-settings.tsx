@@ -67,7 +67,7 @@ const SetVisionSettings = graphql(`
 export const VISION_TIMEOUT_DEFAULT_SECONDS = 600;
 
 /** The server's own cap on one page's reply, in tokens, shown as the field's placeholder. */
-export const VISION_MAX_RESPONSE_DEFAULT_TOKENS = 8192;
+export const VISION_MAX_RESPONSE_DEFAULT_TOKENS = 4096;
 /** The bounds the server holds the cap to (`VISION_DEFAULTS`), checked here to say so before a save. */
 const VISION_MAX_RESPONSE_MIN_TOKENS = 256;
 const VISION_MAX_RESPONSE_MAX_TOKENS = 131_072;
@@ -484,7 +484,7 @@ function VisionForm({ settings }: { settings: Settings }) {
                 min={VISION_MAX_RESPONSE_MIN_TOKENS}
                 max={VISION_MAX_RESPONSE_MAX_TOKENS}
                 placeholder={String(VISION_MAX_RESPONSE_DEFAULT_TOKENS)}
-                description="Where one page's answer is cut off. A dense page of text is about 1,500 tokens; a model that starts repeating itself runs all the way to this, on every page."
+                description="Where one page's answer is cut off. A dense page of text or a long table is 1,000 to 2,600 tokens, so a higher limit reads no page better: a model that starts repeating itself runs all the way to it, on every page. Keep it under 16,384."
                 validators={{
                   onChange: ({ value }) => {
                     if (value === null) {
