@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { DocumentFileVariant } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { Alert } from '@/components/ui/alert';
+import { FILL_AT_LG } from '@/lib/page';
 import { DocumentFileUrl } from './document-file';
 
 // Plain text, Markdown and CSV get no frame of their own: the text card already
@@ -113,6 +114,8 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
     <CardLayout
       level={2}
       title="Preview"
+      className={FILL_AT_LG}
+      contentClassName={FILL_AT_LG}
       description={
         variant === DocumentFileVariant.Archive ? 'The searchable PDF produced by OCR.' : 'The uploaded file.'
       }
@@ -120,7 +123,7 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
         <iframe
           title="Document preview"
           src={previewUrl}
-          className="h-[36rem] w-full rounded-md border border-foreground/10"
+          className="h-[36rem] w-full rounded-md border border-foreground/10 lg:h-auto lg:min-h-96 lg:flex-1"
         />
       }
     />

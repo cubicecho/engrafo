@@ -673,7 +673,11 @@ both, a `Link` per tab, so a tab can be linked and survives a reload; an
 unknown tab (or Sign-in for a non-admin) opens the first. The document page is
 Preview / Text / History (the pipeline timeline), with the alerts above the
 tabs and Receipt and Details beside them; a type the preview card does not
-frame has no Preview tab and opens on Text.
+frame has no Preview tab and opens on Text. From `lg` up the Preview and
+Text cards run to the bottom of the window (`FILL_AT_LG` in `lib/page.ts`, on
+every element between the scrolling body and the iframe or the text's scroll box),
+and the text scrolls inside one box whichever way it is drawn; below `lg` the
+columns stack and both keep a fixed height, so the cards beside them stay in reach.
 
 **Stored text says how it is written.** `documents.content_format` is `plain` or
 `markdown`, and `storeContent` sets it with the key: from the type by default

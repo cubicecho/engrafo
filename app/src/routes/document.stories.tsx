@@ -630,6 +630,39 @@ export const WithText: Story = {
   },
 };
 
+const LONG_TEXT = Array.from({ length: 200 }, (_, line) => `Clause ${line + 1}. The tenant keeps the garden.`).join(
+  '\n',
+);
+/** How close to the window's bottom the card ends: the body's own padding under it. */
+const BODY_PADDING_PX = 16;
+
+/**
+ * On a wide screen the text card runs to the bottom of the window and its text scrolls inside it,
+ * rather than the card stopping at a fixed height with the page empty under it.
+ */
+export const TextFillsTheWindow: Story = {
+  globals: { viewport: { value: 'desktop' } },
+  parameters: {
+    router: { initialEntries: [`${documentPath(ID)}?tab=text`] },
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({ contentKey: 'text/lease.txt', contentBytes: LONG_TEXT.length }),
+          documentFileUrl: () => textUrl(LONG_TEXT),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const text = await canvas.findByRole('region', { name: 'Extracted text' });
+    await waitFor(() => expect(text.scrollHeight).toBeGreaterThan(text.clientHeight));
+    const card = text.closest('[data-slot="card-layout"]');
+    const bottom = card?.getBoundingClientRect().bottom ?? 0;
+    await expect(bottom).toBeGreaterThan(window.innerHeight - BODY_PADDING_PX * 2);
+    await expect(bottom).toBeLessThanOrEqual(window.innerHeight);
+  },
+};
+
 /**
  * The text object exists and has nothing in it. The card used to answer every case it had no
  * text for with "Too large to show here.", which is only true of one of them.

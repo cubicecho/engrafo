@@ -36,7 +36,7 @@ import { POLLING_DEFAULTS } from '@/defaults';
 import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
 import { DOCUMENT_TAB_PARAM, type DocumentTab, documentTab, tabSearch } from '@/lib/document-tabs';
 import { formatBytes, joinStats } from '@/lib/format';
-import { FULL_WIDTH_BODY } from '@/lib/page';
+import { FILL_AT_LG, FULL_WIDTH_BODY } from '@/lib/page';
 import { stepProgress } from '@/lib/pipeline-steps';
 import { queryLike } from '@/lib/query';
 import { ROUTES } from '@/lib/routes';
@@ -630,10 +630,13 @@ export function DocumentRoute() {
           <SplitLayout
             stackBelow="lg"
             secondWidth="md"
+            // The rest of the window, from lg up, so the preview and the text run to its bottom;
+            // never so little that a short window squeezes them, and the body scrolls instead.
+            className="lg:min-h-[32rem] lg:flex-1"
             firstSlot={
               // Tabs that are links: the URL holds the tab, so a reload or a shared link opens the
               // same one, and the route, not `onValueChange`, is what changes it.
-              <Tabs value={tab}>
+              <Tabs value={tab} className={cn('flex flex-col', FILL_AT_LG)}>
                 <TabsList aria-label="Document view" className="self-start">
                   {previewable ? (
                     <TabsTrigger value="preview" linkSlot={tabLink('preview')}>
@@ -652,11 +655,11 @@ export function DocumentRoute() {
                   </TabsTrigger>
                 </TabsList>
                 {previewable ? (
-                  <TabsContent value="preview">
+                  <TabsContent value="preview" className={FILL_AT_LG}>
                     <DocumentPreviewCard doc={doc} />
                   </TabsContent>
                 ) : null}
-                <TabsContent value="text">
+                <TabsContent value="text" className={FILL_AT_LG}>
                   <DocumentTextCard doc={doc} onDownload={() => void download(DocumentFileVariant.Text)} />
                 </TabsContent>
                 <TabsContent value="history">

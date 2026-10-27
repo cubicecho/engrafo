@@ -13,6 +13,8 @@ import { SegmentedButton, SegmentedGroup } from '@/components/ui/segmented';
 import { TEXT_PREVIEW_DEFAULTS } from '@/defaults';
 import { fetchText } from '@/lib/fetch-text';
 import { formatBytes, joinStats } from '@/lib/format';
+import { FILL_AT_LG } from '@/lib/page';
+import { cn } from '@/lib/utils';
 import { DocumentFileUrl } from './document-file';
 
 /** How the card draws the text: rendered as Markdown, or as the characters stored. */
@@ -65,15 +67,26 @@ function ExtractedText({
   if (!content) {
     return <p className="text-foreground/60 text-sm">No text was extracted from this document.</p>;
   }
-  if (view === TextView.Formatted) {
-    return (
-      <div className="max-h-96 overflow-y-auto rounded-md border p-4">
-        <Markdown content={content} components={MARKDOWN_COMPONENTS} />
-      </div>
-    );
-  }
+  const formatted = view === TextView.Formatted;
   return (
-    <CodeBlock content={content} wrap maxHeight="lg" actionSlot={<CopyButton value={content} label="Copy text" />} />
+    // One box scrolls, whichever way the text is drawn: below lg it is capped, from lg up it runs
+    // to the bottom of the window. Focusable and named, since a region only a wheel can scroll
+    // cannot be read by keyboard.
+    <section
+      aria-label="Extracted text"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls needs a tab stop to be read by keyboard.
+      tabIndex={0}
+      className={cn(
+        'max-h-96 overflow-y-auto lg:max-h-none lg:min-h-48 lg:flex-1',
+        formatted && 'rounded-md border p-4',
+      )}
+    >
+      {formatted ? (
+        <Markdown content={content} components={MARKDOWN_COMPONENTS} />
+      ) : (
+        <CodeBlock content={content} wrap />
+      )}
+    </section>
   );
 }
 
@@ -159,12 +172,14 @@ export function DocumentTextCard({ doc, onDownload }: DocumentTextCardProps) {
     <CardLayout
       level={2}
       title="Text"
+      className={FILL_AT_LG}
+      contentClassName={FILL_AT_LG}
       description={joinStats('What the pipeline extracted', formatBytes(contentBytes))}
       loading={!contentOversize && content === null && !failed}
       actionSlot={
         content ? (
           <>
-            {view === TextView.Formatted ? <CopyButton value={content} label="Copy text" /> : null}
+            <CopyButton value={content} label="Copy text" />
             <SegmentedGroup aria-label="Show the text" value={view} onValueChange={setView}>
               <SegmentedButton value={TextView.Formatted}>Formatted</SegmentedButton>
               <SegmentedButton value={TextView.Plain}>Plain</SegmentedButton>
