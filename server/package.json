@@ -13,7 +13,7 @@
     "@aws-sdk/client-s3": "^3.1156.0",
     "@aws-sdk/s3-request-presigner": "^3.1156.0",
     "@better-auth/api-key": "^1.7.12",
-    "@cubicecho/agent-core": "^4.2.0",
+    "@cubicecho/agent-core": "^4.3.0",
     "@cubicecho/engrafo-db": "*",
     "@huggingface/transformers": "^4.3.1",
     "@modelcontextprotocol/sdk": "^1.32.2",

@@ -30,6 +30,33 @@ export const VISION_SAMPLER_FIELDS = [
   'repeatPenalty',
 ] as const satisfies readonly (keyof VisionSampler)[];
 
+/** Each sampler field's name in an OpenAI-compatible request. */
+const SAMPLER_WIRE_NAMES: Readonly<Record<keyof VisionSampler, string>> = {
+  topP: 'top_p',
+  topK: 'top_k',
+  minP: 'min_p',
+  presencePenalty: 'presence_penalty',
+  frequencyPenalty: 'frequency_penalty',
+  repeatPenalty: 'repeat_penalty',
+};
+
+/**
+ * The sampler fields as a request's extra body.
+ *
+ * @param sampler - The fields the admin set.
+ * @returns Each one under its wire name; nothing for one not set, so the server keeps its default.
+ */
+export function samplerBody(sampler: VisionSampler): Record<string, number> {
+  const body: Record<string, number> = {};
+  for (const field of VISION_SAMPLER_FIELDS) {
+    const value = sampler[field];
+    if (value !== undefined) {
+      body[SAMPLER_WIRE_NAMES[field]] = value;
+    }
+  }
+  return body;
+}
+
 /** What a run needs to reach the model. Only built when there is one to reach. */
 export interface VisionConfig {
   /** The OpenAI-compatible base URL. */
