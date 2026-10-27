@@ -2,6 +2,7 @@ import {
   type DownloadButtonProps,
   type DownloadContent,
   type DownloadDestination,
+  isIconSize,
   useDownload,
 } from "@/components/ui/download-button-base";
 /**
@@ -53,7 +54,10 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
   link.remove();
 }
 
-/** An icon button that saves a file, and shows that it is waiting while the file is fetched. */
+/**
+ * A button that saves a file, and shows that it is waiting while the file is fetched: an icon
+ * alone at an `icon*` size, the icon and `label` at a text size.
+ */
 export function DownloadButton({
   source,
   href,
@@ -75,6 +79,7 @@ export function DownloadButton({
       variant={variant}
       size={size}
       aria-label={label}
+      {...(isIconSize(size) ? {} : { content: label })}
       loading={pending}
       disabled={disabled}
       className={className}

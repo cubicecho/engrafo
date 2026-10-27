@@ -123,7 +123,9 @@ export function StatTile({
         ) : null}
         <span
           data-slot="stat-tile-label"
-          className={cn("cube-rn-text", "min-w-0 flex-1 truncate font-semibold text-sm", ink)}
+          // Normal weight, as PropertyRow's label: the label supports the figure under it, and
+          // a grey semibold label competed with it.
+          className={cn("cube-rn-text", "min-w-0 flex-1 truncate text-sm", ink)}
         >
           {label}
         </span>

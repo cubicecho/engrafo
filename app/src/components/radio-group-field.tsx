@@ -13,6 +13,7 @@ import {
 import { cn, type SlotNode } from "@/lib/utils";
 import { FieldDescription, FieldError, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /** One choice. `description` is the line under it — what picking this one means. */
 export type RadioOption = {
@@ -123,14 +124,11 @@ function RadioGroupFieldBody({
         title
       )}
       {loading ? (
-        <div
+        // The Skeleton primitive, pulsing as FormField's does, not a hand-drawn still box.
+        <Skeleton
           aria-hidden
           data-slot="radio-group-field-skeleton"
-          className={cn(
-            "cube-rn-view",
-            "h-16 w-full rounded-md bg-foreground/10",
-            loadingClassName,
-          )}
+          className={cn("h-16 w-full rounded-md", loadingClassName)}
         />
       ) : (
         <RadioGroup

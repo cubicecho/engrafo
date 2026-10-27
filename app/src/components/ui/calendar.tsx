@@ -18,8 +18,14 @@ import "react-day-picker/style.css";
 const THEME = {
   "--rdp-accent-color": "var(--active)",
   "--rdp-accent-background-color": "var(--hover)",
-  "--rdp-today-color": "var(--neutral)",
-  "--rdp-range_middle-background-color": "var(--hover)",
+  // Today is current, so it is `active`. It was `neutral`, 1.1:1 against the other days' ink.
+  "--rdp-today-color": "var(--active)",
+  // A picked day is filled (below), not ringed.
+  "--rdp-selected-border": "2px solid transparent",
+  // A range is chosen, so its inside is the chosen-row tint, `active` at /40 — what
+  // `bg-active/40` compiles to. It was `hover`, which reads as a hover that stuck.
+  "--rdp-range_middle-background-color": "color-mix(in oklab, var(--active) 40%, transparent)",
+  "--rdp-weekday-opacity": "1",
   "--rdp-range_middle-color": "var(--foreground)",
   "--rdp-range_start-color": "var(--active-foreground)",
   "--rdp-range_start-date-background-color": "var(--active)",
@@ -35,9 +41,35 @@ const THEME = {
 const DAY_BUTTON_CLASS = cn(
   getDefaultClassNames().day_button,
   "focus-visible:outline-none",
-  "[:not(.rdp-range_start,.rdp-range_end)>&]:hover:bg-hover!",
-  "[:not(.rdp-range_start,.rdp-range_end)>&]:focus-visible:bg-hover!",
+  "[:not(.rdp-range_start,.rdp-range_end,.rdp-selected:not(.rdp-range_middle))>&]:hover:bg-hover!",
+  "[:not(.rdp-range_start,.rdp-range_end,.rdp-selected:not(.rdp-range_middle))>&]:focus-visible:bg-hover!",
+  // A picked day has no hover look of its own; focused, it looks hovered, as everything does.
+  "[.rdp-selected:not(.rdp-range_middle)>&]:focus-visible:bg-hover!",
+  "[.rdp-selected:not(.rdp-range_middle)>&]:focus-visible:text-foreground!",
 );
+
+const DEFAULTS = getDefaultClassNames();
+
+/**
+ * The parts react-day-picker's stylesheet sizes off the scale, put on it, and the picked day
+ * filled as native's is. Each keeps its default class, which the rules above select on. `!` for
+ * the same reason as above: the stylesheet is unlayered.
+ */
+const CLASS_NAMES = {
+  day_button: DAY_BUTTON_CLASS,
+  // The library sets `large` and bold here: the picked day stays the size and weight of the rest.
+  selected: cn(
+    DEFAULTS.selected,
+    "text-sm! font-normal!",
+    "[&:not(.rdp-range_middle)>button]:bg-active! [&:not(.rdp-range_middle)>button]:text-active-foreground!",
+  ),
+  // Not colour alone: today is semibold as well.
+  today: cn(DEFAULTS.today, "font-semibold"),
+  month_caption: cn(DEFAULTS.month_caption, "text-sm! font-semibold!"),
+  weekday: cn(DEFAULTS.weekday, "text-xs! font-normal! text-foreground/60"),
+  // The arrows were drawn in the accent, `active`, which means chosen.
+  chevron: cn(DEFAULTS.chevron, "fill-foreground!"),
+};
 
 /** What `DayPicker` takes beyond the shared contract, passed through as it is. */
 type DayPickerExtras = Omit<
@@ -80,8 +112,8 @@ export function Calendar(props: CalendarProps & DayPickerExtras) {
     ...(numberOfMonths === undefined ? {} : { numberOfMonths }),
     ...(startMonth === undefined ? {} : { startMonth }),
     ...(weekStartsOn === undefined ? {} : { weekStartsOn }),
-    className: cn("p-3", className),
-    classNames: { day_button: DAY_BUTTON_CLASS, ...extras.classNames },
+    className: cn("p-3 text-sm", className),
+    classNames: { ...CLASS_NAMES, ...extras.classNames },
     // The caller's style last, so a call site can still override any of them.
     style: { ...THEME, ...style },
   };
