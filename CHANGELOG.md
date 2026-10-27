@@ -1,3 +1,11 @@
+# [4.16.0](https://github.com/cubicecho/engrafo/compare/v4.15.1...v4.16.0) (2026-10-27)
+
+
+### Features
+
+* **vision:** let the admin set top P, top K, min P and the penalties ([0c7ad3c](https://github.com/cubicecho/engrafo/commit/0c7ad3ceb437210c36b861d46ff4bd46817c7e8e)), closes [agent-core#159](https://github.com/agent-core/issues/159) [#59](https://github.com/cubicecho/engrafo/issues/59)
+* **vision:** send the sampler fields the admin set with every page ([3b46876](https://github.com/cubicecho/engrafo/commit/3b46876a825e8717bb33f6faa9a95d04164dce14)), closes [#59](https://github.com/cubicecho/engrafo/issues/59)
+
 ## [4.15.1](https://github.com/cubicecho/engrafo/compare/v4.15.0...v4.15.1) (2026-10-27)
 
 
