@@ -4,6 +4,7 @@ import * as dbSchema from '@cubicecho/engrafo-db/schema';
 import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { VISION_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
 import { readVisionSettings, saveVisionSettings } from '../../vision/settings.ts';
@@ -66,7 +67,7 @@ describe('vision settings', () => {
       hasApiKey: false,
       auto: false,
       requestTimeoutSeconds: 600,
-      maxResponseTokens: 8192,
+      maxResponseTokens: VISION_DEFAULTS.pageMaxTokens,
       imageDetail: 'AUTO',
       temperature: 0.6,
       textFormat: 'PLAIN',
@@ -93,7 +94,7 @@ describe('vision settings', () => {
       hasApiKey: true,
       auto: true,
       requestTimeoutSeconds: 600,
-      maxResponseTokens: 8192,
+      maxResponseTokens: VISION_DEFAULTS.pageMaxTokens,
       imageDetail: 'AUTO',
       temperature: 0.6,
       textFormat: 'PLAIN',
@@ -157,7 +158,10 @@ describe('vision settings', () => {
 
     // Left out is the default again, as for the timeout.
     const reset = await admin.expectOk(SET, { input: base });
-    expect(reset.setVisionSettings).toMatchObject({ maxResponseTokens: 8192, imageDetail: 'AUTO' });
+    expect(reset.setVisionSettings).toMatchObject({
+      maxResponseTokens: VISION_DEFAULTS.pageMaxTokens,
+      imageDetail: 'AUTO',
+    });
     expect(await readVisionSettings(db)).toMatchObject({ maxResponseTokens: null, imageDetail: null });
   });
 
