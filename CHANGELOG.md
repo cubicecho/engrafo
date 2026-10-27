@@ -1,3 +1,10 @@
+## [4.15.1](https://github.com/cubicecho/engrafo/compare/v4.15.0...v4.15.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **vision:** read a page with a 4,096-token reply limit by default ([912564d](https://github.com/cubicecho/engrafo/commit/912564daef8a1660b8e33261c3f27b0234a20156)), closes [#57](https://github.com/cubicecho/engrafo/issues/57)
+
 # [4.15.0](https://github.com/cubicecho/engrafo/compare/v4.14.1...v4.15.0) (2026-10-26)
 
 
