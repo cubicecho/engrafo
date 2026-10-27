@@ -238,7 +238,8 @@ function List({
 }) {
   const tasks = className?.includes("contains-task-list");
   const look = cn(
-    "m-0",
+    // A list stops at about 65 characters a line, however wide the pane, as a paragraph does.
+    "m-0 max-w-prose",
     tasks ? "list-none pl-0" : ["pl-6", ordered ? "list-decimal" : "list-disc"],
   );
   return ordered ? (
@@ -724,7 +725,9 @@ const ELEMENTS: Components = {
       {children}
     </Heading>
   ),
-  p: ({ children }) => <p className="m-0">{children}</p>,
+  // Text blocks stop at `max-w-prose` (65ch): at a page's width a paragraph ran to 160
+  // characters a line. Tables, code and images are not capped and keep the full width.
+  p: ({ children }) => <p className="m-0 max-w-prose">{children}</p>,
   ul: ({ className, children }) => (
     <List ordered={false} className={className}>
       {children}
@@ -738,7 +741,12 @@ const ELEMENTS: Components = {
   li: ({ className, children }) => <ListItem className={className}>{children}</ListItem>,
   input: ({ checked }) => <TaskBox checked={checked} />,
   blockquote: ({ children }) => (
-    <blockquote className={cn(FLOW, "m-0 border-foreground/10 border-l-2 pl-4 text-foreground/60")}>
+    <blockquote
+      className={cn(
+        FLOW,
+        "m-0 max-w-prose border-foreground/10 border-l-2 pl-4 text-foreground/60",
+      )}
+    >
       {children}
     </blockquote>
   ),

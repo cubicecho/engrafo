@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn, type SlotNode } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -212,29 +212,18 @@ export function DialogLayout({
   // dialog with no footer, not with an empty one taking up a row.
   const hasFooter = Boolean(footerSlot || actions);
 
-  // Keeping the question's answer from being given by accident: a click on the overlay does not
-  // answer "discard?", which is what the web-only `alert-dialog` refused as well.
-  const holdOpen = (event: Event) => event.preventDefault();
-
+  // ConfirmDialog holds the overlay click (it does not answer "discard?") and puts the safe
+  // answer first, where focus lands. The labels are passed: its own defaults are Confirm/Cancel.
   const discardQuestion = (
-    <Dialog open={askingToDiscard} onOpenChange={setAskingToDiscard}>
-      <DialogContent
-        role="alertdialog"
-        showCloseButton={false}
-        onInteractOutside={holdOpen}
-        className="sm:max-w-lg"
-      >
-        <DialogHeader>
-          <DialogTitle>{discardTitle}</DialogTitle>
-          <DialogDescription>{discardDescription}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          {/* First, so it is where focus lands: the safe answer is the one a stray Enter gives. */}
-          <Button variant="outline" onClick={() => setAskingToDiscard(false)} content={keepLabel} />
-          <Button variant="destructive" onClick={discard} content={discardLabel} />
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={askingToDiscard}
+      onOpenChange={setAskingToDiscard}
+      title={discardTitle}
+      description={discardDescription}
+      confirmLabel={discardLabel}
+      cancelLabel={keepLabel}
+      onConfirm={discard}
+    />
   );
 
   return (
