@@ -1,3 +1,10 @@
+# [4.17.0](https://github.com/cubicecho/engrafo/compare/v4.16.1...v4.17.0) (2026-10-27)
+
+
+### Features
+
+* **app:** run the document's preview and text to the bottom of the window ([bbbef28](https://github.com/cubicecho/engrafo/commit/bbbef2833b6c6394a9b13eb030ba8a1d9cc2de98))
+
 ## [4.16.1](https://github.com/cubicecho/engrafo/compare/v4.16.0...v4.16.1) (2026-10-27)
 
 
