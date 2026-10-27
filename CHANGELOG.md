@@ -1,3 +1,10 @@
+## [4.16.1](https://github.com/cubicecho/engrafo/compare/v4.16.0...v4.16.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **vision:** fail a page whose reply stopped at the reply limit ([8baa362](https://github.com/cubicecho/engrafo/commit/8baa3626df14b72a8d4cc96376e80cdaa69ff01a)), closes [#58](https://github.com/cubicecho/engrafo/issues/58)
+
 # [4.16.0](https://github.com/cubicecho/engrafo/compare/v4.15.1...v4.16.0) (2026-10-27)
 
 
