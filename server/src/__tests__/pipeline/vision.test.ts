@@ -76,6 +76,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
     maxResponseTokens: 8192,
     imageDetail: 'auto',
     temperature: 0.6,
+    sampler: {},
     textFormat: 'plain',
     auto: true,
   };
@@ -90,6 +91,7 @@ const VISION: VisionConfig = {
   maxResponseTokens: 8192,
   imageDetail: 'auto',
   temperature: 0.6,
+  sampler: {},
   textFormat: 'plain',
   auto: false,
 };
@@ -309,6 +311,25 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       expect(request.temperature).toBe(0);
       const parts = request.messages.at(-1)?.content as Array<{ image_url?: { detail?: string } }>;
       expect(parts[1].image_url?.detail).toBe('low');
+      // None set, none sent: the server keeps its own.
+      expect(request).not.toHaveProperty('top_p');
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('sends the sampler fields the admin set, under their wire names, and no others', async () => {
+    const endpoint = await fakeEndpoint(() => 'INVOICE 4821');
+    try {
+      await runStep({
+        ...CONFIG,
+        vision: { ...endpoint.vision, sampler: { topP: 0.8, topK: 20, presencePenalty: 1.5 } },
+      });
+      const [request] = endpoint.bodies;
+      expect(request).toMatchObject({ top_p: 0.8, top_k: 20, presence_penalty: 1.5 });
+      for (const unset of ['min_p', 'frequency_penalty', 'repeat_penalty']) {
+        expect(request).not.toHaveProperty(unset);
+      }
     } finally {
       await endpoint.close();
     }

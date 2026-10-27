@@ -14,6 +14,7 @@ import {
   createTestDb,
   createUser,
   type FakeStorage,
+  NO_SAMPLER,
   type TestDb,
 } from '../helpers.ts';
 
@@ -393,6 +394,7 @@ describe('pipeline runner', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      ...NO_SAMPLER,
     });
     await pipeline.run((await insertDocument()).id);
 

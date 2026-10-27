@@ -241,6 +241,10 @@ export interface VisionSettings {
   temperature: number;
   /** The highest temperature the admin may set. OpenAI's ceiling; past it the output is noise. */
   maxTemperature: number;
+  /** How far a presence or frequency penalty may go either way. OpenAI's range, -2 to 2. */
+  maxPenalty: number;
+  /** The highest repeat penalty the admin may set. 1 is none; llama.cpp's useful range ends well short of 2. */
+  maxRepeatPenalty: number;
   /**
    * Past this many pages the step declines rather than spending hours on one document. The
    * pipeline has no queue, so a 600-page scan at half a minute a page is the whole archive stalled
@@ -267,6 +271,8 @@ export const VISION_DEFAULTS: Readonly<VisionSettings> = Object.freeze({
   maxPageMaxTokens: 131_072,
   temperature: 0.6,
   maxTemperature: 2,
+  maxPenalty: 2,
+  maxRepeatPenalty: 2,
   maxPages: 200,
   rasterTimeoutMinutes: 10,
   modelsTimeoutSeconds: 5,

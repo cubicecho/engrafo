@@ -36,6 +36,14 @@ export const visionSettings = pgTable(
     imageDetail: text('image_detail').$type<VisionImageDetail>(),
     // The sampling temperature. Null is VISION_DEFAULTS.temperature.
     temperature: doublePrecision('temperature'),
+    // The other sampler fields a model card recommends, sent as their wire names. Null sends none,
+    // so the server's own default applies: these are what stop some models looping on a page.
+    topP: doublePrecision('top_p'),
+    topK: integer('top_k'),
+    minP: doublePrecision('min_p'),
+    presencePenalty: doublePrecision('presence_penalty'),
+    frequencyPenalty: doublePrecision('frequency_penalty'),
+    repeatPenalty: doublePrecision('repeat_penalty'),
     // What the model is asked to write. Null is `plain`.
     textFormat: contentFormat('text_format'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -48,6 +56,12 @@ export const visionSettings = pgTable(
     check('vision_settings_image_detail', sql`${table.imageDetail} in ('auto', 'low', 'high')`),
     check('vision_settings_max_response_tokens', sql`${table.maxResponseTokens} > 0`),
     check('vision_settings_temperature', sql`${table.temperature} between 0 and 2`),
+    check('vision_settings_top_p', sql`${table.topP} between 0 and 1`),
+    check('vision_settings_top_k', sql`${table.topK} >= 0`),
+    check('vision_settings_min_p', sql`${table.minP} between 0 and 1`),
+    check('vision_settings_presence_penalty', sql`${table.presencePenalty} between -2 and 2`),
+    check('vision_settings_frequency_penalty', sql`${table.frequencyPenalty} between -2 and 2`),
+    check('vision_settings_repeat_penalty', sql`${table.repeatPenalty} between 0 and 2`),
   ],
 );
 

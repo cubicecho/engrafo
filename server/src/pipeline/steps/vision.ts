@@ -9,7 +9,7 @@ import { OCR_DEFAULTS, VISION_DEFAULTS } from '../../core/defaults.ts';
 import { errorMessage } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
 import type { StorageSet } from '../../storage/s3.ts';
-import type { VisionConfig } from '../../vision/settings.ts';
+import { samplerBody, type VisionConfig } from '../../vision/settings.ts';
 import { storeContent } from '../content.ts';
 import { pngHasTransparency, toOpaquePng } from '../image.ts';
 import { isImage, isOcrable, needsPngForOcr } from '../mime.ts';
@@ -226,6 +226,7 @@ async function transcribe(
       const text = await ask(vision, vision.model, instruction, pageInput(image, page.mimeType, vision.imageDetail), {
         maxTokens: vision.maxResponseTokens,
         temperature: vision.temperature,
+        extraBody: samplerBody(vision.sampler),
         onNotice: notice,
       });
       transcript.push(markdown ? unfence(text.trim()) : text.trim());

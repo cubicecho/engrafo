@@ -1,0 +1,392 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "f5504cae-2d32-4ea0-a602-ff5226cd8a43",
+  "prevIds": [
+    "fd69438f-58b7-45af-bc8d-03a3ee578e62",
+    "0b16146f-98eb-4ecd-8ff4-ead2f47d282d"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "top_p"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.top_p",
+        "n|col|public.vision_settings.top_p",
+        "e|col|public.vision_settings.top_p"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "top_k"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.top_k",
+        "n|col|public.vision_settings.top_k",
+        "e|col|public.vision_settings.top_k"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "min_p"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.min_p",
+        "n|col|public.vision_settings.min_p",
+        "e|col|public.vision_settings.min_p"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "presence_penalty"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.presence_penalty",
+        "n|col|public.vision_settings.presence_penalty",
+        "e|col|public.vision_settings.presence_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "frequency_penalty"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.frequency_penalty",
+        "n|col|public.vision_settings.frequency_penalty",
+        "e|col|public.vision_settings.frequency_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "repeat_penalty"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.repeat_penalty",
+        "n|col|public.vision_settings.repeat_penalty",
+        "e|col|public.vision_settings.repeat_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_top_p",
+        "n|ck|public.vision_settings.vision_settings_top_p",
+        "e|ck|public.vision_settings.vision_settings_top_p",
+        "n|con|public.vision_settings.vision_settings_top_p"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.top_p"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_top_k",
+        "n|ck|public.vision_settings.vision_settings_top_k",
+        "e|ck|public.vision_settings.vision_settings_top_k",
+        "n|con|public.vision_settings.vision_settings_top_k"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.top_k"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_min_p",
+        "n|ck|public.vision_settings.vision_settings_min_p",
+        "e|ck|public.vision_settings.vision_settings_min_p",
+        "n|con|public.vision_settings.vision_settings_min_p"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.min_p"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_presence_penalty",
+        "n|ck|public.vision_settings.vision_settings_presence_penalty",
+        "e|ck|public.vision_settings.vision_settings_presence_penalty",
+        "n|con|public.vision_settings.vision_settings_presence_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.presence_penalty"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_frequency_penalty",
+        "n|ck|public.vision_settings.vision_settings_frequency_penalty",
+        "e|ck|public.vision_settings.vision_settings_frequency_penalty",
+        "n|con|public.vision_settings.vision_settings_frequency_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.frequency_penalty"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_repeat_penalty",
+        "n|ck|public.vision_settings.vision_settings_repeat_penalty",
+        "e|ck|public.vision_settings.vision_settings_repeat_penalty",
+        "n|con|public.vision_settings.vision_settings_repeat_penalty"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.repeat_penalty"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "top_p",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "top_k",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "min_p",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "presence_penalty",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "frequency_penalty",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "repeat_penalty",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_top_p",
+        "value": "\"top_p\" between 0 and 1",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_top_k",
+        "value": "\"top_k\" >= 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_min_p",
+        "value": "\"min_p\" between 0 and 1",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_presence_penalty",
+        "value": "\"presence_penalty\" between -2 and 2",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_frequency_penalty",
+        "value": "\"frequency_penalty\" between -2 and 2",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_repeat_penalty",
+        "value": "\"repeat_penalty\" between 0 and 2",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

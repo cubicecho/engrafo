@@ -7,14 +7,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VISION_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
-import { readVisionSettings, saveVisionSettings } from '../../vision/settings.ts';
-import { createClient, createTestDb, createUser, type TestDb } from '../helpers.ts';
+import { loadVisionConfig, readVisionSettings, saveVisionSettings } from '../../vision/settings.ts';
+import { createClient, createTestDb, createUser, NO_SAMPLER, type TestDb } from '../helpers.ts';
 
 const SETTINGS =
   '{ visionSettings { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature textFormat configured } }';
 const SET = `
   mutation ($input: VisionSettingsInput!) {
     setVisionSettings(input: $input) { baseUrl model hasApiKey auto requestTimeoutSeconds maxResponseTokens imageDetail temperature textFormat configured }
+  }
+`;
+const SAMPLER_SET = `
+  mutation ($input: VisionSettingsInput!) {
+    setVisionSettings(input: $input) { topP topK minP presencePenalty frequencyPenalty repeatPenalty }
   }
 `;
 const MODELS =
@@ -177,6 +182,31 @@ describe('vision settings', () => {
     expect((await readVisionSettings(db))?.textFormat).toBeNull();
   });
 
+  it('stores the sampler fields, hands a run only those set, and refuses one out of range', async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
+    const qwen = { topP: 0.8, topK: 20, presencePenalty: 1.5 };
+    const data = await admin.expectOk(SAMPLER_SET, { input: { ...base, ...qwen } });
+    expect(data.setVisionSettings).toEqual({
+      ...qwen,
+      minP: null,
+      frequencyPenalty: null,
+      repeatPenalty: null,
+    });
+    expect((await loadVisionConfig(db))?.sampler).toEqual(qwen);
+
+    for (const out of [{ topP: 1.5 }, { topK: -1 }, { minP: -0.1 }, { frequencyPenalty: 3 }]) {
+      const refused = await admin.expectError(SAMPLER_SET, { input: { ...base, ...out } });
+      expect(refused.code).toBe(ErrorCode.BadUserInput);
+    }
+    // Negative penalties are OpenAI's too: they encourage repetition, which is allowed.
+    await admin.expectOk(SAMPLER_SET, { input: { ...base, presencePenalty: -2, repeatPenalty: 1.1 } });
+
+    // Left out is not sent.
+    await admin.expectOk(SAMPLER_SET, { input: base });
+    expect((await loadVisionConfig(db))?.sampler).toEqual({});
+  });
+
   it('stores the temperature, takes 0, and refuses one out of bounds', async () => {
     const admin = createClient(db, adminId);
     const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
@@ -209,6 +239,7 @@ describe('vision settings', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      ...NO_SAMPLER,
     });
     expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
       visionAvailable: true,
@@ -259,6 +290,7 @@ describe('visionModels', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      ...NO_SAMPLER,
     });
 
     await admin.expectOk(MODELS, { baseUrl: endpoint.baseUrl, apiKey: 'sk-typed' });
@@ -321,6 +353,7 @@ describe('readDocumentWithVision', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      ...NO_SAMPLER,
     });
   });
 
@@ -417,6 +450,7 @@ describe('readDocumentWithVision', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      ...NO_SAMPLER,
     });
     const doc = await insertDocument({});
     expect((await client().expectError(READ, { id: doc.id })).code).toBe(ErrorCode.BadUserInput);

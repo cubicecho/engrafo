@@ -299,3 +299,13 @@ export function createFakeEmbedder(): Embedder & { embedded: string[] } {
     },
   };
 }
+
+/** The vision settings' sampler fields, none set: what a save that leaves them alone sends. */
+export const NO_SAMPLER = {
+  topP: null,
+  topK: null,
+  minP: null,
+  presencePenalty: null,
+  frequencyPenalty: null,
+  repeatPenalty: null,
+} as const;

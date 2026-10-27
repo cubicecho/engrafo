@@ -31,6 +31,12 @@ interface StoredSettings {
   maxResponseTokens: number;
   imageDetail: VisionImageDetail;
   temperature: number;
+  topP: number | null;
+  topK: number | null;
+  minP: number | null;
+  presencePenalty: number | null;
+  frequencyPenalty: number | null;
+  repeatPenalty: number | null;
   textFormat: VisionTextFormat;
 }
 
@@ -43,6 +49,12 @@ const OFF: StoredSettings = {
   maxResponseTokens: VISION_MAX_RESPONSE_DEFAULT_TOKENS,
   imageDetail: VisionImageDetail.Auto,
   temperature: VISION_TEMPERATURE_DEFAULT,
+  topP: null,
+  topK: null,
+  minP: null,
+  presencePenalty: null,
+  frequencyPenalty: null,
+  repeatPenalty: null,
   textFormat: VisionTextFormat.Plain,
 };
 const ON_OLLAMA: StoredSettings = { ...OFF, baseUrl: OLLAMA, model: 'qwen2.5vl:7b' };
@@ -92,6 +104,12 @@ function server(initial: StoredSettings, listError?: string): Server {
             maxResponseTokens: input.maxResponseTokens ?? VISION_MAX_RESPONSE_DEFAULT_TOKENS,
             imageDetail: input.imageDetail ?? VisionImageDetail.Auto,
             temperature: input.temperature ?? VISION_TEMPERATURE_DEFAULT,
+            topP: input.topP ?? null,
+            topK: input.topK ?? null,
+            minP: input.minP ?? null,
+            presencePenalty: input.presencePenalty ?? null,
+            frequencyPenalty: input.frequencyPenalty ?? null,
+            repeatPenalty: input.repeatPenalty ?? null,
             textFormat: input.textFormat ?? VisionTextFormat.Plain,
           };
           return view();
@@ -152,6 +170,12 @@ export const PicksAModelAndSaves: Story = {
       maxResponseTokens: null,
       imageDetail: VisionImageDetail.Auto,
       temperature: null,
+      topP: null,
+      topK: null,
+      minP: null,
+      presencePenalty: null,
+      frequencyPenalty: null,
+      repeatPenalty: null,
       textFormat: VisionTextFormat.Plain,
     });
     await expect('apiKey' in (picking.saves[0] ?? {})).toBe(false);
@@ -190,6 +214,38 @@ export const SetsReplyLengthAndDetail: Story = {
       maxResponseTokens: 2048,
       imageDetail: VisionImageDetail.Low,
       temperature: 0.3,
+    });
+  },
+};
+
+const sampling = server(ON_OLLAMA);
+
+/** Under Advanced: a model card's sampler, sent as typed, and every field left blank sent as null. */
+export const SetsSampler: Story = {
+  parameters: { apolloClient: { resolvers: sampling.resolvers } },
+  play: async ({ canvas }) => {
+    await canvas.findByText('Connected');
+    await userEvent.click(canvas.getByRole('button', { name: 'Advanced' }));
+    const topP = await canvas.findByRole('spinbutton', { name: 'Top P' });
+    await expect(topP).toHaveValue(null);
+
+    // Out of range is refused here, before a save can be.
+    await userEvent.type(topP, '2');
+    await expect(await canvas.findByText('At most 1')).toBeInTheDocument();
+    await userEvent.clear(topP);
+    await userEvent.type(topP, '0.8');
+    await userEvent.type(canvas.getByRole('spinbutton', { name: 'Top K' }), '20');
+    await userEvent.type(canvas.getByRole('spinbutton', { name: 'Presence penalty' }), '1.5');
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Saved')).toBeInTheDocument();
+    await expect(sampling.saves[0]).toMatchObject({
+      topP: 0.8,
+      topK: 20,
+      minP: null,
+      presencePenalty: 1.5,
+      frequencyPenalty: null,
+      repeatPenalty: null,
     });
   },
 };

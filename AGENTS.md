@@ -629,7 +629,12 @@ Advanced the admin also sets the longest reply (`max_response_tokens`, null is
 prefill grows with the square of the page's size, and `low` (512×512) is what
 makes it fast, at the cost of fine print. The temperature is a setting too
 (null is `VISION_DEFAULTS.temperature`, 0.6, not 0: greedy decoding on a
-thinking model loops until it hits the reply cap). "What it writes" is plain text or
+thinking model loops until it hits the reply cap). Top P, Top K, Min P and the
+presence, frequency and repeat penalties are nullable columns beside it, and null
+means not sent, so the server's own default applies: `VisionConfig.sampler` holds
+only those set, and `samplerBody` sends them as `ask()`'s `extraBody` under their
+wire names (`top_p`, …), which agent-core drops and retries without when an
+endpoint refuses one by name. "What it writes" is plain text or
 Markdown (`text_format`, null is plain): Markdown sends `TRANSCRIBE_MARKDOWN`
 instead of `TRANSCRIBE` and takes off a fence wrapped round a whole answer
 (`unfence`). The
