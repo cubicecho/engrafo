@@ -63,6 +63,12 @@ const RESOLVERS = {
         maxResponseTokens: 4096,
         imageDetail: 'AUTO',
         temperature: 0.6,
+        topP: null,
+        topK: null,
+        minP: null,
+        presencePenalty: null,
+        frequencyPenalty: null,
+        repeatPenalty: null,
         textFormat: 'PLAIN',
         configured: true,
       };

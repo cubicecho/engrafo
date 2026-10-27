@@ -7,6 +7,29 @@ import { VISION_DEFAULTS } from '../core/defaults.ts';
 // and restarting. The pipeline reads it at the start of every run (pipeline/runner.ts), so a change
 // reaches the next document.
 
+/**
+ * The sampler fields the admin set beside the temperature, by their camel-case names. Only the
+ * ones set are present: one left out is not sent, so the server's own default applies.
+ */
+export interface VisionSampler {
+  topP?: number;
+  topK?: number;
+  minP?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  repeatPenalty?: number;
+}
+
+/** The sampler fields, as the row and the update name them. */
+export const VISION_SAMPLER_FIELDS = [
+  'topP',
+  'topK',
+  'minP',
+  'presencePenalty',
+  'frequencyPenalty',
+  'repeatPenalty',
+] as const satisfies readonly (keyof VisionSampler)[];
+
 /** What a run needs to reach the model. Only built when there is one to reach. */
 export interface VisionConfig {
   /** The OpenAI-compatible base URL. */
@@ -22,6 +45,8 @@ export interface VisionConfig {
   imageDetail: dbSchema.VisionImageDetail;
   /** The sampling temperature. */
   temperature: number;
+  /** The other sampler fields, those set only. */
+  sampler: VisionSampler;
   /** What the model is asked to write: the page's text as it reads, or Markdown. */
   textFormat: dbSchema.ContentFormat;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
@@ -43,6 +68,13 @@ export interface VisionSettingsUpdate {
   imageDetail: dbSchema.VisionImageDetail | null;
   /** Null is `VISION_DEFAULTS.temperature`. */
   temperature: number | null;
+  /** Each null is not sent. */
+  topP: number | null;
+  topK: number | null;
+  minP: number | null;
+  presencePenalty: number | null;
+  frequencyPenalty: number | null;
+  repeatPenalty: number | null;
   /** Null is plain. */
   textFormat: dbSchema.ContentFormat | null;
 }
@@ -87,9 +119,27 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     maxResponseTokens: row.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: row.imageDetail ?? dbSchema.VisionImageDetail.Auto,
     temperature: row.temperature ?? VISION_DEFAULTS.temperature,
+    sampler: samplerOf(row),
     textFormat: row.textFormat ?? dbSchema.ContentFormat.Plain,
     auto: row.auto,
   };
+}
+
+/**
+ * The sampler fields a row sets.
+ *
+ * @param row - The settings row.
+ * @returns Each field that is not null, under its own name.
+ */
+export function samplerOf(row: dbSchema.VisionSettings): VisionSampler {
+  const sampler: VisionSampler = {};
+  for (const field of VISION_SAMPLER_FIELDS) {
+    const value = row[field];
+    if (value !== null) {
+      sampler[field] = value;
+    }
+  }
+  return sampler;
 }
 
 /**

@@ -66,6 +66,18 @@ const VISION_SDL = parse(`
     imageDetail: VisionImageDetail!
     "The sampling temperature pages are read at, 0 to 2."
     temperature: Float!
+    "Nucleus sampling, 0 to 1. Null sends none, so the server's default applies."
+    topP: Float
+    "How many of the likeliest tokens are sampled from; 0 is all. Null sends none."
+    topK: Int
+    "The least likely a token may be, relative to the likeliest, 0 to 1. Null sends none."
+    minP: Float
+    "-2 to 2: above 0 discourages any token already used. Null sends none."
+    presencePenalty: Float
+    "-2 to 2: above 0 discourages a token the more it has been used. Null sends none."
+    frequencyPenalty: Float
+    "llama.cpp's repeat penalty, 0 to 2; 1 is none. Null sends none."
+    repeatPenalty: Float
     "What the model is asked to write."
     textFormat: VisionTextFormat!
     "Whether a base URL and a model are both set, so documents can be read."
@@ -87,6 +99,13 @@ const VISION_SDL = parse(`
     imageDetail: VisionImageDetail
     "Left out or null is the default."
     temperature: Float
+    "Each left out or null is not sent."
+    topP: Float
+    topK: Int
+    minP: Float
+    presencePenalty: Float
+    frequencyPenalty: Float
+    repeatPenalty: Float
     "Left out or null is PLAIN."
     textFormat: VisionTextFormat
   }
@@ -143,6 +162,16 @@ const VISION_TEXT_FORMAT_BY_NAME = {
   PLAIN: ContentFormat.Plain,
   MARKDOWN: ContentFormat.Markdown,
 } as const;
+
+/** A number the admin may leave out, held to a range. Left out or null is null, which sends none. */
+function optionalBetween(name: string, min: number, max: number) {
+  return z
+    .number()
+    .min(min, `${name} is at least ${min}.`)
+    .max(max, `${name} is at most ${max}.`)
+    .nullish()
+    .transform((value) => value ?? null);
+}
 
 const settingsInputSchema = z.object({
   baseUrl: z
@@ -205,6 +234,17 @@ const settingsInputSchema = z.object({
     .max(VISION_DEFAULTS.maxTemperature, `The temperature is at most ${VISION_DEFAULTS.maxTemperature}.`)
     .nullish()
     .transform((value) => value ?? null),
+  topP: optionalBetween('Top P', 0, 1),
+  topK: z
+    .number()
+    .int()
+    .min(0, 'Top K is at least 0.')
+    .nullish()
+    .transform((value) => value ?? null),
+  minP: optionalBetween('Min P', 0, 1),
+  presencePenalty: optionalBetween('The presence penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
+  frequencyPenalty: optionalBetween('The frequency penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
+  repeatPenalty: optionalBetween('The repeat penalty', 0, VISION_DEFAULTS.maxRepeatPenalty),
 });
 
 /**
@@ -232,6 +272,12 @@ async function visionSettings(context: Context) {
     maxResponseTokens: row?.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: (row?.imageDetail ?? VisionImageDetail.Auto).toUpperCase(),
     temperature: row?.temperature ?? VISION_DEFAULTS.temperature,
+    topP: row?.topP ?? null,
+    topK: row?.topK ?? null,
+    minP: row?.minP ?? null,
+    presencePenalty: row?.presencePenalty ?? null,
+    frequencyPenalty: row?.frequencyPenalty ?? null,
+    repeatPenalty: row?.repeatPenalty ?? null,
     textFormat: (row?.textFormat ?? ContentFormat.Plain).toUpperCase(),
     configured: isConfigured(row),
   };

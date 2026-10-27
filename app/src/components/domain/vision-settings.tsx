@@ -40,6 +40,12 @@ export const VisionSettingsDocument = graphql(`
       maxResponseTokens
       imageDetail
       temperature
+      topP
+      topK
+      minP
+      presencePenalty
+      frequencyPenalty
+      repeatPenalty
       textFormat
       configured
     }
@@ -57,6 +63,12 @@ const SetVisionSettings = graphql(`
       maxResponseTokens
       imageDetail
       temperature
+      topP
+      topK
+      minP
+      presencePenalty
+      frequencyPenalty
+      repeatPenalty
       textFormat
       configured
     }
@@ -77,6 +89,100 @@ export const VISION_TEMPERATURE_DEFAULT = 0.6;
 /** The highest the server takes (`VISION_DEFAULTS.maxTemperature`). */
 const VISION_TEMPERATURE_MAX = 2;
 const VISION_TEMPERATURE_STEP = 0.1;
+
+/** The sampler fields beside the temperature: each blank is not sent, so the server's own default applies. */
+type SamplerField = 'topP' | 'topK' | 'minP' | 'presencePenalty' | 'frequencyPenalty' | 'repeatPenalty';
+
+interface SamplerSpec {
+  name: SamplerField;
+  label: string;
+  /** The range the server takes (`VISION_DEFAULTS`). */
+  min: number;
+  max: number | undefined;
+  step: number;
+  integer: boolean;
+  /** What a model card often recommends, shown as the placeholder. */
+  example: string;
+  description: string;
+}
+
+const PROBABILITY_STEP = 0.05;
+const PENALTY_STEP = 0.1;
+const PENALTY_MAX = 2;
+
+const SAMPLER_FIELDS: readonly SamplerSpec[] = [
+  {
+    name: 'topP',
+    label: 'Top P',
+    min: 0,
+    max: 1,
+    step: PROBABILITY_STEP,
+    integer: false,
+    example: '0.8',
+    description: 'Samples only from the likeliest tokens that together make up this share, 0 to 1.',
+  },
+  {
+    name: 'topK',
+    label: 'Top K',
+    min: 0,
+    max: undefined,
+    step: 1,
+    integer: true,
+    example: '20',
+    description: 'Samples only from this many of the likeliest tokens. 0 is all of them.',
+  },
+  {
+    name: 'minP',
+    label: 'Min P',
+    min: 0,
+    max: 1,
+    step: PROBABILITY_STEP,
+    integer: false,
+    example: '0',
+    description: 'Drops tokens less likely than this share of the likeliest one, 0 to 1.',
+  },
+  {
+    name: 'presencePenalty',
+    label: 'Presence penalty',
+    min: -PENALTY_MAX,
+    max: PENALTY_MAX,
+    step: PENALTY_STEP,
+    integer: false,
+    example: '1.5',
+    description: 'Above 0 discourages any word already written, which helps a model that loops. -2 to 2.',
+  },
+  {
+    name: 'frequencyPenalty',
+    label: 'Frequency penalty',
+    min: -PENALTY_MAX,
+    max: PENALTY_MAX,
+    step: PENALTY_STEP,
+    integer: false,
+    example: '0',
+    description: 'Above 0 discourages a word the more often it has been written. -2 to 2.',
+  },
+  {
+    name: 'repeatPenalty',
+    label: 'Repeat penalty',
+    min: 0,
+    max: PENALTY_MAX,
+    step: PENALTY_STEP,
+    integer: false,
+    example: '1',
+    description: 'llama.cpp’s penalty on recent tokens, 0 to 2. 1 is none.',
+  },
+];
+
+/** Says what is wrong with a sampler value, or nothing for one in range or left blank. */
+function samplerError(spec: SamplerSpec, value: number | null): string | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  if (value < spec.min) {
+    return `At least ${spec.min}`;
+  }
+  return spec.max !== undefined && value > spec.max ? `At most ${spec.max}` : undefined;
+}
 
 const IMAGE_DETAILS = [
   {
@@ -153,7 +259,26 @@ interface VisionFormValues {
   imageDetail: string;
   /** Null is the server's default. */
   temperature: number | null;
+  /** Each null is not sent. */
+  topP: number | null;
+  topK: number | null;
+  minP: number | null;
+  presencePenalty: number | null;
+  frequencyPenalty: number | null;
+  repeatPenalty: number | null;
   textFormat: string;
+}
+
+/** The sampler fields of the settings or the form, null where blank. */
+function samplerOf(from: { [Field in SamplerField]?: number | null }): Record<SamplerField, number | null> {
+  return {
+    topP: from.topP ?? null,
+    topK: from.topK ?? null,
+    minP: from.minP ?? null,
+    presencePenalty: from.presencePenalty ?? null,
+    frequencyPenalty: from.frequencyPenalty ?? null,
+    repeatPenalty: from.repeatPenalty ?? null,
+  };
 }
 
 function toValues(settings: Settings): VisionFormValues {
@@ -168,6 +293,7 @@ function toValues(settings: Settings): VisionFormValues {
       settings.maxResponseTokens === VISION_MAX_RESPONSE_DEFAULT_TOKENS ? null : settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
     temperature: settings.temperature === VISION_TEMPERATURE_DEFAULT ? null : settings.temperature,
+    ...samplerOf(settings),
     textFormat: settings.textFormat,
   };
 }
@@ -183,6 +309,7 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
     maxResponseTokens: value.maxResponseTokens,
     imageDetail: isImageDetail(value.imageDetail) ? value.imageDetail : VisionImageDetail.Auto,
     temperature: value.temperature,
+    ...samplerOf(value),
     textFormat: isTextFormat(value.textFormat) ? value.textFormat : VisionTextFormat.Plain,
     ...(apiKey ? { apiKey } : {}),
   };
@@ -198,6 +325,7 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     maxResponseTokens: settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
     temperature: settings.temperature,
+    ...samplerOf(settings),
     textFormat: settings.textFormat,
     ...change,
   };
@@ -520,6 +648,27 @@ function VisionForm({ settings }: { settings: Settings }) {
                   },
                 }}
               />
+              <p className="text-foreground/60 text-sm">
+                Left blank, each of these is not sent, so the server uses its own. A model card names the values a model
+                reads best with.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {SAMPLER_FIELDS.map((spec) => (
+                  <NumberField
+                    key={spec.name}
+                    form={form}
+                    name={spec.name}
+                    label={spec.label}
+                    integer={spec.integer}
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step}
+                    placeholder={spec.example}
+                    description={spec.description}
+                    validators={{ onChange: ({ value }) => samplerError(spec, value) }}
+                  />
+                ))}
+              </div>
               <RadioGroupField form={form} name="imageDetail" label="Image detail" options={IMAGE_DETAILS} />
             </div>
           }

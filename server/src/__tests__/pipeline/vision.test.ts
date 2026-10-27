@@ -76,6 +76,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
     maxResponseTokens: 8192,
     imageDetail: 'auto',
     temperature: 0.6,
+    sampler: {},
     textFormat: 'plain',
     auto: true,
   };
@@ -90,6 +91,7 @@ const VISION: VisionConfig = {
   maxResponseTokens: 8192,
   imageDetail: 'auto',
   temperature: 0.6,
+  sampler: {},
   textFormat: 'plain',
   auto: false,
 };
