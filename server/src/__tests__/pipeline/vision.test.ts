@@ -37,7 +37,13 @@ interface OpenAIRequest {
  * proving here is that a page reaches the wire as an `image_url` part at all, which a stub
  * standing in for the one function that builds the request cannot say anything about.
  */
-async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: number }) {
+/** A reply the fake endpoint sends with a `finish_reason` other than `stop`. */
+interface Finished {
+  content: string;
+  finishReason: string;
+}
+
+async function fakeEndpoint(reply: (body: OpenAIRequest) => string | Finished | { status: number }) {
   const bodies: OpenAIRequest[] = [];
   const server: Server = createServer((req, res) => {
     let raw = '';
@@ -48,7 +54,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
       const body = JSON.parse(raw) as OpenAIRequest;
       bodies.push(body);
       const answer = reply(body);
-      if (typeof answer !== 'string') {
+      if (typeof answer !== 'string' && 'status' in answer) {
         res.writeHead(answer.status, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: { message: 'nope' } }));
         return;
@@ -60,7 +66,13 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | { status: n
           object: 'chat.completion',
           created: 0,
           model: 'test-vlm',
-          choices: [{ index: 0, message: { role: 'assistant', content: answer }, finish_reason: 'stop' }],
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: typeof answer === 'string' ? answer : answer.content },
+              finish_reason: typeof answer === 'string' ? 'stop' : answer.finishReason,
+            },
+          ],
         }),
       );
     });
@@ -373,6 +385,29 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       expect(storage.text.objects.size).toBe(0);
 
       await expect(runStep({ ...CONFIG, vision: endpoint.vision })).rejects.toThrow(/returned nothing/);
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('treats a reply cut off at the limit as a page it did not finish, and saves none of it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const loop = 'Total 12.50\n'.repeat(50);
+    const endpoint = await fakeEndpoint(() => ({ content: loop, finishReason: 'length' }));
+    try {
+      // Asked for: the step fails and says why, so Retry is the way back.
+      await expect(runStep({ ...CONFIG, vision: { ...endpoint.vision, maxResponseTokens: 4096 } })).rejects.toThrow(
+        'The vision model did not finish page 1 of 1: it hit the reply limit of 4096 tokens, so it likely looped.',
+      );
+
+      // On "auto": the text the steps before produced stays, and the step succeeds.
+      const { patch, storage } = await runStep(
+        { ...CONFIG, vision: endpoint.vision },
+        doc({ visionRequested: false, contentKey: 'text/u/scan.txt' }),
+      );
+      expect(patch).toBeUndefined();
+      expect(storage.text.objects.size).toBe(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('likely looped'));
     } finally {
       await endpoint.close();
     }
