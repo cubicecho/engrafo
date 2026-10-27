@@ -652,7 +652,9 @@ and swaps the History tab's dot for "Page 3/12"; any step can report, and the ap
 "3 of 12" for one with no `unit` in `lib/pipeline-steps.ts`.
 
 **All pages or nothing, and who asked decides what a failure means.** A page
-that does not come back, every page blank (a model that did not read, not a
+that does not come back, a reply that stopped at the reply limit (`askReply`'s
+`finish_reason` is `length`: on a page that is a model looping, not a long page, and
+saved it would put the loop over good text), every page blank (a model that did not read, not a
 blank document), or more than `VISION_DEFAULTS.maxPages` (declined, never
 truncated) writes nothing. On an automatic run the old text stays, a
 `[vision]` line is logged and the step succeeds, so an endpoint being down

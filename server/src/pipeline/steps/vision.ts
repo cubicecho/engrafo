@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { ask, type SideTaskInput } from '@cubicecho/agent-core';
+import { askReply, FinishReason, type SideTaskInput, type SideTaskReply } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db';
 import { ContentFormat, VisionImageDetail } from '@cubicecho/engrafo-db/schema';
 import { OCR_DEFAULTS, VISION_DEFAULTS } from '../../core/defaults.ts';
@@ -220,19 +220,28 @@ async function transcribe(
     const label = `page ${index + 1} of ${pages.length}`;
     await reportProgress(index, pages.length);
     const image = await readFile(page.file);
+    const markdown = vision.textFormat === ContentFormat.Markdown;
+    const instruction = markdown ? TRANSCRIBE_MARKDOWN : TRANSCRIBE;
+    let reply: SideTaskReply;
     try {
-      const markdown = vision.textFormat === ContentFormat.Markdown;
-      const instruction = markdown ? TRANSCRIBE_MARKDOWN : TRANSCRIBE;
-      const text = await ask(vision, vision.model, instruction, pageInput(image, page.mimeType, vision.imageDetail), {
+      reply = await askReply(vision, vision.model, instruction, pageInput(image, page.mimeType, vision.imageDetail), {
         maxTokens: vision.maxResponseTokens,
         temperature: vision.temperature,
         extraBody: samplerBody(vision.sampler),
         onNotice: notice,
       });
-      transcript.push(markdown ? unfence(text.trim()) : text.trim());
     } catch (error) {
       throw new Error(`The vision model did not read ${label}: ${errorMessage(error)}`);
     }
+    // A reply that ran into the limit is cut off, and on a page it is almost always a model
+    // repeating one line, not a page longer than the limit: saved, it would replace good text
+    // with a loop. So it is a page that did not come back, and all-or-nothing applies.
+    if (reply.finishReason === FinishReason.Length) {
+      throw new Error(
+        `The vision model did not finish ${label}: it hit the reply limit of ${vision.maxResponseTokens} tokens, so it likely looped.`,
+      );
+    }
+    transcript.push(markdown ? unfence(reply.text.trim()) : reply.text.trim());
   }
   await reportProgress(pages.length, pages.length);
 
