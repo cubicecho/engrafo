@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { extname } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
-import { type Document, DocumentStatus, documents, folders } from '@cubicecho/engrafo-db/schema';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { type Document, DocumentStatus, documents } from '@cubicecho/engrafo-db/schema';
+import { and, asc, eq } from 'drizzle-orm';
 import { GraphQLError } from 'graphql';
 import { maxUploadBytes } from '../core/config.ts';
 import { errorMessage } from '../core/errors.ts';
 import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
 import { completePendingDocument, createUploadSchema, insertPendingDocument } from '../documents/create.ts';
-import { assertNameFree, folderNameSchema, lockNames } from '../folders/names.ts';
+import { ensureFolderPath, lockNames } from '../folders/names.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import {
   ACCEPTED_MIME_TYPES,
@@ -108,42 +108,18 @@ export async function ensureFolders(db: DB, userId: string, dirs: readonly strin
   if (dirs.length === 0) {
     return null;
   }
-  return db.transaction(async (tx) => {
-    await lockNames(tx, userId);
-    let parentId: string | null = null;
-    for (const dir of dirs) {
-      const parsed = folderNameSchema.safeParse(dir);
-      if (parsed.success === false) {
-        throw new Rejected(`"${dir}" cannot be a folder's name: ${parsed.error.issues[0]?.message}`);
-      }
-      const name = parsed.data;
-      const [existing] = await tx
-        .select({ id: folders.id })
-        .from(folders)
-        .where(
-          and(
-            eq(folders.userId, userId),
-            parentId === null ? isNull(folders.parentId) : eq(folders.parentId, parentId),
-            eq(sql`lower(${folders.name})`, name.toLowerCase()),
-          ),
-        );
-      if (existing) {
-        parentId = existing.id;
-        continue;
-      }
-      try {
-        await assertNameFree(tx, userId, parentId, name);
-      } catch (error) {
-        throw new Rejected(`folder "${name}": ${errorMessage(error)}`);
-      }
-      const [created]: { id: string }[] = await tx
-        .insert(folders)
-        .values({ userId, parentId, name })
-        .returning({ id: folders.id });
-      parentId = created.id;
+  try {
+    return await db.transaction(async (tx) => {
+      await lockNames(tx, userId);
+      return ensureFolderPath(tx, userId, null, dirs);
+    });
+  } catch (error) {
+    // A name the rule refuses, or one a document holds, will not change by trying again.
+    if (error instanceof GraphQLError) {
+      throw new Rejected(errorMessage(error));
     }
-    return parentId;
-  });
+    throw error;
+  }
 }
 
 /**

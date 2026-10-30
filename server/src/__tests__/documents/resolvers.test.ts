@@ -1,4 +1,4 @@
-import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
+import { documents, folders, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '../../core/errors.ts';
@@ -71,6 +71,65 @@ describe('document uploads', () => {
       input: { filename: 'x.pdf', mimeType: 'application/pdf', sizeBytes: 1024 ** 4 },
     });
     expect(size.code).toBe(ErrorCode.BadUserInput);
+  });
+
+  describe('a folder upload', () => {
+    const allFolders = () => db.select().from(folders);
+    const folderOf = async (id: string) =>
+      (await db.select({ folderId: documents.folderId }).from(documents).where(eq(documents.id, id)))[0].folderId;
+
+    it('makes the path under the chosen folder once, and files every file there', async () => {
+      const [root] = await db.insert(folders).values({ userId, parentId: null, name: 'Inbox' }).returning();
+      const uploads = await Promise.all([
+        createUpload({ folderId: root.id, folderPath: ['Taxes', '2026'] }),
+        createUpload({ folderId: root.id, folderPath: ['taxes', '2026'], filename: 'other.pdf' }),
+        createUpload({ folderId: root.id, folderPath: ['Taxes'], filename: 'summary.pdf' }),
+      ]);
+
+      const made = await allFolders();
+      const taxes = made.find((folder) => folder.name === 'Taxes');
+      const year = made.find((folder) => folder.name === '2026');
+      expect(made).toHaveLength(3);
+      expect(taxes?.parentId).toBe(root.id);
+      expect(year?.parentId).toBe(taxes?.id);
+      expect(await folderOf(uploads[0].document.id)).toBe(year?.id);
+      expect(await folderOf(uploads[1].document.id)).toBe(year?.id);
+      expect(await folderOf(uploads[2].document.id)).toBe(taxes?.id);
+    });
+
+    it('starts at the top level with no folderId', async () => {
+      const { document } = await createUpload({ folderPath: ['Scans'] });
+      const [scans] = await allFolders();
+      expect(scans).toMatchObject({ name: 'Scans', parentId: null });
+      expect(await folderOf(document.id)).toBe(scans.id);
+    });
+
+    it('refuses a name the folder rule does not allow, and makes nothing', async () => {
+      const error = await client().expectError(CREATE, {
+        input: { filename: 'a.pdf', mimeType: 'application/pdf', sizeBytes: 5, folderPath: ['Ok', 'Bad (1)'] },
+      });
+      expect(error.code).toBe(ErrorCode.BadUserInput);
+      expect(await allFolders()).toEqual([]);
+      expect(await db.select().from(documents)).toEqual([]);
+    });
+
+    it('refuses a folder whose name a document already has', async () => {
+      await createUpload({ filename: 'Taxes.pdf' });
+      const error = await client().expectError(CREATE, {
+        input: { filename: 'a.pdf', mimeType: 'application/pdf', sizeBytes: 5, folderPath: ['Taxes'] },
+      });
+      expect(error.code).toBe(ErrorCode.Conflict);
+    });
+
+    it("answers NOT_FOUND for someone else's folder, before making anything", async () => {
+      const other = await createUser(db, 'other@example.com');
+      const [theirs] = await db.insert(folders).values({ userId: other, parentId: null, name: 'Theirs' }).returning();
+      const error = await client().expectError(CREATE, {
+        input: { filename: 'a.pdf', mimeType: 'application/pdf', sizeBytes: 5, folderId: theirs.id, folderPath: ['X'] },
+      });
+      expect(error.code).toBe(ErrorCode.NotFound);
+      expect(await allFolders()).toHaveLength(1);
+    });
   });
 
   it('will not complete before the object exists, or when its size differs', async () => {

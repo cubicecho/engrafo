@@ -268,6 +268,102 @@ export const ServerRefusesTheUpload: Story = {
   },
 };
 
+/**
+ * A file as a folder pick hands it over, with its place in the folder. The browser sets
+ * `webkitRelativePath` itself and offers no way to, so it is defined on the instance.
+ */
+function fileInFolder(path: string, bytes: number, type = 'application/pdf'): File {
+  const picked = file(path.split('/').at(-1) ?? path, bytes, type);
+  Object.defineProperty(picked, 'webkitRelativePath', { value: path });
+  return picked;
+}
+
+/** The folder button's input: the one that picks a directory. */
+function folderInput(canvasElement: HTMLElement): HTMLInputElement {
+  const input = canvasElement.querySelector('input[webkitdirectory]');
+  if (input instanceof HTMLInputElement) {
+    return input;
+  }
+  throw new Error('The upload panel rendered no folder input');
+}
+
+// A UUID's last group is twelve hex digits.
+const UUID_NODE_DIGITS = 12;
+
+// What each `createDocumentUpload` was asked, in the order it was asked.
+let folderUploads: { filename: string; folderId?: string | null; folderPath?: string[] | null }[] = [];
+
+/**
+ * A whole folder, picked. Each file names the folders it sat in, under the folder chosen in
+ * "Upload into", and the server makes them. The junk a desktop leaves is never sent, and a
+ * folder whose name the server would refuse is left out with one notice rather than a failed
+ * row per file.
+ */
+export const UploadsAFolder: Story = {
+  args: { folderId: TAXES_ID },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Mutation: {
+          createDocumentUpload: (
+            _parent: unknown,
+            { input }: { input: { filename: string; folderId?: string | null; folderPath?: string[] | null } },
+          ) => {
+            folderUploads.push(input);
+            return {
+              // A UUID per file, so the rows do not share a document.
+              document: {
+                id: `00000000-0000-4000-8000-${String(folderUploads.length).padStart(UUID_NODE_DIGITS, '0')}`,
+              },
+              uploadUrl: MOCK_BUCKET_OK,
+              uploadHeaders: [{ name: 'Content-Type', value: 'application/pdf' }],
+            };
+          },
+          completeDocumentUpload: (_parent: unknown, { id }: { id: string }) => ({
+            id,
+            status: DocumentStatusEnum.Uploaded,
+          }),
+        },
+        Query: {
+          documentDuplicates: (_parent: unknown, { ids }: { ids: string[] }) =>
+            ids.map((id) => ({ document: { id, status: DocumentStatusEnum.Ready }, checked: true, duplicates: [] })),
+        },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    folderUploads = [];
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('button', { name: 'Upload a folder' })).toBeInTheDocument();
+
+    const input = folderInput(canvasElement);
+    // user-event keeps only the first file for an input without `multiple`; a browser's folder
+    // dialog hands over every file under the folder either way.
+    input.multiple = true;
+    await userEvent.upload(input, [
+      fileInFolder('Receipts/march.pdf', SCAN_BYTES),
+      fileInFolder('Receipts/Hardware/drill.pdf', SCAN_BYTES),
+      fileInFolder('Receipts/.DS_Store', SCAN_BYTES, ''),
+      fileInFolder('Receipts/Old (2019)/lost.pdf', SCAN_BYTES),
+    ]);
+
+    await waitFor(() => {
+      const rows = within(canvas.getByRole('list', { name: 'Uploads' })).getAllByRole('listitem');
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row).toHaveTextContent('Uploaded');
+      }
+    });
+    await expect(canvas.getByText('Receipts/Hardware/drill.pdf')).toBeInTheDocument();
+    await expect(folderUploads).toEqual([
+      expect.objectContaining({ filename: 'march.pdf', folderId: TAXES_ID, folderPath: ['Receipts'] }),
+      expect.objectContaining({ filename: 'drill.pdf', folderId: TAXES_ID, folderPath: ['Receipts', 'Hardware'] }),
+    ]);
+    await expect(canvas.getByText('A folder was left out')).toBeInTheDocument();
+    await expect(canvas.getByText('Receipts/Old (2019)')).toBeInTheDocument();
+  },
+};
+
 const EARLIER_ID = '5c4b3a29-1807-4f6e-8d5c-4b3a29180716';
 // The pipeline's first step has to run before the server knows the checksum, so the panel's
 // first look finds nothing to say and it has to look again.

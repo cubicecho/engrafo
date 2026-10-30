@@ -9,18 +9,19 @@ import { DuplicateLinks } from '@/components/domain/duplicate-alert';
 import { FormField } from '@/components/form-field';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { FilePicker } from '@/components/ui/file-picker';
+import { FilePicker, FilePickerButton } from '@/components/ui/file-picker';
 import type { PickedFile } from '@/components/ui/file-picker-base';
-import { X } from '@/components/ui/icons';
+import { Folder, X } from '@/components/ui/icons';
 import { Progress } from '@/components/ui/progress';
 import { SwitchField } from '@/components/ui/switch-field';
-import { POLLING_DEFAULTS } from '@/defaults';
-import { type FolderRow, folderOptions, TOP_LEVEL } from '@/lib/folder-tree';
+import { POLLING_DEFAULTS, UPLOAD_DEFAULTS } from '@/defaults';
+import { type FolderRow, folderNameError, folderOptions, TOP_LEVEL } from '@/lib/folder-tree';
 import { formatBytes } from '@/lib/format';
 import { clientId } from '@/lib/id';
 import { documentPath } from '@/lib/routes';
-import { putFile, uploadMimeType } from '@/lib/upload';
+import { createLimiter, planFolderUpload, putFile, type RefusedFolder, uploadMimeType } from '@/lib/upload';
 
 const CreateUpload = graphql(`
   mutation CreateDocumentUpload($input: CreateDocumentUploadInput!) {
@@ -74,6 +75,8 @@ interface Job {
   name: string;
   size: number;
   progress: number;
+  /** Waiting for a free slot: nothing has been asked of the server yet. */
+  queued: boolean;
   error: string | null;
   done: boolean;
   /** The document the upload made, once the server has made it. */
@@ -92,6 +95,17 @@ interface UploadPanelProps {
   onChanged: () => void;
 }
 
+/** What a job's row says on its right. */
+function jobStatus(job: Job): string {
+  if (job.error) {
+    return 'Failed';
+  }
+  if (job.done) {
+    return 'Uploaded';
+  }
+  return job.queued ? 'Waiting' : `${Math.round(job.progress * PERCENT)}%`;
+}
+
 /**
  * The dropzone, the OCR switch and a row per file being uploaded.
  *
@@ -102,6 +116,9 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
   const ocrId = useId();
   const [ocr, setOcr] = useState(config.ocrAvailable && config.ocrDefault);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [refused, setRefused] = useState<RefusedFolder[]>([]);
+  // One for the panel's life, so files from separate picks share the same few slots.
+  const [limit] = useState(() => createLimiter(UPLOAD_DEFAULTS.concurrency));
   const [createUpload] = useMutation(CreateUpload);
   const [completeUpload] = useMutation(CompleteUpload);
 
@@ -133,7 +150,8 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
   const update = (key: string, patch: Partial<Job>) =>
     setJobs((current) => current.map((job) => (job.key === key ? { ...job, ...patch } : job)));
 
-  async function uploadOne(file: PickedFile, job: Job) {
+  async function uploadOne(file: PickedFile, folderPath: string[], job: Job) {
+    update(job.key, { queued: false });
     try {
       // `read="none"` hands back the browser's own handle, so a 100 MB scan is streamed and never held.
       if (!file.blob) {
@@ -150,6 +168,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
             sizeBytes: file.size,
             ocr,
             folderId,
+            ...(folderPath.length > 0 ? { folderPath } : {}),
           },
         },
       });
@@ -168,23 +187,37 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
     }
   }
 
-  function start(files: PickedFile[]) {
-    const added = files.map((file) => ({
+  function start(picked: { file: PickedFile; folderPath: string[] }[]) {
+    const added = picked.map(({ file, folderPath }) => ({
       file,
+      folderPath,
       job: {
         key: clientId(),
-        name: file.name,
+        // A file from a folder goes by its place in it, since two folders often hold a "scan.pdf".
+        name: file.path,
         size: file.size,
         progress: 0,
+        queued: true,
         error: null,
         done: false,
         documentId: null,
       },
     }));
     setJobs((current) => [...added.map(({ job }) => job), ...current.filter((job) => !job.done)]);
-    for (const { file, job } of added) {
-      void uploadOne(file, job);
+    for (const { file, folderPath, job } of added) {
+      void limit(() => uploadOne(file, folderPath, job));
     }
+  }
+
+  function startFiles(files: PickedFile[]) {
+    setRefused([]);
+    start(files.map((file) => ({ file, folderPath: [] })));
+  }
+
+  function startFolder(files: PickedFile[]) {
+    const plan = planFolderUpload(files, folderNameError);
+    setRefused(plan.refused);
+    start(plan.files);
   }
 
   return (
@@ -199,8 +232,38 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
             // server's allowlist refuses it on the file's own row and says why.
             multiple
             read="none"
-            onPickMany={start}
+            onPickMany={startFiles}
           />
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <FilePickerButton
+              variant="outline"
+              size="sm"
+              label="Upload a folder"
+              iconSlot={<Folder />}
+              directory
+              read="none"
+              onPickMany={startFolder}
+            />
+            <p className="text-foreground/60 text-xs">Its folders are made inside the one chosen below.</p>
+          </div>
+
+          {refused.length > 0 ? (
+            <Alert
+              variant="warning"
+              title={refused.length === 1 ? 'A folder was left out' : `${refused.length} folders were left out`}
+              description={
+                <ul className="flex flex-col gap-1">
+                  {refused.map((folder) => (
+                    <li key={folder.path}>
+                      <span className="font-medium">{folder.path}</span>: {folder.reason}. Rename it and upload it
+                      again.
+                    </li>
+                  ))}
+                </ul>
+              }
+            />
+          ) : null}
 
           <FormField
             label="Upload into"
@@ -235,7 +298,7 @@ export function UploadPanel({ config, folders, folderId, onFolderChange, onChang
                   <ListItem
                     className="p-0"
                     title={job.name}
-                    meta={job.error ? 'Failed' : job.done ? 'Uploaded' : `${Math.round(job.progress * PERCENT)}%`}
+                    meta={jobStatus(job)}
                     actionSlot={
                       job.done || job.error ? (
                         <Button

@@ -4,10 +4,10 @@ import { type Document, DocumentStatus, documents, processingSteps } from '@cubi
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault } from '../core/config.ts';
-import { DOCUMENT_DEFAULTS } from '../core/defaults.ts';
+import { DOCUMENT_DEFAULTS, FOLDER_DEFAULTS } from '../core/defaults.ts';
 import { badInput } from '../core/errors.ts';
 import { BYTES_PER_MEBIBYTE } from '../core/wire.ts';
-import { freeName, lockNames, ownedParent } from '../folders/names.ts';
+import { ensureFolderPath, freeName, lockNames, ownedParent } from '../folders/names.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import { ACCEPTED_MIME_TYPES, isAcceptedMimeType } from '../pipeline/mime.ts';
 import { STEPS } from '../pipeline/step-list.ts';
@@ -53,6 +53,12 @@ export function createUploadSchema() {
     title: titleSchema.optional().nullable(),
     ocr: z.boolean().optional().nullable(),
     folderId: z.string().optional().nullable(),
+    // A folder upload's directories, under `folderId`. Each name is checked as it is made.
+    folderPath: z
+      .array(z.string())
+      .max(FOLDER_DEFAULTS.uploadPathMaxDepth, 'The folder is nested too deeply.')
+      .optional()
+      .nullable(),
   });
 }
 
@@ -94,7 +100,13 @@ export async function insertPendingDocument(
   const id = randomUUID();
   return db.transaction(async (tx) => {
     await lockNames(tx, userId);
-    const folderId = await ownedParent(tx, userId, input.folderId);
+    // Made in the same transaction as the row, so a refused upload leaves no empty folder behind.
+    const folderId = await ensureFolderPath(
+      tx,
+      userId,
+      await ownedParent(tx, userId, input.folderId),
+      input.folderPath ?? [],
+    );
     const title = await freeName(
       tx,
       userId,
