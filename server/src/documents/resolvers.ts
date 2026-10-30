@@ -66,6 +66,11 @@ const DOCUMENTS_SDL = parse(`
     ocr: Boolean
     "The folder to file it in. Left out, the top level."
     folderId: UUID
+    """
+    Folder names under \`folderId\`, outermost first: where the file sat in a folder that was
+    uploaded whole. Each is found ignoring case, or made.
+    """
+    folderPath: [String!]
   }
 
   type HttpHeader {

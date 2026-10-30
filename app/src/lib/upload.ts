@@ -110,3 +110,106 @@ export function putFile(
     xhr.send(file);
   });
 }
+
+/**
+ * Names a NAS, a desktop or an editor leaves beside the files, which nobody means to file: the
+ * watched folder's own rule. Dotfiles (`.DS_Store`, `._scan.pdf`), Office's `~$` owner files, and
+ * Windows's thumbnail cache and folder settings.
+ */
+const IGNORED_FILE_NAMES = new Set(['thumbs.db', 'desktop.ini']);
+
+function isIgnoredName(name: string): boolean {
+  return name.startsWith('.') || name.startsWith('~$') || IGNORED_FILE_NAMES.has(name.toLowerCase());
+}
+
+/** Directories a NAS or a desktop keeps for itself: dot-directories, `@eaDir`, `#recycle`, `$RECYCLE.BIN`. */
+function isIgnoredDir(name: string): boolean {
+  return ['.', '@', '#', '$'].some((prefix) => name.startsWith(prefix));
+}
+
+/** A file from a picked folder, with the folders it sat in. */
+export interface FolderFile<F> {
+  file: F;
+  /** The folder names from the picked folder down, the picked folder's own first. */
+  folderPath: string[];
+}
+
+/** A folder whose files are left out, and why. */
+export interface RefusedFolder {
+  path: string;
+  reason: string;
+}
+
+/** What a picked folder comes to. */
+export interface FolderUpload<F> {
+  files: FolderFile<F>[];
+  /** Folders left out, with everything under them, because their name cannot be a folder's. */
+  refused: RefusedFolder[];
+}
+
+/**
+ * Sorts a folder pick into what to upload and what to leave.
+ *
+ * @param files - The picked files, each with its `path` in the folder (`Taxes/2026/scan.pdf`).
+ * @param nameError - What is wrong with a folder name, or undefined when nothing is.
+ * @returns The files to upload with their folder paths, and each folder refused once, outermost
+ *   only. Junk the OS leaves behind is dropped without a word.
+ */
+export function planFolderUpload<F extends { path: string }>(
+  files: readonly F[],
+  nameError: (name: string) => string | undefined,
+): FolderUpload<F> {
+  const accepted: FolderFile<F>[] = [];
+  const refused = new Map<string, string>();
+  for (const file of files) {
+    const parts = file.path.split('/').filter((part) => part !== '');
+    const name = parts.pop();
+    if (name === undefined || isIgnoredName(name) || parts.some(isIgnoredDir)) {
+      continue;
+    }
+    const bad = parts.findIndex((part) => nameError(part) !== undefined);
+    if (bad === -1) {
+      accepted.push({ file, folderPath: parts });
+      continue;
+    }
+    const path = parts.slice(0, bad + 1).join('/');
+    if (refused.has(path) === false) {
+      refused.set(path, nameError(parts[bad]) ?? '');
+    }
+  }
+  return { files: accepted, refused: Array.from(refused, ([path, reason]) => ({ path, reason })) };
+}
+
+/**
+ * Runs at most `limit` tasks at once and queues the rest, in the order they came.
+ *
+ * Uploads go through one, so a dropped folder of five hundred scans does not sign five hundred
+ * URLs at once: a URL signed now and sent ten minutes later, behind the browser's own queue,
+ * has expired.
+ *
+ * @param limit - How many may run at once.
+ * @returns A function that runs a task when a slot is free, resolving with what it resolves to.
+ */
+export function createLimiter(limit: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async (task) => {
+    if (running < limit) {
+      running += 1;
+    } else {
+      // The slot is handed over by the task that frees it, so `running` never dips in between
+      // and a task arriving at that moment cannot take it first.
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
+    try {
+      return await task();
+    } finally {
+      const handOver = waiting.shift();
+      if (handOver) {
+        handOver();
+      } else {
+        running -= 1;
+      }
+    }
+  };
+}

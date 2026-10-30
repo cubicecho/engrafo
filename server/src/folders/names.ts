@@ -4,7 +4,7 @@ import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { GraphQLError } from 'graphql';
 import { z } from 'zod';
 import { FOLDER_DEFAULTS } from '../core/defaults.ts';
-import { conflict, notFound } from '../core/errors.ts';
+import { badInput, conflict, notFound } from '../core/errors.ts';
 
 // What a folder holds is addressed by name, as files are: the tree draws a
 // document's title as its name, and later an MCP client will ask for a path.
@@ -173,6 +173,63 @@ export async function freeName(
       return candidate;
     }
   }
+}
+
+/**
+ * The folder a path of names stands for, under `parentId`, made where missing: a dropped folder's
+ * directories, the watched folder's, a backup's.
+ *
+ * @param tx - The transaction, holding {@link lockNames}.
+ * @param userId - Whose folders.
+ * @param parentId - Where the path starts, or null for the top level. Already the caller's.
+ * @param names - The folder names, outermost first.
+ * @returns The innermost folder's id, or `parentId` for an empty path.
+ * @throws BAD_USER_INPUT when a name breaks the folder name rule, CONFLICT when a document there
+ *   already has it.
+ *
+ * @remarks
+ * An existing folder is matched ignoring case, as every name here is, so files from one folder
+ * uploaded side by side all land in the one the first of them made.
+ */
+export async function ensureFolderPath(
+  tx: Tx,
+  userId: string,
+  parentId: string | null,
+  names: readonly string[],
+): Promise<string | null> {
+  let at = parentId;
+  for (const raw of names) {
+    const parsed = folderNameSchema.safeParse(raw);
+    if (parsed.success === false) {
+      throw badInput(`"${raw}" cannot be a folder's name: ${parsed.error.issues[0]?.message}`);
+    }
+    const name = parsed.data;
+    const [existing] = await tx
+      .select({ id: folders.id })
+      .from(folders)
+      .where(
+        and(
+          eq(folders.userId, userId),
+          at === null ? isNull(folders.parentId) : eq(folders.parentId, at),
+          eq(sql`lower(${folders.name})`, name.toLowerCase()),
+        ),
+      );
+    if (existing) {
+      at = existing.id;
+      continue;
+    }
+    try {
+      await assertNameFree(tx, userId, at, name);
+    } catch {
+      throw conflict(`Cannot make folder "${name}": a document there already has the name.`);
+    }
+    const [created]: { id: string }[] = await tx
+      .insert(folders)
+      .values({ userId, parentId: at, name })
+      .returning({ id: folders.id });
+    at = created.id;
+  }
+  return at;
 }
 
 /** One folder's place in the tree: enough to walk up or down it. */

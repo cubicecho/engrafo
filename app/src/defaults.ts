@@ -48,3 +48,17 @@ export interface TextPreviewSettings {
 export const TEXT_PREVIEW_DEFAULTS: Readonly<TextPreviewSettings> = Object.freeze({
   maxBytes: 524_288,
 });
+
+/** How the upload panel sends files. */
+export interface UploadSettings {
+  /**
+   * How many files are signed for and sent at once. A browser opens six connections to one host,
+   * so more would only queue there, where a signed URL can expire while it waits.
+   */
+  concurrency: number;
+}
+
+/** What the upload panel sends at unless something says otherwise. */
+export const UPLOAD_DEFAULTS: Readonly<UploadSettings> = Object.freeze({
+  concurrency: 4,
+});

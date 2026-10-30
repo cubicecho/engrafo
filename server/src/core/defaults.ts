@@ -104,11 +104,14 @@ export const DOCUMENT_DEFAULTS: Readonly<DocumentSettings> = Object.freeze({
 export interface FolderSettings {
   /** The longest folder name, in characters. Short enough to sit in a URL path later. */
   nameMaxLength: number;
+  /** The most folders deep a folder upload may make under the one it goes into. */
+  uploadPathMaxDepth: number;
 }
 
 /** The shipped values of `FolderSettings`. */
 export const FOLDER_DEFAULTS: Readonly<FolderSettings> = Object.freeze({
   nameMaxLength: 64,
+  uploadPathMaxDepth: 32,
 });
 
 /** API keys, which MCP clients send instead of a session. */

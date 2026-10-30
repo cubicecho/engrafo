@@ -195,7 +195,14 @@ in `folders/names.ts`, and every write that adds or changes a name takes
 `lockNames` (a per-user advisory lock) first, or two requests could both pass
 it. A rename or move onto a taken name is `CONFLICT`, never an overwrite; an
 upload is numbered instead (`scan (2)`), since the same filename twice is not a
-mistake. `deleteFolder` puts everything under it in the trash (see the trash rule below), under the
+mistake. A folder upload sends each file's directories as `folderPath` on
+`createDocumentUpload`, and `insertPendingDocument` makes them under `folderId` with
+`ensureFolderPath` (found ignoring case, inside the same lock and transaction as the
+row, so a refused name leaves no empty folder); the watcher and the backup import
+make theirs with it too. The app drops OS junk and leaves out a folder whose name
+breaks the rule (`planFolderUpload`), and sends at most `UPLOAD_DEFAULTS.concurrency`
+files at once, so a big folder's signed URLs do not expire while queued in the
+browser. `deleteFolder` puts everything under it in the trash (see the trash rule below), under the
 same lock so an upload into it either goes with the rest or finds the folder gone;
 `documents.folder_id` is `ON DELETE RESTRICT` so the database can never drop a
 document whose objects are still in the bucket. The behaviour follows
