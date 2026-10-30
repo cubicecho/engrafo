@@ -17,6 +17,7 @@ import type { StorageSet } from '../storage/s3.ts';
 import { notTrashed } from '../trash/trash.ts';
 import { loadVisionConfig, type VisionConfig } from '../vision/settings.ts';
 import type { PipelineEvents } from './events.ts';
+import { createLimiter } from './limiter.ts';
 import type { PipelineConfig, PipelineStep, RunConfig } from './types.ts';
 
 /** What a pipeline is built from. */
@@ -67,27 +68,6 @@ export interface Pipeline {
    * `resume()` runs it again.
    */
   stop(): void;
-}
-
-/**
- * A counting semaphore. OCR is CPU-bound, and without a limit a folder dropped
- * on the upload form forks one ocrmypdf per file at once.
- */
-function createLimiter(concurrency: number) {
-  let active = 0;
-  const waiting: Array<() => void> = [];
-  return async <T>(task: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiting.push(resolve));
-    }
-    active += 1;
-    try {
-      return await task();
-    } finally {
-      active -= 1;
-      waiting.shift()?.();
-    }
-  };
 }
 
 /**
