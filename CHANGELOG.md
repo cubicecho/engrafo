@@ -1,3 +1,10 @@
+# [4.18.0](https://github.com/cubicecho/engrafo/compare/v4.17.0...v4.18.0) (2026-10-30)
+
+
+### Features
+
+* upload a whole folder ([467e402](https://github.com/cubicecho/engrafo/commit/467e402d628ced47e199fd88f37d65a4ede2c925))
+
 # [4.17.0](https://github.com/cubicecho/engrafo/compare/v4.16.1...v4.17.0) (2026-10-27)
 
 
