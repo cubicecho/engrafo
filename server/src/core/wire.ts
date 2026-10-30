@@ -4,6 +4,8 @@
 export const MS_PER_SECOND = 1000;
 /** Seconds in one minute. */
 export const SECONDS_PER_MINUTE = 60;
+/** Seconds in one hour. */
+export const SECONDS_PER_HOUR = 3600;
 /** Seconds in one day. */
 export const SECONDS_PER_DAY = 86_400;
 /** Bytes in one mebibyte, the unit upload limits are shown in. */

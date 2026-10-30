@@ -3,7 +3,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { DocumentStatusEnum } from '@/__generated__/graphql';
 import { Sidebar } from '@/components/sidebar';
 import { documentPath, ROUTES } from '@/lib/routes';
-import { archiveServer, document, EMPTY_FOLDER, TAXES, YEAR } from '../../../.storybook/archive.ts';
+import { archiveServer, document, EMPTY_FOLDER, SERVER_CONFIG, TAXES, YEAR } from '../../../.storybook/archive.ts';
 import { ArchiveSidebarSection } from './archive-sidebar';
 
 /**
@@ -172,5 +172,70 @@ export const SharesAFolderWithMcp: Story = {
     // The accessibility check runs after this, and a menu still closing hides the page from it.
     await waitFor(() => expect(page.queryByRole('menu')).not.toBeInTheDocument());
     await waitFor(() => expect(canvasElement.closest('[aria-hidden="true"]')).toBeNull());
+  },
+};
+
+// What the folder read was asked, for the story to check.
+let visionReads: { id: string; includeSubfolders?: boolean | null }[] = [];
+
+/** The archive with a vision model set up, and a server that answers a folder read. */
+function visionServer() {
+  const archive = archiveServer({ folders: [TAXES, YEAR], documents: [TAX_RETURN] });
+  return {
+    Query: { ...archive.Query, serverConfig: () => ({ ...SERVER_CONFIG, visionAvailable: true }) },
+    Mutation: {
+      ...archive.Mutation,
+      readFolderWithVision: (_parent: unknown, args: { id: string; includeSubfolders?: boolean | null }) => {
+        visionReads.push(args);
+        return { queued: 4, busy: 1, notReadable: 2 };
+      },
+    },
+  };
+}
+
+/**
+ * With a vision model set up, a folder's menu reads the folder with it: a dialog first, because
+ * it is slow and replaces text, then a notice saying what was queued and where to follow it.
+ */
+export const ReadsAFolderWithVision: Story = {
+  parameters: { apolloClient: { resolvers: visionServer() } },
+  play: async ({ canvas, canvasElement }) => {
+    visionReads = [];
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Taxes' }));
+    await userEvent.click(await page.findByRole('menuitem', { name: 'Read with vision model…' }));
+
+    const dialog = within(await page.findByRole('dialog', { name: 'Read “Taxes” with the vision model?' }));
+    // Taxes has 2026 inside it, so the switch is offered, and on.
+    await userEvent.click(dialog.getByRole('switch', { name: 'Include folders inside it' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Read with vision' }));
+
+    // The page behind a dialog is hidden from roles until it has closed, so wait for that first.
+    await waitFor(() => expect(page.queryByRole('dialog')).not.toBeInTheDocument());
+    await expect(await canvas.findByText('4 documents queued.', { exact: false })).toBeInTheDocument();
+    await expect(
+      canvas.getByText(/1 document still being processed · 2 documents not a PDF or an image/),
+    ).toBeInTheDocument();
+    await expect(await canvas.findByRole('link', { name: 'See processing' })).toHaveAttribute(
+      'href',
+      ROUTES.processing,
+    );
+    await expect(visionReads).toEqual([{ id: TAXES.id, includeSubfolders: false }]);
+  },
+};
+
+/** Without a vision model there is nothing to offer, so the menu does not offer it. */
+export const NoVisionItemWithoutAModel: Story = {
+  parameters: {
+    apolloClient: { resolvers: archiveServer({ folders: [TAXES, YEAR], documents: [TAX_RETURN] }) },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Taxes' }));
+    await expect(await page.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    await expect(page.queryByRole('menuitem', { name: /vision/ })).not.toBeInTheDocument();
+    // Closed again, as a reader would leave it: an open menu hides the page behind it.
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(page.queryByRole('menu')).not.toBeInTheDocument());
   },
 };

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import * as dbSchema from '@cubicecho/engrafo-db/schema';
-import { documents, processingSteps } from '@cubicecho/engrafo-db/schema';
+import { documents, folders, processingSteps } from '@cubicecho/engrafo-db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VISION_DEFAULTS } from '../../core/defaults.ts';
@@ -25,6 +25,11 @@ const SAMPLER_SET = `
 const MODELS =
   'query ($baseUrl: String!, $apiKey: String) { visionModels(baseUrl: $baseUrl, apiKey: $apiKey) { id contextLength } }';
 const READ = 'mutation ($id: UUID!) { readDocumentWithVision(id: $id) { id status error visionRequested contentKey } }';
+const READ_FOLDER = `
+  mutation ($id: UUID!, $includeSubfolders: Boolean) {
+    readFolderWithVision(id: $id, includeSubfolders: $includeSubfolders) { queued busy notReadable }
+  }
+`;
 const SERVER_CONFIG = '{ serverConfig { visionAvailable visionAuto } }';
 
 async function makeAdmin(db: TestDb, id: string) {
@@ -460,5 +465,67 @@ describe('readDocumentWithVision', () => {
   it('is CONFLICT while the document is being processed', async () => {
     const doc = await insertDocument({ status: 'processing' });
     expect((await client().expectError(READ, { id: doc.id })).code).toBe(ErrorCode.Conflict);
+  });
+
+  describe('readFolderWithVision', () => {
+    async function folder(name: string, parentId: string | null = null, owner = userId) {
+      const [row] = await db.insert(folders).values({ userId: owner, parentId, name }).returning();
+      return row;
+    }
+
+    it('queues every settled PDF and image inside, and counts what it left alone', async () => {
+      const taxes = await folder('Taxes');
+      const year = await folder('2026', taxes.id);
+      const ready = await insertDocument({ folderId: taxes.id });
+      const failed = await insertDocument({ folderId: year.id, mimeType: 'image/png', status: 'failed' });
+      const busy = await insertDocument({ folderId: year.id, status: 'processing' });
+      const text = await insertDocument({ folderId: taxes.id, mimeType: 'text/plain' });
+      const trashed = await insertDocument({ folderId: taxes.id, deletedAt: new Date() });
+      const outside = await insertDocument();
+
+      const data = await client().expectOk(READ_FOLDER, { id: taxes.id });
+      expect(data.readFolderWithVision).toEqual({ queued: 2, busy: 1, notReadable: 1 });
+      expect(emitted.sort()).toEqual([ready.id, failed.id].sort());
+
+      const status = async (id: string) => (await db.select().from(documents).where(eq(documents.id, id)))[0];
+      expect(await status(ready.id)).toMatchObject({ status: 'uploaded', visionRequested: true });
+      expect((await stepsOf(ready.id)).filter(([, state]) => state === 'queued').map(([step]) => step)).toEqual([
+        'metadata',
+        'index',
+      ]);
+      for (const untouched of [busy, text, trashed, outside]) {
+        expect((await status(untouched.id)).visionRequested).toBe(false);
+      }
+    });
+
+    it('stays in the folder itself when asked to', async () => {
+      const taxes = await folder('Taxes');
+      const year = await folder('2026', taxes.id);
+      await insertDocument({ folderId: year.id });
+      const data = await client().expectOk(READ_FOLDER, { id: taxes.id, includeSubfolders: false });
+      expect(data.readFolderWithVision).toEqual({ queued: 0, busy: 0, notReadable: 0 });
+      expect(emitted).toEqual([]);
+    });
+
+    it("answers NOT_FOUND for someone else's folder, and BAD_USER_INPUT with no model", async () => {
+      const other = await createUser(db, 'other@example.com');
+      const theirs = await folder('Theirs', null, other);
+      expect((await client().expectError(READ_FOLDER, { id: theirs.id })).code).toBe(ErrorCode.NotFound);
+
+      const mine = await folder('Mine');
+      await saveVisionSettings(db, {
+        baseUrl: null,
+        model: null,
+        apiKey: null,
+        auto: false,
+        requestTimeoutSeconds: null,
+        maxResponseTokens: null,
+        imageDetail: null,
+        temperature: null,
+        textFormat: null,
+        ...NO_SAMPLER,
+      });
+      expect((await client().expectError(READ_FOLDER, { id: mine.id })).code).toBe(ErrorCode.BadUserInput);
+    });
   });
 });

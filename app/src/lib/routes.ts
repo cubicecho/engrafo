@@ -13,6 +13,8 @@ export const ROUTES = Object.freeze({
   document: '/documents/:id',
   /** Deleted documents, until they are restored or deleted for good. */
   trash: '/trash',
+  /** What the pipeline is doing: running, queued, failed and lately finished. */
+  processing: '/processing',
   settings: '/settings',
   login: '/login',
   /** Where a magic link lands, carrying its token in the query string. */

@@ -1,4 +1,5 @@
 import {
+  Activity as ActivitySource,
   BookmarkPlus as BookmarkPlusSource,
   Bookmark as BookmarkSource,
   BookOpen as BookOpenSource,
@@ -35,3 +36,5 @@ export const FileSpreadsheet = icon(FileSpreadsheetSource);
 export const FileCode = icon(FileCodeSource);
 /** An ebook. */
 export const BookOpen = icon(BookOpenSource);
+/** The processing page: what the pipeline is doing. */
+export const Activity = icon(ActivitySource);

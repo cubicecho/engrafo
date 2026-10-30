@@ -6,6 +6,7 @@ import type { DocumentStatusEnum } from '@/__generated__/graphql';
 import { FolderInput, FolderPlus, Unplug } from '@/components/domain/app-icons';
 import { MoveDialog } from '@/components/domain/move-dialog';
 import { NameDialog } from '@/components/domain/name-dialog';
+import { ReadFolderWithVisionDialog } from '@/components/domain/read-folder-with-vision-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
 import { DocumentStatusBadge } from '@/components/domain/status-badge';
 import { FileTree } from '@/components/file-tree';
@@ -13,7 +14,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Ellipsis, FolderPen, Pencil, Plug, Trash2, Upload } from '@/components/ui/icons';
+import { Ellipsis, Eye, FolderPen, Pencil, Plug, Trash2, Upload, X } from '@/components/ui/icons';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { messageOf } from '@/lib/error-message';
 import {
@@ -25,8 +26,8 @@ import {
   folderPaths,
   mcpSharedBy,
 } from '@/lib/folder-tree';
-import { formatBytes } from '@/lib/format';
-import { documentPath } from '@/lib/routes';
+import { formatBytes, formatCount, joinStats } from '@/lib/format';
+import { documentPath, ROUTES } from '@/lib/routes';
 import { TRASH_QUERY_NAMES } from '@/lib/trash';
 import type { TreeNode } from '@/lib/tree';
 import { cn } from '@/lib/utils';
@@ -92,6 +93,16 @@ const RenameTreeDocument = graphql(`
   }
 `);
 
+const ReadFolderWithVision = graphql(`
+  mutation ReadFolderWithVision($id: UUID!, $includeSubfolders: Boolean) {
+    readFolderWithVision(id: $id, includeSubfolders: $includeSubfolders) {
+      queued
+      busy
+      notReadable
+    }
+  }
+`);
+
 const DeleteTreeDocument = graphql(`
   mutation DeleteTreeDocument($id: UUID!) {
     deleteDocument(id: $id)
@@ -116,6 +127,7 @@ type OpenDialog =
   | { kind: 'rename-document'; document: TreeDocument }
   | { kind: 'move'; entry: Entry }
   | { kind: 'delete-folder'; folder: FolderRow; path: string }
+  | { kind: 'read-with-vision'; folder: FolderRow; path: string }
   | { kind: 'delete-document'; document: TreeDocument };
 
 interface ArchiveTreeProps {
@@ -127,6 +139,8 @@ interface ArchiveTreeProps {
   onUploadInto: (folderId: string | null) => void;
   /** The document open beside the tree, which the tree marks. */
   selectedDocumentId?: string | undefined;
+  /** Whether a vision model is set up, so a folder's menu offers to read it with one. */
+  visionAvailable?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -137,6 +151,17 @@ function contentsOf(folders: readonly FolderRow[], documents: readonly TreeDocum
   const documentCount = documents.filter((doc) => doc.folderId && inside.has(doc.folderId)).length;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   return `${plural(documentCount, 'document')} and ${plural(folderCount, 'folder')}`;
+}
+
+/** What a folder's read with the vision model started, in a sentence or two. */
+function visionSummary({ queued, busy, notReadable }: { queued: number; busy: number; notReadable: number }) {
+  const started =
+    queued === 0 ? 'Nothing to read: no PDF or image in it is ready.' : `${formatCount(queued, 'document')} queued.`;
+  const left = joinStats(
+    busy > 0 && `${formatCount(busy, 'document')} still being processed`,
+    notReadable > 0 && `${formatCount(notReadable, 'document')} not a PDF or an image`,
+  );
+  return left === '' ? started : `${started} Left alone: ${left}.`;
 }
 
 /**
@@ -151,10 +176,13 @@ export function ArchiveTree({
   onChanged,
   onUploadInto,
   selectedDocumentId,
+  visionAvailable = false,
   className,
 }: ArchiveTreeProps) {
   const [dialog, setDialog] = useState<OpenDialog | null>(null);
   const [failure, setFailure] = useState<{ title: string; message: string } | null>(null);
+  const [queuedNotice, setQueuedNotice] = useState<{ path: string; summary: string } | null>(null);
+  const [readFolderWithVision] = useMutation(ReadFolderWithVision);
   const [createFolder] = useMutation(CreateFolder);
   const [renameFolder] = useMutation(RenameFolder);
   const [moveFolder] = useMutation(MoveFolder);
@@ -226,6 +254,17 @@ export function ArchiveTree({
     );
   }
 
+  /** Starts the read, and says what it started where the tree is, since the work happens elsewhere. */
+  async function readWithVision(path: string, folderId: string, includeSubfolders: boolean) {
+    setFailure(null);
+    setQueuedNotice(null);
+    const { data } = await readFolderWithVision({ variables: { id: folderId, includeSubfolders } });
+    if (data) {
+      setQueuedNotice({ path, summary: visionSummary(data.readFolderWithVision) });
+    }
+    await onChanged();
+  }
+
   async function runDelete(title: string, run: () => Promise<unknown>) {
     setFailure(null);
     try {
@@ -263,6 +302,13 @@ export function ArchiveTree({
                 onSelect={() => setDialog({ kind: 'rename-folder', folder: entry.folder })}
               />
               {mcpItem(entry.folder)}
+              {visionAvailable ? (
+                <MenuItem
+                  iconSlot={<Eye />}
+                  label="Read with vision model…"
+                  onSelect={() => setDialog({ kind: 'read-with-vision', folder: entry.folder, path: entry.path })}
+                />
+              ) : null}
             </>
           ) : (
             <MenuItem
@@ -296,6 +342,25 @@ export function ArchiveTree({
   return (
     <>
       {failure && <Alert variant="destructive" title={failure.title} description={failure.message} />}
+      {queuedNotice && (
+        <Alert
+          variant="info"
+          title={`Reading “${queuedNotice.path}” with the vision model`}
+          description={queuedNotice.summary}
+          actionSlot={
+            <>
+              <Button size="sm" variant="outline" content="See processing" linkSlot={<Link to={ROUTES.processing} />} />
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Dismiss"
+                iconSlot={<X />}
+                onClick={() => setQueuedNotice(null)}
+              />
+            </>
+          }
+        />
+      )}
 
       <FileTree
         label="Documents and folders"
@@ -385,6 +450,15 @@ export function ArchiveTree({
           }
           exclude={dialog.entry.kind === 'folder' ? folderAndDescendants(folders, dialog.entry.folder.id) : undefined}
           onMove={(folderId) => move(dialog.entry, folderId)}
+          onClose={close}
+        />
+      )}
+
+      {dialog?.kind === 'read-with-vision' && (
+        <ReadFolderWithVisionDialog
+          path={dialog.path}
+          hasSubfolders={folders.some((folder) => folder.parentId === dialog.folder.id)}
+          onRead={(includeSubfolders) => readWithVision(dialog.path, dialog.folder.id, includeSubfolders)}
           onClose={close}
         />
       )}

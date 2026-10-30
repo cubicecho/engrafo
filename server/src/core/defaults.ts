@@ -546,3 +546,17 @@ export const BACKUP_DEFAULTS: Readonly<BackupSettings> = Object.freeze({
   metadataMaxBytes: 67_108_864,
   importRetentionMinutes: 1440,
 });
+
+/** The processing page: what the pipeline is doing and has just done. */
+export interface ProcessingSettings {
+  /** How far back "finished" looks, in hours. */
+  finishedWithinHours: number;
+  /** The most documents one state lists. The counts are exact past it. */
+  listLimit: number;
+}
+
+/** The shipped values of `ProcessingSettings`. */
+export const PROCESSING_DEFAULTS: Readonly<ProcessingSettings> = Object.freeze({
+  finishedWithinHours: 24,
+  listLimit: 200,
+});
