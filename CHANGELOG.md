@@ -1,3 +1,10 @@
+# [4.19.0](https://github.com/cubicecho/engrafo/compare/v4.18.0...v4.19.0) (2026-10-30)
+
+
+### Features
+
+* processing page, and read a folder with the vision model ([8bb199e](https://github.com/cubicecho/engrafo/commit/8bb199e5f59008cefc84e96ae6a9360ab3db52be))
+
 # [4.18.0](https://github.com/cubicecho/engrafo/compare/v4.17.0...v4.18.0) (2026-10-30)
 
 
