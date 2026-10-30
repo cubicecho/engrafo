@@ -210,11 +210,16 @@ export const ReadsAFolderWithVision: Story = {
     await userEvent.click(dialog.getByRole('switch', { name: 'Include folders inside it' }));
     await userEvent.click(dialog.getByRole('button', { name: 'Read with vision' }));
 
+    // The page behind a dialog is hidden from roles until it has closed, so wait for that first.
+    await waitFor(() => expect(page.queryByRole('dialog')).not.toBeInTheDocument());
     await expect(await canvas.findByText('4 documents queued.', { exact: false })).toBeInTheDocument();
     await expect(
       canvas.getByText(/1 document still being processed · 2 documents not a PDF or an image/),
     ).toBeInTheDocument();
-    await expect(canvas.getByRole('link', { name: 'See processing' })).toHaveAttribute('href', ROUTES.processing);
+    await expect(await canvas.findByRole('link', { name: 'See processing' })).toHaveAttribute(
+      'href',
+      ROUTES.processing,
+    );
     await expect(visionReads).toEqual([{ id: TAXES.id, includeSubfolders: false }]);
   },
 };
