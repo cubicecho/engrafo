@@ -1,12 +1,14 @@
 import { useLinkClickHandler, useMatch } from 'react-router';
-import { LogOut } from '@/components/domain/app-icons';
+import { Activity, LogOut } from '@/components/domain/app-icons';
 import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
 import { SavedSearchesSidebarSection } from '@/components/domain/saved-searches';
+import { isInProgress } from '@/components/domain/status-badge';
 import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
 import { FileText, type IconProps, Settings, Trash2 } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
+import { useArchive } from '@/lib/archive';
 import { ROUTES } from '@/lib/routes';
 import { useSignOut } from '@/lib/sign-out';
 import { useTrashCount } from '@/lib/trash';
@@ -19,15 +21,16 @@ type NavItem = {
   end: boolean;
   /** Where the sidebar draws it: with the places, or at the foot with sign-out, as cubeui apps put Settings. */
   placement: 'main' | 'footer';
-  /** Whether the row wears the trash's count. */
-  counted?: boolean;
+  /** Which count the row wears, if any: what is in the trash, or what is running or queued. */
+  count?: 'trash' | 'processing' | undefined;
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
   // `end` so "Documents" is not also marked active on /documents/:id — that
   // route is a document, not the list, and two lit rows read as a bug.
   { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true, placement: 'main' },
-  { to: ROUTES.trash, label: 'Trash', icon: Trash2, end: true, placement: 'main', counted: true },
+  { to: ROUTES.processing, label: 'Processing', icon: Activity, end: true, placement: 'main', count: 'processing' },
+  { to: ROUTES.trash, label: 'Trash', icon: Trash2, end: true, placement: 'main', count: 'trash' },
   { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false, placement: 'footer' },
 ];
 
@@ -86,7 +89,12 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
   const signOut = useSignOut();
   // Refetched by name after every delete, restore and purge, so it needs no poll of its own.
   const trashCount = useTrashCount();
-  const countOf = (item: NavItem) => (item.counted ? trashCount : undefined);
+  // From the archive's own query, which the sidebar's tree polls while anything is moving, so the
+  // count follows the pipeline with no poll of its own.
+  const { documents } = useArchive();
+  const moving = documents.filter((doc) => isInProgress(doc.status)).length;
+  const counts = { trash: trashCount, processing: moving > 0 ? moving : undefined };
+  const countOf = (item: NavItem) => (item.count === undefined ? undefined : counts[item.count]);
 
   return (
     // `h-svh`, not `min-h-svh`: PageLayout is a sticky chassis that scrolls its

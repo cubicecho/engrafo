@@ -35,6 +35,7 @@ const DocumentsPage = graphql(`
       acceptedMimeTypes
       ocrAvailable
       ocrDefault
+      visionAvailable
     }
   }
 `);
@@ -166,6 +167,7 @@ export function DocumentsRoute() {
                 documents={documents}
                 onChanged={() => result.refetch()}
                 onUploadInto={setUploadFolderId}
+                visionAvailable={page.data?.serverConfig.visionAvailable === true}
               />
             )}
           </>

@@ -44,7 +44,7 @@ engrafo/
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page; require-auth: the gate in front of it
 │       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
-│       ├── routes/          # login, verify, documents (upload + search), document (detail), trash, settings
+│       ├── routes/          # login, verify, documents (upload + search), document (detail), processing, trash, settings
 │       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
@@ -83,6 +83,7 @@ engrafo/
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
 │       ├── search/          # chunk, embedder, index-document, filters, search (hybrid + RRF), browse (filters, no search), resolvers
 │       ├── trash/           # trash (notTrashed, trash/restore/purge, deleteStoredFiles), resolvers (trash, restore, purge, empty), purger (the timer)
+│       ├── processing/      # queue (counts and rows per state, from the rows), resolvers (the `processing` query)
 │       ├── watch/           # The watched folder: files (listing, ignore rules), ingest (one file → a document), watcher (poll, stability, delete)
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
@@ -674,6 +675,33 @@ re-queues `vision`, `metadata`, `index` and any failed steps; it keeps
 read keeps the old text. Re-running metadata and index is safe: metadata keeps
 user edits and index swaps passages in one transaction. `visionRequested`
 sticks, as `ocrRequested` does, so a later reprocess reads with the model again.
+
+**A folder is read with the vision model from its menu.** "Read with vision
+model…" is on a folder's menu only while `visionAvailable`, behind a dialog
+(slow, and it replaces text) whose one switch is whether to go into the folders
+inside it. `readFolderWithVision(id, includeSubfolders)` claims every settled
+PDF and image in it through `claimForVision`, the same conditional claim and
+step reset `readDocumentWithVision` uses, so two at once start one run each,
+and answers `queued`, `busy` (still in the pipeline, left alone) and
+`notReadable`. The tree says what was queued and links to the Processing page.
+
+**The Processing page is read from the rows, not the runner.** A document is
+`uploaded` from the moment it is handed to the runner until a slot frees,
+`processing` until its last step, then `ready` or `failed`, so
+`processing { counts, entries(state) }` (`processing/queue.ts`) needs nothing
+in memory and is right across a restart. RUNNING and QUEUED list oldest first,
+the order the runner takes them; FAILED and FINISHED (within
+`PROCESSING_DEFAULTS.finishedWithinHours`, by the last step's `finishedAt`)
+newest first, each capped at `listLimit` while the counts stay exact. Every read
+is the caller's and `notTrashed()`. The page is a `StatTile` per state as the
+filter, the chosen one in `?view=`, with a row per document that links to it, a
+bar for a step that reports progress, and Retry on a failed one. It polls at
+`POLLING_DEFAULTS` while anything is running or queued and at
+`PROCESSING_PAGE_DEFAULTS.idleIntervalMs` otherwise, never off, because work
+starts elsewhere. The nav row's count is what is moving, taken from the
+archive's query, which the sidebar already polls. There is no cancel: the runner
+cannot stop a step partway, and a button that only looked like it could would
+be worse than none.
 
 **Settings and the document page are tabs in the query string.** `?tab=` on
 both, a `Link` per tab, so a tab can be linked and survives a reload; an

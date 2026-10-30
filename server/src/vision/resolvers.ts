@@ -16,8 +16,10 @@ import { VISION_DEFAULTS } from '../core/defaults.ts';
 import { badInput, conflict, forbidden, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { loadOwned } from '../documents/resolvers.ts';
+import { folderAndDescendants, loadOwnedFolder } from '../folders/names.ts';
 import { isOcrable } from '../pipeline/mime.ts';
 import { VISION_STEP } from '../pipeline/steps/vision.ts';
+import { notTrashed } from '../trash/trash.ts';
 import { listVisionModels, normalizeBaseUrl } from './models.ts';
 import { isConfigured, readVisionSettings, saveVisionSettings } from './settings.ts';
 
@@ -144,6 +146,23 @@ const VISION_SDL = parse(`
     document is not a PDF or an image; CONFLICT while it is being processed.
     """
     readDocumentWithVision(id: UUID!): Document!
+    """
+    Reads every PDF and image in a folder again with the vision model, as readDocumentWithVision
+    does one, and in every folder inside it unless \`includeSubfolders\` is false. A document still
+    being processed, or of another type, is left as it is and counted. BAD_USER_INPUT when no
+    model is set up; NOT_FOUND for a folder that is not the caller's.
+    """
+    readFolderWithVision(id: UUID!, includeSubfolders: Boolean = true): FolderVisionRead!
+  }
+
+  "What a folder's read with the vision model started."
+  type FolderVisionRead {
+    "Documents queued to be read."
+    queued: Int!
+    "PDFs and images left alone because they are still uploading or being processed."
+    busy: Int!
+    "Documents the model cannot read: not a PDF or an image."
+    notReadable: Int!
   }
 `);
 
@@ -151,6 +170,56 @@ const VISION_SDL = parse(`
 // text it replaces. metadata keeps whatever the user edited, and index swaps the passages in one
 // transaction, so running them again over a finished document is safe.
 const RERUN_STEPS = [VISION_STEP, 'metadata', 'index'];
+
+// A document a read can start on: one the pipeline is done with, either way.
+const SETTLED: readonly string[] = [DocumentStatus.Ready, DocumentStatus.Failed];
+
+/**
+ * Puts documents back in the pipeline for a read with the vision model, and starts them.
+ *
+ * @param context - The request's context: its database and the pipeline's events.
+ * @param ids - The caller's documents, already checked to be PDFs or images.
+ * @returns The documents claimed. One no longer ready or failed is left out and left alone.
+ *
+ * @remarks
+ * Claimed and reset in one transaction, conditional on the status, so two requests at once start
+ * one run each document, as with retry and reprocess. The archive and the text are kept: the step
+ * renders the archive's upright pages, and a failed read leaves the old text. The runner inserts
+ * the vision row for a document that has none.
+ */
+async function claimForVision(context: Context, ids: readonly string[]): Promise<Document[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  const claimed = await context.db.transaction(async (tx): Promise<Document[]> => {
+    const rows = await tx
+      .update(documents)
+      .set({ status: DocumentStatus.Uploaded, error: null, visionRequested: true })
+      .where(
+        and(inArray(documents.id, [...ids]), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])),
+      )
+      .returning();
+    if (rows.length > 0) {
+      await tx
+        .update(processingSteps)
+        .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
+        .where(
+          and(
+            inArray(
+              processingSteps.documentId,
+              rows.map((row) => row.id),
+            ),
+            or(inArray(processingSteps.step, RERUN_STEPS), eq(processingSteps.status, StepStatus.Failed)),
+          ),
+        );
+    }
+    return rows;
+  });
+  for (const doc of claimed) {
+    context.events.emit('document.uploaded', { documentId: doc.id });
+  }
+  return claimed;
+}
 
 const VISION_DETAIL_BY_NAME = {
   AUTO: VisionImageDetail.Auto,
@@ -363,36 +432,39 @@ export function applyVisionExtension(schema: GraphQLSchema): GraphQLSchema {
       throw conflict('This document is already being processed.');
     }
 
-    // Claimed and reset in one transaction, conditional on the status it was read with, so two
-    // requests at once start one run, as with retry and reprocess. The archive and the text are
-    // kept: the step renders the archive's upright pages, and a failed read leaves the old text.
-    // The runner inserts the vision row for a document that has none.
-    const updated = await context.db.transaction(async (tx): Promise<Document | null> => {
-      const [claimed] = await tx
-        .update(documents)
-        .set({ status: DocumentStatus.Uploaded, error: null, visionRequested: true })
-        .where(and(eq(documents.id, doc.id), inArray(documents.status, [DocumentStatus.Ready, DocumentStatus.Failed])))
-        .returning();
-      if (!claimed) {
-        return null;
-      }
-      await tx
-        .update(processingSteps)
-        .set({ status: StepStatus.Queued, error: null, startedAt: null, finishedAt: null })
-        .where(
-          and(
-            eq(processingSteps.documentId, doc.id),
-            or(inArray(processingSteps.step, RERUN_STEPS), eq(processingSteps.status, StepStatus.Failed)),
-          ),
-        );
-      return claimed;
-    });
-    if (updated === null) {
-      return loadOwned(context, args.id);
-    }
+    const [updated] = await claimForVision(context, [doc.id]);
+    return updated ?? loadOwned(context, args.id);
+  };
 
-    context.events.emit('document.uploaded', { documentId: doc.id });
-    return updated;
+  mutations.readFolderWithVision.resolve = async (
+    _parent: unknown,
+    args: { id: string; includeSubfolders?: boolean | null },
+    context: Context,
+  ) => {
+    const userId = requireAuth(context);
+    const folder = await loadOwnedFolder(context.db, userId, args.id);
+    if (isConfigured(await readVisionSettings(context.db)) === false) {
+      throw badInput('No vision model is set up. The admin sets one up in Settings.');
+    }
+    const folderIds =
+      args.includeSubfolders === false ? [folder.id] : await folderAndDescendants(context.db, userId, folder.id);
+    const inside = await context.db
+      .select({ id: documents.id, mimeType: documents.mimeType, status: documents.status })
+      .from(documents)
+      .where(and(eq(documents.userId, userId), inArray(documents.folderId, folderIds), notTrashed()));
+
+    const readable = inside.filter((doc) => isOcrable(doc.mimeType));
+    const settled = readable.filter((doc) => SETTLED.includes(doc.status));
+    const claimed = await claimForVision(
+      context,
+      settled.map((doc) => doc.id),
+    );
+    return {
+      queued: claimed.length,
+      // Counted after the claim: one that moved on between the read and the claim is busy too.
+      busy: readable.length - claimed.length,
+      notReadable: inside.length - readable.length,
+    };
   };
 
   return extendedSchema;

@@ -56,6 +56,11 @@ const STEPS: Readonly<Record<string, StepInfo>> = Object.freeze({
     description: 'Makes the text searchable',
     skipped: 'No text to index',
   },
+  thumbnail: {
+    label: 'Thumbnail',
+    description: 'Draws a small picture of the first page or the cover',
+    skipped: 'Nothing to draw it from, or the tools to draw it are not installed',
+  },
 });
 
 /**

@@ -62,3 +62,17 @@ export interface UploadSettings {
 export const UPLOAD_DEFAULTS: Readonly<UploadSettings> = Object.freeze({
   concurrency: 4,
 });
+
+/** How the processing page keeps up. */
+export interface ProcessingPageSettings {
+  /**
+   * How often the page asks while nothing is running or queued: slower than `POLLING_DEFAULTS`,
+   * but still often enough that work started on another page or by the watched folder shows up.
+   */
+  idleIntervalMs: number;
+}
+
+/** What the processing page polls at unless something says otherwise. */
+export const PROCESSING_PAGE_DEFAULTS: Readonly<ProcessingPageSettings> = Object.freeze({
+  idleIntervalMs: 15_000,
+});
