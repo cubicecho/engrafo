@@ -1,3 +1,10 @@
+## [4.19.1](https://github.com/cubicecho/engrafo/compare/v4.19.0...v4.19.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **app:** ink the selected document's size for the tinted tree row ([d9231fb](https://github.com/cubicecho/engrafo/commit/d9231fb4ff7c5e226a4d765fa4b33a73d06fbb71))
+
 # [4.19.0](https://github.com/cubicecho/engrafo/compare/v4.18.0...v4.19.0) (2026-10-30)
 
 
