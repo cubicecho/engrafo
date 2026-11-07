@@ -2,7 +2,7 @@ import { useMutation } from '@apollo/client/react';
 import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
-import { CenteredLayout } from '@/components/centered-layout';
+import { CenteredCardLayout } from '@/components/centered-card-layout';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { setToken } from '@/lib/auth';
@@ -46,7 +46,7 @@ export function SsoPage() {
 
   if (!token || error) {
     return (
-      <CenteredLayout
+      <CenteredCardLayout
         level={1}
         title="That sign-in didn't work"
         description="It has to be finished within a few minutes, and only once."
@@ -55,5 +55,5 @@ export function SsoPage() {
     );
   }
 
-  return <CenteredLayout level={1} title="Signing you in…" contentSlot={<Spinner label="Signing you in" />} />;
+  return <CenteredCardLayout level={1} title="Signing you in…" contentSlot={<Spinner label="Signing you in" />} />;
 }

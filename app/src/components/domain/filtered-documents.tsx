@@ -7,7 +7,7 @@ import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
-import { QueryState } from '@/components/query-state';
+import { LoadState } from '@/components/load-state';
 import { Button } from '@/components/ui/button';
 import { Search } from '@/components/ui/icons';
 import { formatCalendarDay } from '@/lib/calendar-day';
@@ -72,7 +72,7 @@ export function FilteredDocuments({ filter }: FilteredDocumentsProps) {
 
   return (
     <>
-      <QueryState
+      <LoadState
         query={queryLike(result)}
         what="the documents that match"
         count={rows.length}

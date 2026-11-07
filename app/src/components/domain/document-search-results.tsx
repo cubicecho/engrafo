@@ -6,7 +6,7 @@ import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
-import { QueryState } from '@/components/query-state';
+import { LoadState } from '@/components/load-state';
 import { Search } from '@/components/ui/icons';
 import { formatCalendarDay } from '@/lib/calendar-day';
 import { formatDate, joinStats } from '@/lib/format';
@@ -49,7 +49,7 @@ export function DocumentSearchResults({ query, filter = null }: DocumentSearchRe
 
   return (
     <>
-      <QueryState
+      <LoadState
         query={queryLike(result)}
         what="search results"
         count={hits.length}

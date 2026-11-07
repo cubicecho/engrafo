@@ -24,8 +24,8 @@ import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog
 import { ReprocessDocumentDialog } from '@/components/domain/reprocess-document-dialog';
 import { DocumentStatusBadge, isInProgress } from '@/components/domain/status-badge';
 import { EmptyState } from '@/components/empty-state';
+import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryState } from '@/components/query-state';
 import { SplitLayout } from '@/components/split-layout';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -293,7 +293,7 @@ function Placeholder({ loading = false, contentSlot }: { loading?: boolean; cont
     <PageLayout
       width="full"
       contentClassName={FULL_WIDTH_BODY}
-      breadcrumbsSlot={<BackToDocuments />}
+      backSlot={<BackToDocuments />}
       title="Document"
       loading={loading}
       contentSlot={contentSlot}
@@ -414,7 +414,7 @@ export function DocumentRoute() {
       <Placeholder
         loading={query.isPending}
         contentSlot={
-          <QueryState
+          <LoadState
             query={query}
             what="this document"
             count={0}
@@ -446,7 +446,7 @@ export function DocumentRoute() {
   return (
     <PageLayout
       width="full"
-      breadcrumbsSlot={<BackToDocuments />}
+      backSlot={<BackToDocuments />}
       title={doc.title}
       description={joinStats(
         doc.folder ? `In ${doc.folder.name}` : null,

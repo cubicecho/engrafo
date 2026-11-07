@@ -7,8 +7,8 @@ import { Activity } from '@/components/domain/app-icons';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryState } from '@/components/query-state';
 import { Section } from '@/components/section';
 import { StatTile } from '@/components/stat-tile';
 import { Alert } from '@/components/ui/alert';
@@ -208,7 +208,7 @@ export function ProcessingRoute() {
             description={shown.blurb}
             contentSlot={
               <div className="flex flex-col gap-2">
-                <QueryState
+                <LoadState
                   query={queryLike(result)}
                   what="the pipeline"
                   count={rows.length}

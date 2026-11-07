@@ -3,7 +3,7 @@ import { Activity, LogOut } from '@/components/domain/app-icons';
 import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
 import { SavedSearchesSidebarSection } from '@/components/domain/saved-searches';
 import { isInProgress } from '@/components/domain/status-badge';
-import { BarNavItem, Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
+import { AppBarItem, Sidebar, SidebarItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
 import { FileText, type IconProps, Settings, Trash2 } from '@/components/ui/icons';
@@ -55,12 +55,12 @@ interface NavLinkProps {
 
 function RailLink({ item, count }: NavLinkProps) {
   const Icon = item.icon;
-  return <SidebarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
+  return <SidebarItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
 }
 
 function BarLink({ item, count }: NavLinkProps) {
   const Icon = item.icon;
-  return <BarNavItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
+  return <AppBarItem {...useNavLink(item)} label={item.label} iconSlot={<Icon />} count={count} />;
 }
 
 function Brand() {
@@ -128,7 +128,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
                 <RailLink key={item.to} item={item} />
               ))}
               <ThemePicker variant="compact" />
-              <SidebarNavItem label="Sign out" iconSlot={<LogOut />} onClick={signOut} />
+              <SidebarItem label="Sign out" iconSlot={<LogOut />} onClick={signOut} />
             </>
           }
         />

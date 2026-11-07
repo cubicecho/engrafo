@@ -2,14 +2,14 @@ import { useQuery } from '@apollo/client/react';
 import { Link, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { LogOut } from '@/components/domain/app-icons';
 import { BackupSettings } from '@/components/domain/backup-settings';
 import { McpSettings } from '@/components/domain/mcp-settings';
 import { SsoSettings } from '@/components/domain/sso-pairing';
 import { VisionSettingsCard } from '@/components/domain/vision-settings';
+import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryState } from '@/components/query-state';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { SettingRow } from '@/components/setting-row';
 import { Button } from '@/components/ui/button';
 import { Settings } from '@/components/ui/icons';
@@ -115,7 +115,7 @@ export function SettingsRoute() {
             {/* Inside the open tab's panel, so the tab names the region that is loading or failed. */}
             {data ? null : (
               <TabsContent value={tab}>
-                <QueryState query={queryLike(result)} what="your settings" count={0} />
+                <LoadState query={queryLike(result)} what="your settings" count={0} />
               </TabsContent>
             )}
 
@@ -127,7 +127,7 @@ export function SettingsRoute() {
                     title="Account"
                     description="Signing out forgets this browser's session. Signing back in needs only your address."
                     contentSlot={
-                      <DescriptionList
+                      <PropertyList
                         contentSlot={
                           <>
                             <PropertyRow label="Email" value={data.me.email} />
@@ -168,7 +168,7 @@ export function SettingsRoute() {
                     title="Uploads"
                     description="Set on the server, so this card is read-only. Change them in the environment and restart."
                     contentSlot={
-                      <DescriptionList
+                      <PropertyList
                         contentSlot={
                           <>
                             <PropertyRow
@@ -215,7 +215,7 @@ export function SettingsRoute() {
                     title="About"
                     description="Worth quoting in a bug report."
                     contentSlot={
-                      <DescriptionList
+                      <PropertyList
                         contentSlot={
                           <PropertyRow label="Version" value={data.serverConfig.version} valueClassName="font-mono" />
                         }

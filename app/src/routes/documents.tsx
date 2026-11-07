@@ -11,8 +11,8 @@ import { SaveSearchButton } from '@/components/domain/saved-searches';
 import { SearchFilterBar } from '@/components/domain/search-filter-bar';
 import { UploadPanel } from '@/components/domain/upload-panel';
 import { EmptyState } from '@/components/empty-state';
+import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryState } from '@/components/query-state';
 import { FileText } from '@/components/ui/icons';
 import { SearchInput } from '@/components/ui/search-input';
 import { useArchive } from '@/lib/archive';
@@ -146,7 +146,7 @@ export function DocumentsRoute() {
               />
             )}
 
-            <QueryState
+            <LoadState
               query={queryLike(result)}
               what="your documents"
               count={documents.length + folders.length}

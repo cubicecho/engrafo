@@ -4,7 +4,7 @@ import { graphql } from '@/__generated__';
 import { ArchiveTree } from '@/components/domain/archive-tree';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
 import { EmptyState } from '@/components/empty-state';
-import { QueryState } from '@/components/query-state';
+import { LoadState } from '@/components/load-state';
 import { SidebarSection } from '@/components/sidebar';
 import { useArchive } from '@/lib/archive';
 import { queryLike } from '@/lib/query';
@@ -38,7 +38,7 @@ export function ArchiveSidebarSection() {
       actionSlot={<NewFolderButton look="icon" />}
       contentSlot={
         empty || result.data === undefined ? (
-          <QueryState
+          <LoadState
             compact
             query={queryLike(result)}
             what="the archive"

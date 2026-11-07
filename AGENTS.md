@@ -41,7 +41,7 @@ engrafo/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
-│       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, QueryState, …)
+│       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, LoadState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page; require-auth: the gate in front of it
 │       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
 │       ├── routes/          # login, verify, documents (upload + search), document (detail), processing, trash, settings
@@ -881,7 +881,7 @@ and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
 sign anyone out.
 
 **An empty state means the server said "none", never that we failed to ask.**
-`QueryState` takes the failure rung before the empty one, and `queryLike()` in
+`LoadState` takes the failure rung before the empty one, and `queryLike()` in
 `app/src/lib/query.ts` reports pending and error only while there is nothing on
 screen — so a poll that fails does not replace a good list with an error card.
 
@@ -924,7 +924,7 @@ files. Load the `cubeui` skill before adding or updating a registry item.
 (`app/src/components/layouts/app-layout.tsx`) wraps everything inside
 `RequireAuth`, so "signed in" and "has the sidebar" cannot drift apart — and
 `/login` and `/auth/verify`, which have nothing to navigate to, are a
-`CenteredLayout` each. Pages keep using `PageLayout` inside it, at
+`CenteredCardLayout` each. Pages keep using `PageLayout` inside it, at
 `width="full"`: every page fills the space beside the sidebar rather than
 sitting in a capped column. Adding a screen means a route in
 `main.tsx` and an entry in `NAV_ITEMS`.
@@ -960,7 +960,7 @@ states it is in.
 registry and are kept as published, so `shadcn add` can update them.
 `biome.json` turns the linter and the formatter off for them rather than letting
 anyone edit them into compliance. The cubeui shells one level up (`page-layout.tsx`,
-`query-state.tsx`, …) are the same deal.
+`load-state.tsx`, …) are the same deal.
 
 ## Stories are the frontend tests
 

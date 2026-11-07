@@ -1,8 +1,8 @@
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { EmptyState } from '@/components/empty-state';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { Button } from '@/components/ui/button';
 import { Pencil, Plus, Undo2 } from '@/components/ui/icons';
 import { formatMoney } from '@/lib/money';
@@ -77,7 +77,7 @@ export function DocumentReceiptCard({ vendor, total, currency, source, onEdit, o
         isEmpty ? (
           <EmptyState compact title="Not a receipt, or nothing was read from it." />
         ) : (
-          <DescriptionList
+          <PropertyList
             contentSlot={
               <>
                 <PropertyRow label="Vendor" value={vendor ?? '—'} />

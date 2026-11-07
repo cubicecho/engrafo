@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { graphql } from '@/__generated__';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
 import { CreateApiKeyDialog } from '@/components/domain/create-api-key-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
-import { QueryState } from '@/components/query-state';
+import { LoadState } from '@/components/load-state';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -88,7 +88,7 @@ export function McpSettings() {
         }
         contentSlot={
           <div className="grid gap-4">
-            <DescriptionList
+            <PropertyList
               contentSlot={
                 <PropertyRow
                   label="Endpoint"
@@ -101,7 +101,7 @@ export function McpSettings() {
             />
             {failure && <Alert variant="destructive" title="Could not revoke the key" description={failure} />}
             {keys.length === 0 ? (
-              <QueryState
+              <LoadState
                 compact
                 query={queryLike(result)}
                 what="your API keys"
