@@ -3,7 +3,9 @@ import * as React from "react";
 import { IconClassContext } from "@/components/ui/icons-base";
 import { buildTree, isValidMove, type TreeEntry, type TreeNode } from "@/lib/tree";
 import { cn, type SlotNode } from "@/lib/utils";
-import { ChevronRight, File, Folder } from "@/components/ui/icons";
+import { CollapsibleTrigger } from "@/components/collapsible";
+import { File, Folder } from "@/components/ui/icons";
+import { rowFillClass, rowLink } from "@/components/list-item";
 
 type FileTreeProps<T extends TreeEntry> = {
   /** What the list is, for a screen reader: "Files", "Notes". Read, not drawn. */
@@ -19,7 +21,10 @@ type FileTreeProps<T extends TreeEntry> = {
    * `actionSlot` as any other file does.
    */
   pinned?: readonly T[] | undefined;
-  /** The open file's path. Its row is filled, and its link or button says it is the current one. */
+  /**
+   * The open file's path. Its row is tinted, a step further under the pointer, and its link or
+   * button says it is the current one.
+   */
   selected?: string | undefined;
   /**
    * The router's link to a file, as an element with no children — `<Link to="/notes/$" />` — which
@@ -127,6 +132,9 @@ export function FileTree<T extends TreeEntry>({
   className,
 }: FileTreeProps<T>) {
   const tree = React.useMemo(() => buildTree(entries), [entries]);
+  const treeId = React.useId();
+  // What a folder's `aria-controls` names. A path may hold a space, which would split the id list.
+  const childrenId = (path: string) => `${treeId}${encodeURIComponent(path)}`;
   const folders = React.useMemo(() => folderPaths(tree), [tree]);
   // What has been pressed, rather than what is open: a folder that arrives later still starts as
   // `defaultOpen` says, which a list of the open ones taken at mount would get wrong.
@@ -263,15 +271,11 @@ export function FileTree<T extends TreeEntry>({
 
   const renderRow = (node: TreeNode<T>, depth: number, isFile: boolean, isPinned = false) => {
     const isSelected = isFile && selected === node.path;
-    const ink = isSelected ? "text-active-foreground" : "text-foreground";
-    // Inside the folder a drag is over, the row sits on the drop tint, where /60 is under 4.5:1.
+    // On the chosen tint, and inside the folder a drag is over (the same tint), /60 is under 4.5:1.
     const inDrop =
       dropInto !== null &&
       (dropInto === "" || node.path === dropInto || node.path.startsWith(`${dropInto}/`));
-    let muted = inDrop ? "text-foreground" : "text-foreground/60";
-    if (isSelected) {
-      muted = "text-active-foreground";
-    }
+    const muted = inDrop || isSelected ? "text-foreground" : "text-foreground/60";
     const indent = { paddingLeft: depth * INDENT + EDGE };
     const pressable = isFile === false || linkSlot !== undefined || onSelect !== undefined;
     const facts = meta?.(node);
@@ -286,18 +290,8 @@ export function FileTree<T extends TreeEntry>({
             <File aria-hidden className={cn("size-4 shrink-0", muted)} />
           </>
         ) : (
-          <>
-            <ChevronRight
-              aria-hidden
-              className={cn(
-                "size-4 shrink-0",
-                muted,
-                "transition-transform",
-                isOpen(node.path) && "rotate-90",
-              )}
-            />
-            <Folder aria-hidden className={cn("size-4 shrink-0", muted)} />
-          </>
+          // The chevron before it is the trigger's own.
+          <Folder aria-hidden className={cn("size-4 shrink-0", muted)} />
         )}
         <span
           data-slot="file-tree-name"
@@ -307,7 +301,7 @@ export function FileTree<T extends TreeEntry>({
             // `truncate` is the ellipsis on the web; on device it is `numberOfLines`, which is
             // what `line-clamp-1` becomes and what `truncate` does not.
             "truncate",
-            ink,
+            "text-foreground",
           )}
         >
           {node.name}
@@ -318,13 +312,12 @@ export function FileTree<T extends TreeEntry>({
             className={cn(
               "cube-rn-view",
               "shrink-0 flex-row items-center gap-1",
-              // On the chosen row's fill everything in the meta takes the row's ink, over a
-              // caller's own colour classes: a muted outline Badge stayed grey on the fill. Its
+              // On the chosen row's tint everything in the meta takes the row's ink, over a
+              // caller's own colour classes: a muted outline Badge's grey is under 4.5:1 there. Its
               // edges go to the ink at /50, so an outline still reads. Web only — a device has no
               // descendant selector, so there icons follow through the context below and a node's
               // own text keeps its colour (see `meta`).
-              isSelected &&
-                "text-active-foreground [&_*]:text-active-foreground! [&_*]:border-active-foreground/50!",
+              isSelected && "text-foreground [&_*]:text-foreground! [&_*]:border-foreground/50!",
             )}
           >
             <IconClassContext.Provider value={cn("size-4 shrink-0", muted)}>
@@ -339,20 +332,33 @@ export function FileTree<T extends TreeEntry>({
     if (isFile === false) {
       const expanded = isOpen(node.path);
       row = (
-        <button
-          type="button"
+        <CollapsibleTrigger
           data-slot="file-tree-folder"
-          aria-expanded={expanded}
+          open={expanded}
           onClick={() => toggle(node.path)}
-          className={cn("cube-rn-view cube-rn-pressable", ROW_CLASS)}
+          controls={expanded && node.children.length > 0 ? childrenId(node.path) : undefined}
+          className={ROW_CLASS}
+          // Centred on the row rather than set down to a first line of text, and muted as the
+          // folder's icon is.
+          chevronClassName={cn("mt-0", muted)}
           style={indent}
-          {...(drag as React.ComponentPropsWithoutRef<"button">)}
-        >
-          {inside}
-        </button>
+          webProps={drag}
+          contentSlot={inside}
+        />
       );
     } else if (linkSlot) {
-      row = fileLink(linkSlot(node), isSelected, indent, inside, drag);
+      // `drag` is what picks the row up, which only the web has.
+      row = rowLink(
+        linkSlot(node),
+        {
+          slot: "file-tree-file",
+          className: ROW_CLASS,
+          selected: isSelected,
+          style: indent,
+          webProps: drag,
+        },
+        inside,
+      );
     } else if (onSelect) {
       row = (
         <button
@@ -387,9 +393,7 @@ export function FileTree<T extends TreeEntry>({
           "cube-rn-view",
           "min-w-0 flex-row items-center gap-1 rounded-md",
           "group",
-          isSelected
-            ? cn("bg-active", "has-[:focus-visible]:bg-active/90")
-            : pressable && "transition-colors hover:bg-hover has-[:focus-visible]:bg-hover",
+          rowFillClass(isSelected, pressable),
           // A slow move is not a failed one: the row waits where it was, drawn as unavailable.
           moving.has(node.path) && "opacity-50",
         )}
@@ -427,7 +431,11 @@ export function FileTree<T extends TreeEntry>({
       >
         {renderRow(node, depth, node.type === "file")}
         {node.type === "dir" && node.children.length > 0 && isOpen(node.path) ? (
-          <ul data-slot="file-tree-children" className="cube-rn-view min-w-0 gap-0.5">
+          <ul
+            data-slot="file-tree-children"
+            id={childrenId(node.path)}
+            className="cube-rn-view min-w-0 gap-0.5"
+          >
             {renderItems(node.children, depth + 1)}
           </ul>
         ) : null}
@@ -467,33 +475,6 @@ export function FileTree<T extends TreeEntry>({
       ))}
       {renderItems(tree, 0)}
     </ul>
-  );
-}
-
-/**
- * A file's row as the router's link. On the web the caller's element *is* the row — it is cloned
- * with the row's classes and what is inside it, so it stays the router's own `<a>`. On device a
- * link is expo-router's, which takes the row the other way round: it is given `asChild` and wraps
- * the `Pressable`. `drag` is what picks the row up, which only the web has.
- */
-function fileLink(
-  link: ReactElement,
-  isSelected: boolean,
-  indent: { paddingLeft: number },
-  inside: ReactNode,
-  drag: object,
-) {
-  const element = link as ReactElement<Record<string, unknown>>;
-  return React.cloneElement(
-    element,
-    {
-      "data-slot": "file-tree-file",
-      className: cn("flex", ROW_CLASS, element.props.className as string | undefined),
-      style: indent,
-      "aria-current": isSelected ? "page" : undefined,
-      ...drag,
-    },
-    inside,
   );
 }
 

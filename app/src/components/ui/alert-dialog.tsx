@@ -7,6 +7,7 @@ import {
   DIALOG_DESCRIPTION_CLASS,
   DIALOG_TITLE_CLASS,
 } from "@/components/ui/dialog-base";
+import { FrameFocusGuard } from "@/lib/frame-focus-guard";
 import { bridgePress, cn } from "@/lib/utils";
 import { type ButtonProps, buttonVariants } from "@/components/ui/button";
 
@@ -58,6 +59,7 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
   size?: "default" | "sm";
@@ -77,7 +79,11 @@ function AlertDialogContent({
           className,
         )}
         {...props}
-      />
+      >
+        {children}
+        {/* A framed app focusing itself would take the focus out of the confirm. */}
+        <FrameFocusGuard />
+      </AlertDialogPrimitive.Content>
     </AlertDialogPortal>
   );
 }
