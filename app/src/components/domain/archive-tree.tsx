@@ -387,8 +387,8 @@ export function ArchiveTree({
               <span
                 className={cn(
                   'text-xs tabular-nums',
-                  // The tree inks the selected row's own text this way, on the `active` fill.
-                  doc.id === selectedDocumentId ? 'text-active-foreground' : 'text-foreground/60',
+                  // The selected row is tinted, not filled, so its size reads at full ink as the tree's own facts do.
+                  doc.id === selectedDocumentId ? 'text-foreground' : 'text-foreground/60',
                 )}
               >
                 {formatBytes(doc.sizeBytes)}
