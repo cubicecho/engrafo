@@ -5,8 +5,8 @@ import { ConfirmButton } from '@/components/confirm-button';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryState } from '@/components/query-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Trash2, Undo2 } from '@/components/ui/icons';
@@ -117,7 +117,7 @@ export function TrashRoute() {
       contentSlot={
         <>
           {failure && <Alert variant="destructive" title={failure.title} description={failure.message} />}
-          <QueryState
+          <LoadState
             query={queryLike(result)}
             what="the trash"
             count={rows.length}

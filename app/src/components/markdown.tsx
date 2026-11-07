@@ -169,7 +169,7 @@ function DocumentSection({
 
 /**
  * A heading and the blocks under it, up to the next heading of its level or higher. Open to start
- * with; the open state is the section's own, as a `Disclosure`'s is. A heading with nothing under
+ * with; the open state is the section's own, as a `Collapsible`'s is. A heading with nothing under
  * it has nothing to fold, and draws no toggle.
  */
 function CollapsibleSection({ node, children }: { node: SyntaxNode; children?: ReactNode }) {

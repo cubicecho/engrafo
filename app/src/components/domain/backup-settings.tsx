@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { graphql } from '@/__generated__';
 import { type ImportJobFieldsFragment, ImportState } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
-import { Disclosure } from '@/components/disclosure';
+import { Collapsible } from '@/components/collapsible';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { downloadUrl } from '@/components/ui/download-button';
@@ -144,7 +144,7 @@ export function ImportSummary({ job }: { job: ImportJobFieldsFragment }) {
         />
       ) : null}
       {job.error ? <Alert variant="destructive" title="The import stopped" description={job.error} /> : null}
-      <DescriptionList
+      <PropertyList
         contentSlot={
           <>
             <PropertyRow
@@ -170,7 +170,7 @@ export function ImportSummary({ job }: { job: ImportJobFieldsFragment }) {
 
 function ImportItems({ title, items }: { title: string; items: ImportJobFieldsFragment['failed'] }) {
   return (
-    <Disclosure
+    <Collapsible
       title={title}
       contentSlot={
         <List

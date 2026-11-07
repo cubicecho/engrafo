@@ -7,7 +7,7 @@ import { Bookmark, BookmarkPlus } from '@/components/domain/app-icons';
 import { NameDialog } from '@/components/domain/name-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { ListItem } from '@/components/list-item';
-import { QueryState } from '@/components/query-state';
+import { LoadState } from '@/components/load-state';
 import { SidebarSection } from '@/components/sidebar';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -133,7 +133,7 @@ export function SavedSearchesSidebarSection() {
         status={
           <>
             {failure && <Alert variant="destructive" title="Could not delete the saved search" description={failure} />}
-            <QueryState
+            <LoadState
               compact
               query={queryLike(result)}
               what="your saved searches"

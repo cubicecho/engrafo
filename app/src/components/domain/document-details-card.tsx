@@ -1,7 +1,7 @@
 import { FieldSourceEnum as FieldSource } from '@/__generated__/graphql';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Pencil, Undo2 } from '@/components/ui/icons';
@@ -51,7 +51,7 @@ export function DocumentDetailsCard({
       level={2}
       title="Details"
       contentSlot={
-        <DescriptionList
+        <PropertyList
           contentSlot={
             <>
               <PropertyRow

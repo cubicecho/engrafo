@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { SsoSource } from '@/__generated__/graphql';
 import { InputField, useAppForm } from '@/components/app-form';
-import { CenteredLayout } from '@/components/centered-layout';
+import { CenteredCardLayout } from '@/components/centered-card-layout';
 import { PairSsoForm, SsoSetupQuery } from '@/components/domain/sso-pairing';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,7 @@ export function LoginPage() {
 
   if (sent) {
     return (
-      <CenteredLayout
+      <CenteredCardLayout
         level={1}
         iconSlot={<FileText />}
         title="Sign in to Engrafo"
@@ -168,7 +168,7 @@ export function LoginPage() {
   );
 
   return (
-    <CenteredLayout
+    <CenteredCardLayout
       level={1}
       iconSlot={<FileText />}
       title="Sign in to Engrafo"

@@ -50,6 +50,8 @@
         "app/src/components/*.tsx",
         "app/src/lib/utils.ts",
         "app/src/lib/tree.ts",
+        "app/src/lib/bottom-bar.ts",
+        "app/src/lib/frame-focus-guard.ts",
         "app/src/lib/format.ts",
         "app/src/lib/color.ts",
         "app/src/lib/error-message.ts",

@@ -9,16 +9,16 @@ import {
 } from '@/__generated__/graphql';
 import { ComboboxField, InputField, NumberField, useAppForm } from '@/components/app-form';
 import { CardLayout } from '@/components/card-layout';
+import { Collapsible } from '@/components/collapsible';
 import { ConfirmButton } from '@/components/confirm-button';
-import { DescriptionList, PropertyRow } from '@/components/description-list';
-import { Disclosure } from '@/components/disclosure';
+import { LoadState } from '@/components/load-state';
 import { PasswordField } from '@/components/password-field';
-import { QueryState } from '@/components/query-state';
-import { RadioGroupField } from '@/components/radio-group-field';
+import { PropertyList, PropertyRow } from '@/components/property-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FormElement } from '@/components/ui/form-element';
+import { RadioGroupField } from '@/components/ui/radio-group-field';
 import { messageOf } from '@/lib/error-message';
 import { formatCount } from '@/lib/format';
 import { queryLike } from '@/lib/query';
@@ -362,7 +362,7 @@ function VisionSummary({ available, auto }: { available: boolean; auto: boolean 
       title="Vision model"
       description="Reads scanned pages again with a model that sees them, for better text than OCR alone. Set up by the admin."
       contentSlot={
-        <DescriptionList contentSlot={<PropertyRow label="Vision model" value={visionSummary(available, auto)} />} />
+        <PropertyList contentSlot={<PropertyRow label="Vision model" value={visionSummary(available, auto)} />} />
       }
     />
   );
@@ -431,7 +431,7 @@ function VisionSettingsForm() {
         settings ? (
           <VisionForm settings={settings} />
         ) : (
-          <QueryState query={queryLike(result)} what="the vision model's settings" count={0} />
+          <LoadState query={queryLike(result)} what="the vision model's settings" count={0} />
         )
       }
     />
@@ -588,7 +588,7 @@ function VisionForm({ settings }: { settings: Settings }) {
         )}
         <RadioGroupField form={form} name="mode" label="When it reads" options={RUN_MODES} />
         <RadioGroupField form={form} name="textFormat" label="What it writes" options={TEXT_FORMATS} />
-        <Disclosure
+        <Collapsible
           title="Advanced"
           contentSlot={
             <div className="flex flex-col gap-4">

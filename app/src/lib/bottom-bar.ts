@@ -1,9 +1,9 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from "react";
 
 /**
  * Where the bar stops being drawn: `sm`, `md`, `lg`, `xl` (drawn under that width), or `always`.
  */
-export type BottomBarUntil = 'sm' | 'md' | 'lg' | 'xl' | 'always';
+export type BottomBarUntil = "sm" | "md" | "lg" | "xl" | "always";
 
 type Entry = { until: BottomBarUntil };
 
