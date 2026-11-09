@@ -1,3 +1,10 @@
+## [4.19.3](https://github.com/cubicecho/engrafo/compare/v4.19.2...v4.19.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **app:** reinstall cubeui tabs for the 40px strip, and drop the touchTarget workaround ([73ac70e](https://github.com/cubicecho/engrafo/commit/73ac70eceab5b61d0ac4104a4e100b2144c1d173)), closes [cubeui#540](https://github.com/cubeui/issues/540) [cubeui#541](https://github.com/cubeui/issues/541)
+
 ## [4.19.2](https://github.com/cubicecho/engrafo/compare/v4.19.1...v4.19.2) (2026-11-09)
 
 
