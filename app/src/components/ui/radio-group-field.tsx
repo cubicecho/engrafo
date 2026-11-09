@@ -10,8 +10,8 @@ import {
   type NamesOfType,
   type ValuesOf,
 } from "@/lib/form-binding";
-import { cn, type SlotNode } from "@/lib/utils";
-import { FieldDescription, FieldError, FieldTitle } from "@/components/ui/field";
+import { cn, HEADING_GAP, hasSlot, type SlotNode } from "@/lib/utils";
+import { Field, FieldDescription, FieldError, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -46,6 +46,7 @@ type RadioGroupFieldProps<
   variant?: "row" | "card" | "segmented" | undefined;
   /** How the options are laid out. Defaults to the variant's own. */
   orientation?: "vertical" | "horizontal" | undefined;
+  /** No option can be chosen, and the title and the description fade with the options. */
   disabled?: boolean | undefined;
   loop?: boolean | undefined;
   className?: string | undefined;
@@ -109,12 +110,9 @@ function RadioGroupFieldBody({
   ) : null;
 
   return (
-    <div
-      role="group"
-      data-slot="radio-group-field"
-      className={cn("cube-rn-view", "w-full min-w-0 gap-2", className)}
-    >
-      {actionSlot ? (
+    // `Field`, so the title and the description fade with the options when it is `disabled`.
+    <Field data-slot="radio-group-field" disabled={disabled} className={cn("min-w-0", className)}>
+      {hasSlot(actionSlot) ? (
         <div className="cube-rn-view min-w-0 flex-row items-center gap-2">
           {title}
           <div className="cube-rn-view ml-auto shrink-0">{actionSlot}</div>
@@ -161,17 +159,23 @@ function RadioGroupFieldBody({
           ))}
         </RadioGroup>
       )}
-      {description ? (
-        <FieldDescription id={descriptionId} className={descriptionClassName}>
-          {description}
-        </FieldDescription>
+      {/* One column, so the description and the error are the heading rhythm's 4px apart, as in
+          every other field; only text against the options is `Field`'s 8px. */}
+      {description || error ? (
+        <div className={cn("cube-rn-view", "min-w-0", HEADING_GAP)}>
+          {description ? (
+            <FieldDescription id={descriptionId} className={descriptionClassName}>
+              {description}
+            </FieldDescription>
+          ) : null}
+          {error ? (
+            <FieldError id={errorId} className={errorClassName}>
+              {error}
+            </FieldError>
+          ) : null}
+        </div>
       ) : null}
-      {error ? (
-        <FieldError id={errorId} className={errorClassName}>
-          {error}
-        </FieldError>
-      ) : null}
-    </div>
+    </Field>
   );
 }
 
