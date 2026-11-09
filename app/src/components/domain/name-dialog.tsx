@@ -93,7 +93,7 @@ export function NameDialog({
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content={submitLabel} requireChanges={requireChanges} />
+            <form.SubmitButton createLabel={submitLabel} requireChanges={requireChanges} />
           </>
         )}
       />

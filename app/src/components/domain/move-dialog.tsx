@@ -67,7 +67,7 @@ export function MoveDialog({ name, folders, currentFolderId, exclude, onMove, on
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Move" pendingLabel="Moving…" requireChanges />
+            <form.SubmitButton createLabel="Move" loadingLabel="Moving…" requireChanges />
           </>
         )}
       />

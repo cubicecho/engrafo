@@ -695,7 +695,7 @@ function VisionForm({ settings }: { settings: Settings }) {
               onConfirm={() => void turnOff()}
             />
           ) : null}
-          <form.SubmitButton content="Save" pendingLabel="Saving…" requireChanges />
+          <form.SubmitButton requireChanges />
         </div>
       </FormElement>
     </form.AppForm>

@@ -59,7 +59,7 @@ export function DocumentDateDialog({ date, onSave, onClose }: DocumentDateDialog
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Save" requireChanges />
+            <form.SubmitButton requireChanges />
           </>
         )}
       />

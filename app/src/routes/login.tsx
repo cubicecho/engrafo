@@ -162,7 +162,7 @@ export function LoginPage() {
           required
           validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'Enter your email address') }}
         />
-        <form.SubmitButton content="Send sign-in link" pendingLabel="Sending…" />
+        <form.SubmitButton createLabel="Send sign-in link" loadingLabel="Sending…" />
       </FormElement>
     </form.AppForm>
   );

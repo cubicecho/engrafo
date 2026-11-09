@@ -95,7 +95,7 @@ export function PairSsoForm({ onPaired }: { onPaired?: ((name: string) => void) 
           required
           validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : 'Paste the setup URL') }}
         />
-        <form.SubmitButton content="Connect" pendingLabel="Connecting…" />
+        <form.SubmitButton createLabel="Connect" loadingLabel="Connecting…" />
       </FormElement>
     </form.AppForm>
   );
