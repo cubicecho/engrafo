@@ -1,3 +1,10 @@
+## [4.19.2](https://github.com/cubicecho/engrafo/compare/v4.19.1...v4.19.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **app:** move a dragged tree row by its own node ([3436122](https://github.com/cubicecho/engrafo/commit/34361222f471e69a4299784c4120881f8f55115a))
+
 ## [4.19.1](https://github.com/cubicecho/engrafo/compare/v4.19.0...v4.19.1) (2026-11-07)
 
 
