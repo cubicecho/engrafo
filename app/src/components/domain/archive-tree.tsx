@@ -196,10 +196,13 @@ export function ArchiveTree({
   const byPath = useMemo(() => new Map(entries.map((entry) => [entry.path, entry])), [entries]);
   const paths = useMemo(() => folderPaths(folders), [folders]);
   /** The folder a drop lands in, by its path; `""`, the tree's own blank space, is the top level. */
-  const folderAt = (path: string): string | null => {
-    const entry = byPath.get(path);
-    return entry?.kind === 'folder' ? entry.folder.id : null;
-  };
+  const folderByPath = useMemo(
+    () =>
+      new Map(entries.flatMap((entry) => (entry.kind === 'folder' ? [[entry.path, entry.folder.id] as const] : []))),
+    [entries],
+  );
+  // From the folders alone, so a document filed under the same path as a folder never stands in for it.
+  const folderAt = (path: string): string | null => folderByPath.get(path) ?? null;
 
   /** Moves a row into a folder: what a drag ends in, and what "Move to…" sends. */
   async function move(entry: Entry, folderId: string | null) {
@@ -212,8 +215,10 @@ export function ArchiveTree({
   }
 
   /** The tree has no error of its own to show, so a drag the server refuses is said above it. */
-  async function moveByDrag(from: string, into: string) {
-    const entry = byPath.get(from);
+  async function moveByDrag(from: string, into: string, node: TreeNode<Entry>) {
+    // The dragged row's own entry: a document and a folder can share a path, and the path alone
+    // would pick whichever of the two `byPath` kept.
+    const entry = node.entry ?? byPath.get(from);
     if (!entry) {
       return;
     }

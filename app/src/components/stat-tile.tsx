@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { IconClassContext } from "@/components/ui/icons-base";
-import { cn, type SlotNode } from "@/lib/utils";
+import { cn, hasSlot, type SlotNode } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type StatTileProps = {
   /** What the figure is called: "Turns", "Daily average". Drawn above it, muted. */
@@ -33,23 +34,19 @@ type StatTileProps = {
    * list. Left out, the tile is a plain button. Without `onPress` it is ignored.
    */
   selected?: boolean | undefined;
+  /** On the tile itself, the bordered box. */
   className?: string | undefined;
-  /** The figure's class: the colour a count takes when it is one worth noticing. */
+  /**
+   * The figure's class: the colour a count takes when it is one worth noticing, such as
+   * `text-negative`. A chosen filter tile draws its figure in `foreground` whatever this says,
+   * because a status colour on the chosen tint is under 3:1, so a count that matters needs an
+   * `iconSlot` or a `hint` that says so as well.
+   */
   valueClassName?: string | undefined;
 };
 
 /** The icon's box: sized from outside on the web, and by `IconClassContext` on device. */
 const ICON_BOX = cn("shrink-0", "[&_svg]:size-4 [&_svg]:shrink-0");
-
-/** A bar standing in for the figure — `Skeleton`'s look, on both platforms, at one line of it. */
-const BAR = cn("h-8 w-20 rounded-md bg-foreground/10", "animate-pulse");
-
-/**
- * What a pressable tile adds on the web: a compiled `Pressable` is a `<button>`, which centres its
- * text and draws no focus ring of its own. None of it is a class the device can read.
- */
-const PRESSABLE =
-  "text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none";
 
 /**
  * A wrapper around a caller's node, not layout of its own: a block box on the web, where a compiled
@@ -79,13 +76,14 @@ export function StatTile({
 
   // A selected tile is the chosen tint inside an `active` edge, a step further under the pointer
   // and focused. Its label, hint and icon turn `foreground` there: muted on the tint is under 4.5:1.
+  // So does the figure, over the caller's colour: `text-negative` on the tint was 2.0–3.6:1 (#471).
   const chosen = toggle && selected === true;
   const ink = chosen ? "text-foreground" : "text-foreground/60";
   const classes = cn(
     "min-w-0 gap-1 p-4",
-    onPress !== undefined && PRESSABLE,
     chosen && "border-active bg-active/40",
-    chosen && "hover:bg-active/60 focus-visible:bg-active/60",
+    // `Card` draws a pressable tile's hover, focus and press; a chosen one takes the tint's step.
+    chosen && "hover:bg-active/60 focus-visible:bg-active/60 active:bg-active/60",
     className,
   );
 
@@ -97,6 +95,7 @@ export function StatTile({
           "cube-rn-text",
           "font-semibold text-2xl text-foreground tabular-nums",
           valueClassName,
+          chosen && "text-foreground",
         )}
       >
         {value}
@@ -104,7 +103,7 @@ export function StatTile({
     ) : (
       <div
         data-slot="stat-tile-value"
-        className={cn("cube-rn-view", SLOT, "min-w-0", valueClassName)}
+        className={cn("cube-rn-view", SLOT, "min-w-0", valueClassName, chosen && "text-foreground")}
       >
         {value}
       </div>
@@ -116,7 +115,7 @@ export function StatTile({
         data-slot="stat-tile-label-row"
         className="cube-rn-view min-w-0 flex-row items-center gap-2"
       >
-        {iconSlot ? (
+        {hasSlot(iconSlot) ? (
           <div data-slot="stat-tile-icon" aria-hidden className={cn("cube-rn-view", ICON_BOX, ink)}>
             <IconClassContext.Provider value={cn("size-4 shrink-0", ink)}>
               {iconSlot}
@@ -133,7 +132,11 @@ export function StatTile({
         </span>
       </div>
       {loading ? (
-        <div data-slot="stat-tile-skeleton" aria-hidden className={cn("cube-rn-view", BAR)} />
+        // One line of the figure. The tile's name for it goes on a box round the bar: a `testID`
+        // on `Skeleton` would replace the primitive's own.
+        <div data-slot="stat-tile-skeleton" aria-hidden className="cube-rn-view">
+          <Skeleton className="h-8 w-20" />
+        </div>
       ) : (
         figure
       )}

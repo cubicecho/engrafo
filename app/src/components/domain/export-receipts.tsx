@@ -88,7 +88,7 @@ export function ExportReceiptsDialog({ folders, onExport, onClose }: ExportRecei
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Download CSV" pendingLabel="Exporting…" />
+            <form.SubmitButton createLabel="Download CSV" loadingLabel="Exporting…" />
           </>
         )}
       />

@@ -89,7 +89,7 @@ export function ReceiptDialog({ receipt, onSave, onClose }: ReceiptDialogProps) 
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Save" requireChanges />
+            <form.SubmitButton requireChanges />
           </>
         )}
       />

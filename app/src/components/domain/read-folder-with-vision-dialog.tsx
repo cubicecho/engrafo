@@ -65,7 +65,7 @@ export function ReadFolderWithVisionDialog({ path, hasSubfolders, onRead, onClos
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Read with vision" pendingLabel="Queueing…" />
+            <form.SubmitButton createLabel="Read with vision" loadingLabel="Queueing…" />
           </>
         )}
       />

@@ -714,11 +714,15 @@ export const Missing: Story = {
   },
 };
 
-/** Before the answer lands: a skeleton under a header that is already the right height. */
+/**
+ * Before the answer lands: the header's bar is the one loading state, in a header that is
+ * already the right height. The body draws no rows of its own under it.
+ */
 export const Loading: Story = {
   parameters: { apolloClient: { resolvers: { Query: { document: () => document({}) } }, delay: 100_000 } },
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    await expect(canvas.getByRole('heading', { name: 'Loading…' })).toBeInTheDocument();
+    await expect(canvas.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
     await expect(canvas.queryByRole('heading', { name: 'Lease agreement' })).not.toBeInTheDocument();
   },
 };

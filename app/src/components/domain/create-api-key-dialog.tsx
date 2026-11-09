@@ -163,7 +163,7 @@ export function CreateApiKeyDialog({ endpoint, onCreated, onClose }: CreateApiKe
         footerActionsSlot={(close) => (
           <>
             <Button variant="outline" content="Cancel" onClick={close} />
-            <form.SubmitButton content="Make key" pendingLabel="Making…" />
+            <form.SubmitButton createLabel="Make key" loadingLabel="Making…" />
           </>
         )}
       />
