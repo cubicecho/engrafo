@@ -1,3 +1,11 @@
+# [4.21.0](https://github.com/cubicecho/engrafo/compare/v4.20.0...v4.21.0) (2026-11-11)
+
+
+### Features
+
+* preview what is being merged ([0319643](https://github.com/cubicecho/engrafo/commit/0319643577e2ac6f40eda2cf68449f5fd0cefe86))
+* select all documents shown to merge ([6296520](https://github.com/cubicecho/engrafo/commit/62965203a6f567582061ef4ba66aea3194c4b1c8))
+
 # [4.20.0](https://github.com/cubicecho/engrafo/compare/v4.19.4...v4.20.0) (2026-11-11)
 
 
