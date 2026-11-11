@@ -41,6 +41,8 @@ export interface Context {
   embedder: Embedder;
   /** Whether the ocr step can run on this instance: allowed by config and ocrmypdf found at boot. */
   ocrAvailable: boolean;
+  /** Whether documents can be merged here: Python with pikepdf and img2pdf, found at boot. */
+  mergeAvailable: boolean;
   /** Export links waiting to be followed and import runs being watched, kept between requests. */
   backups: Backups;
 }

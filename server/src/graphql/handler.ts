@@ -27,6 +27,7 @@ export interface GraphQLOptions {
   storage: StorageSet;
   events: PipelineEvents;
   ocrAvailable: boolean;
+  mergeAvailable: boolean;
   /** Embeds search queries. */
   embedder: Embedder;
   /** Export links and import runs, shared with the export route. */
@@ -46,6 +47,7 @@ export function createGraphQLHandler({
   storage,
   events,
   ocrAvailable,
+  mergeAvailable,
   embedder,
   backups,
 }: GraphQLOptions): YogaServerInstance<ServerContext, Context> {
@@ -74,6 +76,7 @@ export function createGraphQLHandler({
         storage,
         events,
         ocrAvailable,
+        mergeAvailable,
         embedder,
         backups,
       };

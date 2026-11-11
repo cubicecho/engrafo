@@ -78,6 +78,7 @@ engrafo/
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
+│       ├── merge/           # pdf (pikepdf + img2pdf through python3, detectMerge), merge (mergeDocuments), resolvers
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
@@ -562,6 +563,37 @@ THUMBNAIL)` for one. The rows draw it in `ListItem`'s `leadingSlot`
 (`DocumentThumbnail`, `loading="lazy"`, the icon again if the image fails).
 The tree has no thumbnail: `FileTree` has no hover slot, and `meta` is inside
 the row's pressed area.
+
+**Merging is one more way a document comes into being.** On the documents
+page every search or filter result has a box in `ListItem`'s `leadingSlot`
+(`MergeSelectLeading`, outside the pressed area); a text, Markdown, CSV, HTML
+or EPUB row's box is drawn disabled, since only PDFs and images have pages. The
+selection is the route's own state, an ordered list (`lib/merge.ts`) that
+outlasts a change of search, so documents found by different searches merge
+together; the order picked is the page order until `MergeDocumentsDialog` moves
+one, and taking one out there unchecks it on the page. With any picked, "Merge
+documents (n)" and "Clear selection" are in the header. `mergeDocuments`
+(`merge/merge.ts`) takes two to `MERGE_DEFAULTS.maxDocuments` of the caller's
+documents (NOT_FOUND for anyone else's, a trashed or a `pending_upload` one;
+CONFLICT while one is still in the pipeline, since its archive is not written),
+downloads each one's OCR archive when there is one, else its original, lays a
+WebP, GIF or see-through PNG on white with `toOpaquePng`, and merges them in
+one `python3 -c` with pikepdf (pages copied, not redrawn; a bookmark per source)
+and img2pdf (an image at the DPI it states, else `OCR_DEFAULTS.imageDpi`).
+Neither is a new package: Debian's ocrmypdf depends on both, and
+`detectMerge()` asks at boot (`serverConfig.mergeAvailable`; the boxes are not
+drawn without it). A source the script cannot read (a password, a broken image)
+exits 2 and is BAD_USER_INPUT naming it. The result is filed exactly as the
+watched folder files a file: `insertPendingDocument` (the name rule, the
+checksum, `createUploadSchema` so `MAX_UPLOAD_BYTES` holds), `putFile`,
+`completePendingDocument`, so the pipeline runs on it; `ocrRequested` is set if
+any source had it, and `--skip-text` leaves the pages that came with text
+alone. A failure after the row is written deletes the row and the object.
+`trashOriginals` puts the sources in the trash (never deleted outright), under
+`lockNames`, and then the merged copy takes the requested title if it was only
+numbered because an original held it. The merge runs inside the request: it
+copies pages and draws nothing. Nothing from the sources' metadata is carried
+over; the metadata step reads the merged text afresh.
 
 **A saved search is a query string under a name.** `saved_searches` (scoped
 like every user-owned table) holds a `name`, unique per user ignoring case, a

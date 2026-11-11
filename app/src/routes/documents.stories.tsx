@@ -337,6 +337,100 @@ export const BrowsingByFilter: Story = {
   },
 };
 
+const mergedWith: Array<Record<string, unknown>> = [];
+const NOTES = {
+  ...document({ title: 'Notes' }),
+  originalFilename: 'notes.md',
+  mimeType: 'text/markdown',
+  createdAt: '2026-09-02T11:04:00.000Z',
+  documentDate: null,
+};
+
+/** A server whose filtered list is the receipts and a Markdown note, and that records each merge. */
+function mergeServer(serverConfig: typeof SERVER_CONFIG) {
+  return {
+    Query: {
+      serverConfig: () => serverConfig,
+      folders: () => [TAXES],
+      documents: () => [],
+      documentThumbnailUrls: () => [],
+      browseDocuments: () => ({ hasMore: false, documents: [...RECEIPTS, NOTES] }),
+    },
+    Mutation: {
+      mergeDocuments: (_parent: unknown, args: { input: Record<string, unknown> }) => {
+        mergedWith.push(args.input);
+        return { id: '00000000-0000-4000-8000-0000000000aa' };
+      },
+    },
+  };
+}
+
+/**
+ * Each result has a box that picks it to merge. With any picked, "Merge documents" is in the
+ * header and opens the dialog on them, in the order they were picked; a note has no pages, so its
+ * box is there but cannot be checked.
+ */
+export const SelectingAndMerging: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?receipts=1`] },
+    apolloClient: { resolvers: mergeServer(SERVER_CONFIG) },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    mergedWith.length = 0;
+    await canvas.findByRole('list', { name: 'Documents that match the filters' });
+    await expect(canvas.queryByRole('button', { name: /Merge documents/ })).not.toBeInTheDocument();
+    await expect(canvas.getByRole('checkbox', { name: '“Notes” cannot be merged: it has no pages' })).toBeDisabled();
+
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Select “Receipt 3” to merge' }));
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Select “Receipt 1” to merge' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Merge documents (2)' }));
+
+    const dialog = within(
+      await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Merge documents' }),
+    );
+    const rows = within(dialog.getByRole('list', { name: 'Documents to merge, in page order' })).getAllByRole(
+      'listitem',
+    );
+    await expect(rows[0]).toHaveTextContent('Receipt 3');
+    await expect(rows[1]).toHaveTextContent('Receipt 1');
+    await userEvent.click(dialog.getByRole('button', { name: 'Merge' }));
+
+    await waitFor(() =>
+      expect(mergedWith).toEqual([
+        { ids: [RECEIPTS[2]?.id, RECEIPTS[0]?.id], title: 'Receipt 3', folderId: null, trashOriginals: false },
+      ]),
+    );
+    // Merged, the dialog closes and the picks are cleared. The page then goes to the new document,
+    // which here (the route is rendered on its own) drops the filter from the URL, so the rows
+    // are not looked for again.
+    await waitFor(() => expect(canvas.queryByRole('button', { name: /Merge documents/ })).not.toBeInTheDocument());
+    await expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument();
+  },
+};
+
+/** "Clear selection" unchecks everything, and the header goes back to how it was. */
+export const ClearingTheSelection: Story = {
+  ...SelectingAndMerging,
+  play: async ({ canvas }) => {
+    await userEvent.click(await canvas.findByRole('checkbox', { name: 'Select “Receipt 2” to merge' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear selection' }));
+    await expect(canvas.getByRole('checkbox', { name: 'Select “Receipt 2” to merge' })).not.toBeChecked();
+    await expect(canvas.queryByRole('button', { name: /Merge documents/ })).not.toBeInTheDocument();
+  },
+};
+
+/** Without pikepdf on the server there is nothing to pick for, so the rows have no box. */
+export const MergingUnavailable: Story = {
+  parameters: {
+    router: { initialEntries: [`${ROUTES.documents}?receipts=1`] },
+    apolloClient: { resolvers: mergeServer({ ...SERVER_CONFIG, mergeAvailable: false }) },
+  },
+  play: async ({ canvas }) => {
+    await canvas.findByRole('list', { name: 'Documents that match the filters' });
+    await expect(canvas.queryByRole('checkbox')).not.toBeInTheDocument();
+  },
+};
+
 /** Filters that match nothing say so, and "Clear filters" goes back to the upload panel. */
 export const BrowsingFindsNothing: Story = {
   parameters: {

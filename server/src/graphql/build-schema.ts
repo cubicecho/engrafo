@@ -8,6 +8,7 @@ import { applyBackupExtension } from '../backup/resolvers.ts';
 import { applyDuplicatesExtension } from '../documents/duplicates.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
+import { applyMergeExtension } from '../merge/resolvers.ts';
 import { applyMetadataExtension } from '../metadata/resolvers.ts';
 import { applyProcessingExtension } from '../processing/resolvers.ts';
 import { applySavedSearchesExtension } from '../saved-searches/resolvers.ts';
@@ -62,6 +63,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyAuthExtension(schema);
   schema = applyDocumentsExtension(schema);
   schema = applyDuplicatesExtension(schema);
+  schema = applyMergeExtension(schema);
   schema = applyFoldersExtension(schema);
   schema = applyMetadataExtension(schema);
   schema = applySearchExtension(schema);

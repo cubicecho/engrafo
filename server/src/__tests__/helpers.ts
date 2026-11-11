@@ -155,6 +155,7 @@ export interface ClientOptions {
   storage?: StorageSet;
   events?: PipelineEvents;
   ocrAvailable?: boolean;
+  mergeAvailable?: boolean;
   /** Where the caller reached the instance. Defaults to `appUrl()`. */
   origin?: string;
   /** Embeds search queries. Defaults to `createFakeEmbedder()`. */
@@ -186,6 +187,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       storage,
       events,
       ocrAvailable: options.ocrAvailable ?? false,
+      mergeAvailable: options.mergeAvailable ?? false,
       embedder: options.embedder ?? createFakeEmbedder(),
       backups,
     };

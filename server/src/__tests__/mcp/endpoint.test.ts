@@ -110,6 +110,7 @@ describe('/mcp', () => {
       storage,
       events: createPipelineEvents(),
       ocrAvailable: false,
+      mergeAvailable: false,
       embedder,
     });
     server = await new Promise<Server>((resolve) => {

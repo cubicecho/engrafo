@@ -12,6 +12,7 @@ export const SERVER_CONFIG = {
   ocrDefault: true,
   visionAvailable: false,
   visionAuto: false,
+  mergeAvailable: true,
 };
 
 export type Document = ArchiveQuery['documents'][number];
