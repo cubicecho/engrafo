@@ -1,3 +1,10 @@
+## [4.19.4](https://github.com/cubicecho/engrafo/compare/v4.19.3...v4.19.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **vision:** list models with agent-core's probeEndpoint ([6c10965](https://github.com/cubicecho/engrafo/commit/6c10965aa12606201f99603341a07e98345148df)), closes [#73](https://github.com/cubicecho/engrafo/issues/73)
+
 ## [4.19.3](https://github.com/cubicecho/engrafo/compare/v4.19.2...v4.19.3) (2026-11-09)
 
 
