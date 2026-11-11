@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMergeable, type MergeCandidate, moveCandidate, toggleCandidate } from './merge';
+import { isMergeable, type MergeCandidate, moveCandidate, setCandidates, toggleCandidate } from './merge';
 
 const doc = (id: string): MergeCandidate => ({ id, title: id, mimeType: 'application/pdf', folderId: null });
 
@@ -17,6 +17,14 @@ describe('the merge selection', () => {
     expect(moveCandidate(list, 0, 1).map((d) => d.id)).toEqual(['b', 'a', 'c']);
     expect(moveCandidate(list, 0, -1).map((d) => d.id)).toEqual(['a', 'b', 'c']);
     expect(moveCandidate(list, 2, 1).map((d) => d.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('picks a list at once after what was picked before, and unpicks only that list', () => {
+    const before = [doc('x'), doc('b')];
+    const shown = [doc('a'), doc('b'), doc('c')];
+    const all = setCandidates(before, shown, true);
+    expect(all.map((d) => d.id)).toEqual(['x', 'b', 'a', 'c']);
+    expect(setCandidates(all, shown, false).map((d) => d.id)).toEqual(['x']);
   });
 
   it('takes PDFs and images, which have pages', () => {

@@ -55,3 +55,24 @@ export function moveCandidate(selected: readonly MergeCandidate[], index: number
   next[target] = moving;
   return next;
 }
+
+/**
+ * The selection with several documents picked or unpicked at once: "Select all" over a list.
+ *
+ * @param selected - The selection as it stands.
+ * @param candidates - The documents shown, in the list's order.
+ * @param picked - true adds those not already in, at the end and in the list's order, so what was
+ *   picked before keeps its place; false takes all of them out.
+ */
+export function setCandidates(
+  selected: readonly MergeCandidate[],
+  candidates: readonly MergeCandidate[],
+  picked: boolean,
+): MergeCandidate[] {
+  if (picked === false) {
+    const out = new Set(candidates.map((doc) => doc.id));
+    return selected.filter((doc) => out.has(doc.id) === false);
+  }
+  const already = new Set(selected.map((doc) => doc.id));
+  return [...selected, ...candidates.filter((doc) => already.has(doc.id) === false)];
+}
