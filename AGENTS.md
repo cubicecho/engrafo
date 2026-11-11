@@ -572,7 +572,13 @@ selection is the route's own state, an ordered list (`lib/merge.ts`) that
 outlasts a change of search, so documents found by different searches merge
 together; the order picked is the page order until `MergeDocumentsDialog` moves
 one, and taking one out there unchecks it on the page. With any picked, "Merge
-documents (n)" and "Clear selection" are in the header. `mergeDocuments`
+documents (n)" and "Clear selection" are in the header. "Select all n shown"
+(`MergeSelectAll`) above each list is tri-state over the rows shown with pages,
+appends after what was picked before, and unpicks only those rows. Each dialog
+row has its first page, folder path, type and size, since two can share a
+title, and the row pressed (the first until then) is framed beside the list
+with `useDocumentPreviewUrl`, the preview card's own hook, on the file the merge
+takes: the archive when there is one. `mergeDocuments`
 (`merge/merge.ts`) takes two to `MERGE_DEFAULTS.maxDocuments` of the caller's
 documents (NOT_FOUND for anyone else's, a trashed or a `pending_upload` one;
 CONFLICT while one is still in the pipeline, since its archive is not written),

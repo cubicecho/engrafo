@@ -26,6 +26,8 @@ export const BrowseDocuments = graphql(`
         folderId
         originalFilename
         mimeType
+        sizeBytes
+        archiveKey
         createdAt
         documentDate
       }

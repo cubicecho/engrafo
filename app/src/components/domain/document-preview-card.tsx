@@ -31,17 +31,33 @@ export function isPreviewable(mimeType: string): boolean {
   return NOT_PREVIEWABLE.has(mimeType) === false;
 }
 
-interface DocumentPreviewCardProps {
-  /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
-  doc: { id: string; mimeType: string; archiveKey: string | null };
+/** What a preview frame needs to know about its document. */
+export interface PreviewableDocument {
+  id: string;
+  mimeType: string;
+  archiveKey: string | null;
+}
+
+/** Where a document's preview frame points, once that has been asked. */
+export interface DocumentPreviewUrl {
+  /** Which of its files: the searchable PDF once OCR has made one, the upload before. */
+  variant: DocumentFileVariant;
+  /** The presigned address, or null while it is asked for, after it failed, or for a type with no frame. */
+  url: string | null;
+  /** The server gave no address. Said where the frame would be: left unsaid, it looks like no preview. */
+  failed: boolean;
+  /** Whether the type gets a frame at all (`isPreviewable`). */
+  previewable: boolean;
 }
 
 /**
- * A document's file in a frame: the searchable PDF once OCR has produced one, the upload before.
- * Draws nothing for plain text, Markdown, CSV, a web page or an ebook, which the text card
- * already shows, and a loading card until the presigned URL has arrived — or has failed to, which it says.
+ * The address a document's preview frame shows, asked for afresh for each document.
+ *
+ * @param doc - The document. A new object is a new answer from the server, and asks again.
+ * @returns The address once it has arrived for this document and file, and never one left over
+ *   from the last document while the next one's is fetched.
  */
-export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
+export function useDocumentPreviewUrl(doc: PreviewableDocument): DocumentPreviewUrl {
   const client = useApolloClient();
   // Kept with what it is a URL *for*: when the archive replaces the original, or the route moves
   // to another document, the old frame must not stay up while the new address is fetched.
@@ -70,7 +86,6 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
           setPreview({ id: doc.id, variant, url: data.documentFileUrl });
         }
       })
-      // Said on the card: left unsaid, a failure looks like a document with no preview.
       .catch(() => {
         if (current) {
           setFailed(true);
@@ -82,7 +97,21 @@ export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
   }, [client, doc, previewable, variant]);
 
   const isCurrent = previewable && preview?.id === doc.id && preview.variant === variant;
-  const previewUrl = isCurrent ? preview.url : null;
+  return { variant, url: isCurrent ? preview.url : null, failed, previewable };
+}
+
+interface DocumentPreviewCardProps {
+  /** The document to preview. A new object is a new answer from the server, and asks for a fresh URL. */
+  doc: PreviewableDocument;
+}
+
+/**
+ * A document's file in a frame: the searchable PDF once OCR has produced one, the upload before.
+ * Draws nothing for plain text, Markdown, CSV, a web page or an ebook, which the text card
+ * already shows, and a loading card until the presigned URL has arrived — or has failed to, which it says.
+ */
+export function DocumentPreviewCard({ doc }: DocumentPreviewCardProps) {
+  const { variant, url: previewUrl, failed, previewable } = useDocumentPreviewUrl(doc);
 
   if (previewable && failed && previewUrl === null) {
     return (

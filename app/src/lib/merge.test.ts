@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { isMergeable, type MergeCandidate, moveCandidate, setCandidates, toggleCandidate } from './merge';
+import {
+  isMergeable,
+  type MergeCandidate,
+  mergeTypeLabel,
+  moveCandidate,
+  setCandidates,
+  toggleCandidate,
+} from './merge';
 
-const doc = (id: string): MergeCandidate => ({ id, title: id, mimeType: 'application/pdf', folderId: null });
+const doc = (id: string): MergeCandidate => ({
+  id,
+  title: id,
+  mimeType: 'application/pdf',
+  folderId: null,
+  sizeBytes: 1,
+  archiveKey: null,
+});
 
 describe('the merge selection', () => {
   it('adds at the end and takes out what was in', () => {
@@ -25,6 +39,11 @@ describe('the merge selection', () => {
     const all = setCandidates(before, shown, true);
     expect(all.map((d) => d.id)).toEqual(['x', 'b', 'a', 'c']);
     expect(setCandidates(all, shown, false).map((d) => d.id)).toEqual(['x']);
+  });
+
+  it('names a PDF, and an image by its format', () => {
+    expect(mergeTypeLabel('application/pdf')).toBe('PDF');
+    expect(mergeTypeLabel('image/tiff')).toBe('TIFF image');
   });
 
   it('takes PDFs and images, which have pages', () => {

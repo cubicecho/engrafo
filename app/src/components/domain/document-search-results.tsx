@@ -24,6 +24,8 @@ export const SearchDocuments = graphql(`
         folderId
         originalFilename
         mimeType
+        sizeBytes
+        archiveKey
         createdAt
         documentDate
       }

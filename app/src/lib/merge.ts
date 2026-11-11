@@ -9,10 +9,27 @@ export interface MergeCandidate {
   mimeType: string;
   /** Where it is filed; the first one's folder is where the merged copy goes unless changed. */
   folderId: string | null;
+  sizeBytes: number;
+  /** The searchable PDF, when OCR made one: what the merge takes, so what the dialog previews. */
+  archiveKey: string | null;
 }
 
 /** The fewest documents a merge takes. The server says the same. */
 export const MERGE_MIN_DOCUMENTS = 2;
+
+/**
+ * A merged document's type, in the words the dialog's rows use.
+ *
+ * @param mimeType - A PDF or an image's type.
+ * @returns `PDF`, or the image's format and the word: `JPEG image`, `TIFF image`.
+ */
+export function mergeTypeLabel(mimeType: string): string {
+  if (mimeType === 'application/pdf') {
+    return 'PDF';
+  }
+  const format = mimeType.split('/')[1] ?? '';
+  return format === '' ? 'Image' : `${format.toUpperCase()} image`;
+}
 
 /**
  * Whether a document has pages to merge.
