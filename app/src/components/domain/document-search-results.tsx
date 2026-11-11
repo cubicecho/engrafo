@@ -2,7 +2,7 @@ import { useQuery } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
-import { type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
+import { MergeSelectAll, type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -24,6 +24,8 @@ export const SearchDocuments = graphql(`
         folderId
         originalFilename
         mimeType
+        sizeBytes
+        archiveKey
         createdAt
         documentDate
       }
@@ -68,6 +70,7 @@ export function DocumentSearchResults({ query, filter = null, selection }: Docum
           />
         }
       />
+      <MergeSelectAll documents={hits.map((hit) => hit.document)} selection={selection} />
       <List
         label={`Documents matching “${query}”`}
         contentSlot={hits.map(({ document, snippet }) => (

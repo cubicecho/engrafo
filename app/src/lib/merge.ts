@@ -9,10 +9,27 @@ export interface MergeCandidate {
   mimeType: string;
   /** Where it is filed; the first one's folder is where the merged copy goes unless changed. */
   folderId: string | null;
+  sizeBytes: number;
+  /** The searchable PDF, when OCR made one: what the merge takes, so what the dialog previews. */
+  archiveKey: string | null;
 }
 
 /** The fewest documents a merge takes. The server says the same. */
 export const MERGE_MIN_DOCUMENTS = 2;
+
+/**
+ * A merged document's type, in the words the dialog's rows use.
+ *
+ * @param mimeType - A PDF or an image's type.
+ * @returns `PDF`, or the image's format and the word: `JPEG image`, `TIFF image`.
+ */
+export function mergeTypeLabel(mimeType: string): string {
+  if (mimeType === 'application/pdf') {
+    return 'PDF';
+  }
+  const format = mimeType.split('/')[1] ?? '';
+  return format === '' ? 'Image' : `${format.toUpperCase()} image`;
+}
 
 /**
  * Whether a document has pages to merge.
@@ -54,4 +71,25 @@ export function moveCandidate(selected: readonly MergeCandidate[], index: number
   next[index] = other;
   next[target] = moving;
   return next;
+}
+
+/**
+ * The selection with several documents picked or unpicked at once: "Select all" over a list.
+ *
+ * @param selected - The selection as it stands.
+ * @param candidates - The documents shown, in the list's order.
+ * @param picked - true adds those not already in, at the end and in the list's order, so what was
+ *   picked before keeps its place; false takes all of them out.
+ */
+export function setCandidates(
+  selected: readonly MergeCandidate[],
+  candidates: readonly MergeCandidate[],
+  picked: boolean,
+): MergeCandidate[] {
+  if (picked === false) {
+    const out = new Set(candidates.map((doc) => doc.id));
+    return selected.filter((doc) => out.has(doc.id) === false);
+  }
+  const already = new Set(selected.map((doc) => doc.id));
+  return [...selected, ...candidates.filter((doc) => already.has(doc.id) === false)];
 }

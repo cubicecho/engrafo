@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { FileText, Layers, X } from '@/components/ui/icons';
 import { SearchInput } from '@/components/ui/search-input';
 import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
-import { type MergeCandidate, toggleCandidate } from '@/lib/merge';
+import { type MergeCandidate, setCandidates, toggleCandidate } from '@/lib/merge';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
 import { documentPath, UPLOAD_INTO_PARAM } from '@/lib/routes';
@@ -113,6 +113,7 @@ export function DocumentsRoute() {
       ? {
           selectedIds: new Set(selected.map((doc) => doc.id)),
           onToggle: (candidate) => setSelected((current) => toggleCandidate(current, candidate)),
+          onSetMany: (candidates, picked) => setSelected((current) => setCandidates(current, candidates, picked)),
         }
       : undefined;
   const [mergeDocuments] = useMutation(MergeDocuments);

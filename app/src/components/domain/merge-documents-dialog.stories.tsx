@@ -17,18 +17,38 @@ const LEASE: MergeCandidate = {
   title: 'Lease page 1',
   mimeType: 'application/pdf',
   folderId: TAXES.id,
+  sizeBytes: 2_411_724,
+  // OCR made a searchable PDF of this one, so that is what is merged and previewed.
+  archiveKey: 'archive/lease.pdf',
 };
 const SCAN: MergeCandidate = {
   id: '00000000-0000-4000-8000-0000000000d2',
   title: 'Lease page 2',
   mimeType: 'image/jpeg',
   folderId: null,
+  sizeBytes: 840_000,
+  archiveKey: null,
 };
 const SIGNED: MergeCandidate = {
   id: '00000000-0000-4000-8000-0000000000d3',
   title: 'Signature page',
   mimeType: 'application/pdf',
   folderId: null,
+  sizeBytes: 120_000,
+  archiveKey: null,
+};
+
+/**
+ * A server answering the dialog's two reads: each row's first page, and the previewed file's
+ * address, which names the document and the file so a story can tell which one is framed. It is
+ * `about:blank`, so the frame loads nothing.
+ */
+const PREVIEW_SERVER = {
+  Query: {
+    documentThumbnailUrls: () => [],
+    documentFileUrl: (_parent: unknown, args: { id: string; variant: string }) =>
+      `about:blank#${args.id}/${args.variant}`,
+  },
 };
 
 interface HarnessProps {
@@ -54,7 +74,7 @@ function Harness({ start, onMerge, onClose }: HarnessProps) {
 const meta = {
   title: 'Domain/MergeDocumentsDialog',
   component: Harness,
-  parameters: { layout: 'centered' },
+  parameters: { layout: 'centered', apolloClient: { resolvers: PREVIEW_SERVER } },
   args: { start: [LEASE, SCAN, SIGNED], onMerge: fn(async () => undefined), onClose: fn() },
 } satisfies Meta<typeof Harness>;
 
@@ -169,5 +189,54 @@ export const SaysWhyTheServerRefused: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Merge' }));
     await expect(await dialog.findByRole('alert')).toHaveTextContent('password-protected');
     await expect(args.onClose).not.toHaveBeenCalled();
+  },
+};
+
+/**
+ * Each row says where the document is filed, what it is and how big, since two can share a
+ * title. The first is previewed until another is pressed; one with a searchable PDF is previewed
+ * as that, since that is what the merge takes, and one left out hands the preview back to the first.
+ */
+export const PreviewsWhatIsPressed: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await findDialog(canvasElement);
+    const rows = rowTitles(dialog);
+    await expect(rows[0]).toContain('Taxes · PDF · 2.3 MB');
+    await expect(rows[1]).toContain('Top level · JPEG image · 820.3 KB');
+
+    const lease = await dialog.findByTitle('Preview of “Lease page 1”');
+    await waitFor(() => expect(lease).toHaveAttribute('src', `about:blank#${LEASE.id}/ARCHIVE`));
+    await expect(dialog.getByText('“Lease page 1”, the searchable PDF')).toBeInTheDocument();
+    await expect(dialog.getByRole('button', { name: /^Lease page 1/ })).toHaveAttribute('aria-current', 'true');
+
+    await userEvent.click(dialog.getByRole('button', { name: /^Lease page 2/ }));
+    const scan = await dialog.findByTitle('Preview of “Lease page 2”');
+    await waitFor(() => expect(scan).toHaveAttribute('src', `about:blank#${SCAN.id}/ORIGINAL`));
+    await expect(dialog.getByText('“Lease page 2”, as uploaded')).toBeInTheDocument();
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Leave out “Lease page 2”' }));
+    await expect(await dialog.findByTitle('Preview of “Lease page 1”')).toBeInTheDocument();
+  },
+};
+
+/** A preview the server cannot sign says so where the frame would be, and the merge can still go ahead. */
+export const PreviewFails: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          documentThumbnailUrls: () => [],
+          documentFileUrl: () => {
+            throw new Error('The bucket did not answer');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const dialog = await findDialog(canvasElement);
+    await expect(await dialog.findByText('Could not load the preview')).toBeInTheDocument();
+    await userEvent.click(dialog.getByRole('button', { name: 'Merge' }));
+    await waitFor(() => expect(args.onMerge).toHaveBeenCalled());
   },
 };

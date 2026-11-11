@@ -408,6 +408,47 @@ export const SelectingAndMerging: Story = {
   },
 };
 
+/**
+ * "Select all" picks every PDF and image shown, after whatever was picked first, so that keeps its
+ * place in the page order; with only some picked it is mixed, and pressed again with all picked it
+ * unpicks them. The note has no pages, so it is left out and the row says so.
+ */
+export const SelectingAll: Story = {
+  ...SelectingAndMerging,
+  play: async ({ canvas, canvasElement }) => {
+    const all = await canvas.findByRole('checkbox', { name: 'Select all 3 shown' });
+    await expect(canvas.getByText('1 without pages left out')).toBeInTheDocument();
+    await expect(all).not.toBeChecked();
+
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Select “Receipt 2” to merge' }));
+    await expect(all).toHaveAttribute('aria-checked', 'mixed');
+
+    await userEvent.click(all);
+    await expect(all).toBeChecked();
+    for (const title of ['Receipt 1', 'Receipt 2', 'Receipt 3']) {
+      await expect(canvas.getByRole('checkbox', { name: `Select “${title}” to merge` })).toBeChecked();
+    }
+    await userEvent.click(canvas.getByRole('button', { name: 'Merge documents (3)' }));
+    const dialog = within(
+      await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Merge documents' }),
+    );
+    const rows = within(dialog.getByRole('list', { name: 'Documents to merge, in page order' })).getAllByRole(
+      'listitem',
+    );
+    await expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Receipt 2'),
+      expect.stringContaining('Receipt 1'),
+      expect.stringContaining('Receipt 3'),
+    ]);
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument());
+
+    await userEvent.click(all);
+    await expect(all).not.toBeChecked();
+    await expect(canvas.queryByRole('button', { name: /Merge documents/ })).not.toBeInTheDocument();
+  },
+};
+
 /** "Clear selection" unchecks everything, and the header goes back to how it was. */
 export const ClearingTheSelection: Story = {
   ...SelectingAndMerging,

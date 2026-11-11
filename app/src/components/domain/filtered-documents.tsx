@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
-import { type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
+import { MergeSelectAll, type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -26,6 +26,8 @@ export const BrowseDocuments = graphql(`
         folderId
         originalFilename
         mimeType
+        sizeBytes
+        archiveKey
         createdAt
         documentDate
       }
@@ -83,6 +85,7 @@ export function FilteredDocuments({ filter, selection }: FilteredDocumentsProps)
           <EmptyState iconSlot={<Search />} title="Nothing matches" description="No document matches these filters." />
         }
       />
+      <MergeSelectAll documents={rows} selection={selection} />
       <List
         label="Documents that match the filters"
         contentSlot={rows.map((document) => (
