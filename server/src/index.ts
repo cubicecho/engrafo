@@ -29,6 +29,7 @@ import { SEARCH_DEFAULTS } from './core/defaults.ts';
 import { errorChainMessage, errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
+import { detectMerge } from './merge/pdf.ts';
 import { createPipelineEvents } from './pipeline/events.ts';
 import { detectPdfText } from './pipeline/pdf-text.ts';
 import { createPipeline } from './pipeline/runner.ts';
@@ -104,6 +105,11 @@ if (!thumbnailTools.image) {
   console.warn('[thumbnail] Python with Pillow was not found. Images and ebooks get no thumbnail.');
 }
 
+const mergeAvailable = await detectMerge();
+if (mergeAvailable === false) {
+  console.warn('[server] Python with pikepdf and img2pdf was not found. Documents cannot be merged.');
+}
+
 const storage = createS3Storage(s3Config());
 const events = createPipelineEvents();
 // One model for the process: the pipeline indexes with it and search embeds queries with it.
@@ -140,6 +146,7 @@ const app = createApp({
   storage,
   events,
   ocrAvailable,
+  mergeAvailable,
   embedder,
   staticDir,
 });

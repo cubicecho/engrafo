@@ -48,6 +48,7 @@ describe('createApp', () => {
       storage: createFakeStorage(),
       events: createPipelineEvents(),
       ocrAvailable: false,
+      mergeAvailable: false,
       embedder: createFakeEmbedder(),
       staticDir,
     });

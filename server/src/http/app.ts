@@ -28,6 +28,8 @@ export interface AppDeps {
   events: PipelineEvents;
   /** Whether the ocr step can run here, as `detectOcr` found at boot. */
   ocrAvailable: boolean;
+  /** Whether documents can be merged here, as `detectMerge` found at boot. */
+  mergeAvailable: boolean;
   /** Embeds search queries, with the model the pipeline indexes with. */
   embedder: Embedder;
   /** Export links and import runs. Left out, the app keeps its own; a test passes one to reach in. */

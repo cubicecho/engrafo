@@ -187,6 +187,7 @@ async function startEngrafo({ setAppUrl }: { setAppUrl: boolean }): Promise<void
       storage: createFakeStorage(),
       events: createPipelineEvents(),
       ocrAvailable: false,
+      mergeAvailable: false,
       embedder: createFakeEmbedder(),
       staticDir,
     }),

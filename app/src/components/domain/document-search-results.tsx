@@ -2,7 +2,7 @@ import { useQuery } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
-import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
+import { type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -21,6 +21,7 @@ export const SearchDocuments = graphql(`
       document {
         id
         title
+        folderId
         originalFilename
         mimeType
         createdAt
@@ -35,13 +36,15 @@ interface DocumentSearchResultsProps {
   query: string;
   /** What the search is narrowed to, or null for everything. */
   filter?: DocumentSearchFilter | null | undefined;
+  /** The merge selection the rows' boxes read and change. Left out, the rows have no box. */
+  selection?: MergeSelection | undefined;
 }
 
 /**
  * What a search found, best match first: each document with the passage that matched under its
  * title. Pressing one opens it.
  */
-export function DocumentSearchResults({ query, filter = null }: DocumentSearchResultsProps) {
+export function DocumentSearchResults({ query, filter = null, selection }: DocumentSearchResultsProps) {
   const navigate = useNavigate();
   const result = useQuery(SearchDocuments, { variables: { query, filter } });
   const hits = result.data?.searchDocuments ?? [];
@@ -70,7 +73,13 @@ export function DocumentSearchResults({ query, filter = null }: DocumentSearchRe
         contentSlot={hits.map(({ document, snippet }) => (
           <ListItem
             key={document.id}
-            leadingSlot={<DocumentThumbnail url={thumbnails.get(document.id)} mimeType={document.mimeType} />}
+            leadingSlot={
+              <MergeSelectLeading
+                document={document}
+                thumbnailUrl={thumbnails.get(document.id)}
+                selection={selection}
+              />
+            }
             title={document.title}
             // Only the title matched, or the text is one line: the file name says which file it is.
             description={snippet || document.originalFilename}

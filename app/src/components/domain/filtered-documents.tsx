@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import type { DocumentSearchFilter } from '@/__generated__/graphql';
-import { DocumentThumbnail } from '@/components/domain/document-thumbnail';
+import { type MergeSelection, MergeSelectLeading } from '@/components/domain/merge-select';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
@@ -23,6 +23,7 @@ export const BrowseDocuments = graphql(`
       documents {
         id
         title
+        folderId
         originalFilename
         mimeType
         createdAt
@@ -38,13 +39,15 @@ const PAGE_SIZE = 50;
 interface FilteredDocumentsProps {
   /** What the list is narrowed to. Never empty: with nothing narrowed the page shows the archive itself. */
   filter: DocumentSearchFilter;
+  /** The merge selection the rows' boxes read and change. Left out, the rows have no box. */
+  selection?: MergeSelection | undefined;
 }
 
 /**
  * Every document that matches the filters, with no search to rank them: the newest by the date on
  * the document first, then the undated ones. A page at a time, with "Show more" under it.
  */
-export function FilteredDocuments({ filter }: FilteredDocumentsProps) {
+export function FilteredDocuments({ filter, selection }: FilteredDocumentsProps) {
   const navigate = useNavigate();
   const result = useQuery(BrowseDocuments, { variables: { filter, first: PAGE_SIZE, offset: 0 } });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -85,7 +88,13 @@ export function FilteredDocuments({ filter }: FilteredDocumentsProps) {
         contentSlot={rows.map((document) => (
           <ListItem
             key={document.id}
-            leadingSlot={<DocumentThumbnail url={thumbnails.get(document.id)} mimeType={document.mimeType} />}
+            leadingSlot={
+              <MergeSelectLeading
+                document={document}
+                thumbnailUrl={thumbnails.get(document.id)}
+                selection={selection}
+              />
+            }
             title={document.title}
             description={document.originalFilename}
             // The date on the document when there is one, which is the date the list is ordered by.

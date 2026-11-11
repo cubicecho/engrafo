@@ -560,3 +560,23 @@ export const PROCESSING_DEFAULTS: Readonly<ProcessingSettings> = Object.freeze({
   finishedWithinHours: 24,
   listLimit: 200,
 });
+
+/** Merging documents into one PDF, which is filed as a new document. */
+export interface MergeSettings {
+  /** The most documents one merge may take. It runs inside the request, so it is bounded. */
+  maxDocuments: number;
+  /**
+   * The Python that merges with pikepdf and img2pdf. Neither is a dependency of its own:
+   * ocrmypdf is built on both, so wherever OCR is installed this runs too.
+   */
+  python: string;
+  /** When a merge is given up on, in minutes. Copying pages, not drawing them. */
+  timeoutMinutes: number;
+}
+
+/** The shipped values of `MergeSettings`. An image that states no resolution gets `OCR_DEFAULTS.imageDpi`. */
+export const MERGE_DEFAULTS: Readonly<MergeSettings> = Object.freeze({
+  maxDocuments: 100,
+  python: 'python3',
+  timeoutMinutes: 5,
+});

@@ -273,6 +273,7 @@ describe('backups', () => {
           storage,
           events,
           ocrAvailable: false,
+          mergeAvailable: false,
           embedder: createFakeEmbedder(),
           backups,
         });
