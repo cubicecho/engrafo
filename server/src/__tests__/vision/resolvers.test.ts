@@ -96,7 +96,7 @@ describe('vision settings', () => {
   it('stores the settings, says a key is stored, and never reads it back', async () => {
     const admin = createClient(db, adminId);
     const data = await admin.expectOk(SET, {
-      input: { baseUrl: ' http://gpu.lan:8080/v1/ ', model: ' qwen2.5-vl ', apiKey: 'sk-secret', auto: true },
+      input: { baseUrl: ' HTTP://GPU.lan:8080/v1/ ', model: ' qwen2.5-vl ', apiKey: 'sk-secret', auto: true },
     });
     expect(data.setVisionSettings).toEqual({
       baseUrl: 'http://gpu.lan:8080/v1',
@@ -139,7 +139,12 @@ describe('vision settings', () => {
   it('refuses a base URL that is not http(s), and a timeout out of bounds', async () => {
     const admin = createClient(db, adminId);
     const scheme = await admin.expectError(SET, { input: { baseUrl: 'file:///etc', model: 'm', auto: false } });
-    expect(scheme.code).toBe(ErrorCode.BadUserInput);
+    expect(scheme).toMatchObject({
+      code: ErrorCode.BadUserInput,
+      message: expect.stringContaining('A base URL starts with http:// or https://.'),
+    });
+    const query = await admin.expectError(SET, { input: { baseUrl: 'http://box/v1?key=1', model: 'm', auto: false } });
+    expect(query).toMatchObject({ code: ErrorCode.BadUserInput, message: expect.stringContaining('query') });
     const low = await admin.expectError(SET, {
       input: { baseUrl: 'http://box/v1', model: 'm', auto: false, requestTimeoutSeconds: 1 },
     });
@@ -310,13 +315,58 @@ describe('visionModels', () => {
     ]);
   });
 
+  it('sends the stored key to its endpoint however the scheme, host case and default port are spelled', async () => {
+    await saveVisionSettings(db, {
+      baseUrl: endpoint.baseUrl,
+      model: 'alpha',
+      apiKey: 'sk-stored',
+      auto: false,
+      requestTimeoutSeconds: null,
+      maxResponseTokens: null,
+      imageDetail: null,
+      temperature: null,
+      textFormat: null,
+      ...NO_SAMPLER,
+    });
+    await createClient(db, adminId).expectOk(MODELS, { baseUrl: endpoint.baseUrl.replace('http://', 'HTTP://') });
+    expect(endpoint.seen.map((headers) => headers.authorization)).toEqual(['Bearer sk-stored']);
+  });
+
+  it('reads an Ollama listing, and says null for a context length given as zero', async () => {
+    const ollama = await modelsEndpoint({ models: [{ name: 'qwen2.5vl:7b', context_length: 0 }] });
+    try {
+      const data = await createClient(db, adminId).expectOk(MODELS, { baseUrl: ollama.baseUrl });
+      expect(data.visionModels).toEqual([{ id: 'qwen2.5vl:7b', contextLength: null }]);
+    } finally {
+      await ollama.close();
+    }
+  });
+
+  it('refuses a redirect rather than following it with the key', async () => {
+    const moved = await modelsEndpoint({}, 302);
+    try {
+      const error = await createClient(db, adminId).expectError(MODELS, { baseUrl: moved.baseUrl, apiKey: 'sk-typed' });
+      expect(error).toMatchObject({ code: ErrorCode.BadUserInput, message: expect.stringContaining('redirect') });
+      expect(moved.seen).toHaveLength(1);
+    } finally {
+      await moved.close();
+    }
+  });
+
+  it('refuses a URL with credentials in it without asking it anything', async () => {
+    const withUser = endpoint.baseUrl.replace('http://', 'http://user:pass@');
+    const error = await createClient(db, adminId).expectError(MODELS, { baseUrl: withUser });
+    expect(error).toMatchObject({ code: ErrorCode.BadUserInput, message: expect.stringContaining('credentials') });
+    expect(endpoint.seen).toHaveLength(0);
+  });
+
   it('says why when the endpoint cannot be reached or does not list models', async () => {
     const admin = createClient(db, adminId);
     const unreachable = await admin.expectError(MODELS, { baseUrl: 'http://127.0.0.1:1/v1' });
     expect(unreachable).toMatchObject({ code: ErrorCode.BadUserInput, message: expect.stringContaining('reach') });
 
     const notUrl = await admin.expectError(MODELS, { baseUrl: 'not a url' });
-    expect(notUrl.code).toBe(ErrorCode.BadUserInput);
+    expect(notUrl).toMatchObject({ code: ErrorCode.BadUserInput, message: 'That base URL is not a URL.' });
 
     const wrong = await modelsEndpoint({ hello: 'world' });
     try {
