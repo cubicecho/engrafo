@@ -400,9 +400,11 @@ export const SelectingAndMerging: Story = {
         { ids: [RECEIPTS[2]?.id, RECEIPTS[0]?.id], title: 'Receipt 3', folderId: null, trashOriginals: false },
       ]),
     );
-    // Merged, the picks are cleared.
+    // Merged, the dialog closes and the picks are cleared. The page then goes to the new document,
+    // which here (the route is rendered on its own) drops the filter from the URL, so the rows
+    // are not looked for again.
     await waitFor(() => expect(canvas.queryByRole('button', { name: /Merge documents/ })).not.toBeInTheDocument());
-    await expect(canvas.getByRole('checkbox', { name: 'Select “Receipt 1” to merge' })).not.toBeChecked();
+    await expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument();
   },
 };
 
