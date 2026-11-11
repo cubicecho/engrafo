@@ -1,3 +1,10 @@
+# [4.20.0](https://github.com/cubicecho/engrafo/compare/v4.19.4...v4.20.0) (2026-11-11)
+
+
+### Features
+
+* merge documents into one PDF ([6daf159](https://github.com/cubicecho/engrafo/commit/6daf15903fe11a490b48ac5f04782b1edf7ed423))
+
 ## [4.19.4](https://github.com/cubicecho/engrafo/compare/v4.19.3...v4.19.4) (2026-11-11)
 
 
