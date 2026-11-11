@@ -1,3 +1,4 @@
+import { normalizeBaseUrl, resolveApiKey } from '@cubicecho/agent-core';
 import {
   ContentFormat,
   type Document,
@@ -20,7 +21,7 @@ import { folderAndDescendants, loadOwnedFolder } from '../folders/names.ts';
 import { isOcrable } from '../pipeline/mime.ts';
 import { VISION_STEP } from '../pipeline/steps/vision.ts';
 import { notTrashed } from '../trash/trash.ts';
-import { listVisionModels, normalizeBaseUrl } from './models.ts';
+import { baseUrlProblem, listVisionModels } from './models.ts';
 import { isConfigured, readVisionSettings, saveVisionSettings } from './settings.ts';
 
 // The vision model that re-reads scanned pages: set in the app by the admin, not in the
@@ -243,15 +244,21 @@ function optionalBetween(name: string, min: number, max: number) {
 }
 
 const settingsInputSchema = z.object({
+  // Stored as agent-core normalises it, which is the form its `resolveApiKey` compares in.
   baseUrl: z
     .string()
     .nullish()
-    .transform((value) => (value ? normalizeBaseUrl(value) : '') || null)
-    .refine(
-      (value) => value === null || /^https?:\/\/[^\s/]/i.test(value),
-      'A base URL starts with http:// or https://.',
-    )
-    .refine((value) => value === null || URL.canParse(value), 'That base URL is not a URL.'),
+    .transform((value, context) => {
+      if (!value?.trim()) {
+        return null;
+      }
+      const problem = baseUrlProblem(value);
+      if (problem !== null) {
+        context.addIssue({ code: 'custom', message: problem });
+        return z.NEVER;
+      }
+      return normalizeBaseUrl(value);
+    }),
   model: z
     .string()
     .nullish()
@@ -399,15 +406,14 @@ export function applyVisionExtension(schema: GraphQLSchema): GraphQLSchema {
     context: Context,
   ) => {
     await requireAdmin(context);
-    const typed = args.apiKey?.trim();
-    if (typed) {
-      return listVisionModels(args.baseUrl, typed);
-    }
-    // The stored key goes only to the endpoint it was stored for: an admin trying another URL
-    // must not hand that host the key to the first.
+    // A typed key wins; otherwise the stored key goes only to the endpoint it was stored for,
+    // by agent-core's rule for one endpoint inheriting another's key, so an admin trying another
+    // URL does not hand that host the key to the first. The environment is no fallback here:
+    // `$OPENAI_API_KEY` is not this setting's, and an empty `env` keeps it out.
     const row = await readVisionSettings(context.db);
-    const sameEndpoint = row?.baseUrl != null && normalizeBaseUrl(args.baseUrl) === row.baseUrl;
-    return listVisionModels(args.baseUrl, sameEndpoint ? (row?.apiKey ?? null) : null);
+    const stored = row?.baseUrl ? { baseUrl: row.baseUrl, apiKey: row.apiKey ?? undefined } : undefined;
+    const apiKey = resolveApiKey({ baseUrl: args.baseUrl, apiKey: args.apiKey?.trim() || undefined }, stored, {});
+    return listVisionModels(args.baseUrl, apiKey);
   };
 
   mutations.setVisionSettings.resolve = async (_parent: unknown, args: { input: unknown }, context: Context) => {

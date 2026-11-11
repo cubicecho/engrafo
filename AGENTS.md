@@ -628,7 +628,10 @@ anyone else: an instance setting, not a row). The API key is write-only —
 left out keeps the stored one, `''` clears it — and `visionModels` (what the
 form's model list is filled from, as soon as the stored endpoint is known)
 sends the stored key only to the base URL it was stored with, and refuses
-redirects. `PipelineConfig` is still decided at boot, but the runner calls
+redirects. Both rules are agent-core's: the listing is its `probeEndpoint`,
+which asks again every time and remembers nothing, the key goes where its
+`resolveApiKey` says, and a base URL is stored as its `normalizeBaseUrl` writes
+it, so `HTTP://Box:80/v1/` and `http://box/v1` are one endpoint. `PipelineConfig` is still decided at boot, but the runner calls
 `loadVision()` at the start of every run and hands the steps a `RunConfig`
 with `vision`, so a change reaches the next document without a restart. Under
 Advanced the admin also sets the longest reply (`max_response_tokens`, null is
