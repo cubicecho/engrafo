@@ -686,7 +686,13 @@ wire names (`top_p`, …), which agent-core drops and retries without when an
 endpoint refuses one by name. "What it writes" is plain text or
 Markdown (`text_format`, null is plain): Markdown sends `TRANSCRIBE_MARKDOWN`
 instead of `TRANSCRIBE` and takes off a fence wrapped round a whole answer
-(`unfence`). The
+(`unfence`). Under Advanced the admin can write their own instructions
+(`vision_settings.prompt`, at most `VISION_DEFAULTS.maxPromptChars`), which replace
+the built-in one whatever the format (`visionInstruction`); null is the built-in, and
+the built-in one sent back unchanged is stored as null, so an instance follows
+improvements to it. `TRANSCRIBE_MARKDOWN` keeps tables as Markdown, not the HTML the
+OCR-tuned models write, because the Text tab draws no HTML. Each page's user turn says
+`page N of M` for a document of more than one, since pages are read alone. The
 `vision` step sits after `ebook` and before `metadata`, breaking "new steps go
 last" because it produces text. It runs when a model is set up, the document is
 a PDF or an image, and either `visionRequested` is set or the model is on

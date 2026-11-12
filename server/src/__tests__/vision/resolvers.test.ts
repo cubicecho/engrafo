@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VISION_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
+import { TRANSCRIBE, TRANSCRIBE_MARKDOWN } from '../../pipeline/steps/vision.ts';
 import { loadVisionConfig, readVisionSettings, saveVisionSettings } from '../../vision/settings.ts';
 import { createClient, createTestDb, createUser, NO_SAMPLER, type TestDb } from '../helpers.ts';
 
@@ -193,6 +194,41 @@ describe('vision settings', () => {
     expect((await readVisionSettings(db))?.textFormat).toBeNull();
   });
 
+  it("stores the admin's own instructions, and the built-in ones sent back or blank as none", async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
+    const PROMPT_SET = `
+      mutation ($input: VisionSettingsInput!) {
+        setVisionSettings(input: $input) { prompt builtInPrompts { plain markdown } }
+      }
+    `;
+
+    const own = await admin.expectOk(PROMPT_SET, { input: { ...base, prompt: '  Read the page as Markdown.\n' } });
+    expect(own.setVisionSettings.prompt).toBe('Read the page as Markdown.');
+    expect(own.setVisionSettings.builtInPrompts).toEqual({ plain: TRANSCRIBE, markdown: TRANSCRIBE_MARKDOWN });
+    expect((await loadVisionConfig(db))?.prompt).toBe('Read the page as Markdown.');
+
+    // "Start from the built-in" and Save, unchanged, keeps following the built-in one.
+    const builtIn = await admin.expectOk(PROMPT_SET, {
+      input: { ...base, textFormat: 'MARKDOWN', prompt: TRANSCRIBE_MARKDOWN },
+    });
+    expect(builtIn.setVisionSettings.prompt).toBeNull();
+    // The other format's built-in one is an instruction of the admin's: it says the wrong format.
+    const crossed = await admin.expectOk(PROMPT_SET, {
+      input: { ...base, textFormat: 'MARKDOWN', prompt: TRANSCRIBE },
+    });
+    expect(crossed.setVisionSettings.prompt).toBe(TRANSCRIBE);
+
+    const blank = await admin.expectOk(PROMPT_SET, { input: { ...base, prompt: '   ' } });
+    expect(blank.setVisionSettings.prompt).toBeNull();
+    expect((await readVisionSettings(db))?.prompt).toBeNull();
+
+    const long = await admin.expectError(PROMPT_SET, {
+      input: { ...base, prompt: 'x'.repeat(VISION_DEFAULTS.maxPromptChars + 1) },
+    });
+    expect(long.code).toBe(ErrorCode.BadUserInput);
+  });
+
   it('stores the sampler fields, hands a run only those set, and refuses one out of range', async () => {
     const admin = createClient(db, adminId);
     const base = { baseUrl: 'http://box/v1', model: 'm', auto: false };
@@ -251,6 +287,7 @@ describe('vision settings', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
     expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
@@ -323,6 +360,7 @@ describe('visionModels', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
 
@@ -350,6 +388,7 @@ describe('visionModels', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
     await createClient(db, adminId).expectOk(MODELS, { baseUrl: endpoint.baseUrl.replace('http://', 'HTTP://') });
@@ -433,6 +472,7 @@ describe('readDocumentWithVision', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
   });
@@ -531,6 +571,7 @@ describe('readDocumentWithVision', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
     const doc = await insertDocument({});
@@ -600,6 +641,7 @@ describe('readDocumentWithVision', () => {
         imageDetail: null,
         temperature: null,
         textFormat: null,
+        prompt: null,
         ...NO_SAMPLER,
       });
       expect((await client().expectError(READ_FOLDER, { id: mine.id })).code).toBe(ErrorCode.BadUserInput);

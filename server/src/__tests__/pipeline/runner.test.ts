@@ -395,6 +395,7 @@ describe('pipeline runner', () => {
       imageDetail: null,
       temperature: null,
       textFormat: null,
+      prompt: null,
       ...NO_SAMPLER,
     });
     await pipeline.run((await insertDocument()).id);

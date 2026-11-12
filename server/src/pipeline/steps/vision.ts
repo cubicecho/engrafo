@@ -41,17 +41,62 @@ export const TRANSCRIBE = [
 ].join(' ');
 
 /**
- * The instruction when the admin wants Markdown. The same refusals as `TRANSCRIBE`, plus the two
- * ways a model asked for Markdown goes wrong: inventing structure the page does not have, and
- * wrapping the whole answer in a code fence.
+ * The instruction when the admin wants Markdown. The same refusals as `TRANSCRIBE`, plus a rule for
+ * each place a scan's Markdown goes wrong, most of them taken from the prompts the OCR-tuned
+ * models were trained on (olmOCR, Nanonets-OCR, Zerox):
+ *
+ * - Columns read across, and a heading level guessed per line rather than from the page.
+ * - Every printed line kept as a line, so a paragraph is a run of fragments and a hyphenated word
+ *   is two halves that search never finds.
+ * - A table drawn without its separator row, or with a ragged row, which is no table at all.
+ * - A checkbox, a logo or a photo guessed at in prose, or a word it cannot read invented.
+ * - One page of many treated as a whole document: a heading made up over a table that carries
+ *   on from the last page.
+ *
+ * Tables stay Markdown, not the HTML those models write: the Text tab draws no HTML and the index
+ * cuts by Markdown headings. A bare page number is left out because it is noise in every passage;
+ * running headers and footers are kept, since on an invoice they hold the VAT number and the IBAN.
+ * Newline-separated, because the admin starts from it in a textarea.
  */
 export const TRANSCRIBE_MARKDOWN = [
-  'You are an OCR engine. Transcribe the page image exactly as it reads, top to bottom, as Markdown.',
-  'Write headings as # headings at the level the page gives them, lists as Markdown lists, tables as Markdown tables, and bold or italic only where the page shows it.',
-  'Keep the reading order and the paragraphs; add no headings, lists or emphasis the page does not have.',
-  'Do not translate, summarise, correct, explain, or add commentary of any kind, and do not wrap the answer in a code block.',
+  'You are an OCR engine that writes Markdown. Transcribe the page image exactly as it reads, and mark up only the structure the page shows.',
+  '',
+  '- Reading order: top to bottom. On a page set in columns, finish each column before starting the next. A sidebar or a boxed note goes after the text it sits beside.',
+  '- Headings: a # heading for a line the page sets apart as a title or a section heading by its size, weight or the space around it. The largest on the page is #, the next ##, and so on, without skipping a level. A bold word inside a sentence is not a heading.',
+  '- Paragraphs: join the lines of one paragraph into one line, rejoining a word hyphenated across a line break, and put a blank line between paragraphs. Keep the lines of an address, a signature block or a poem as separate lines.',
+  '- Lists: a bulleted item as "- ", a numbered one as "1. " with the number it has; indent a nested item by two spaces.',
+  "- Tables: anything laid out in rows and columns, an invoice's line items included, as a Markdown table: the header row, a | --- | separator row, then one row per line, with the same number of cells in every row. Leave an empty cell empty, put a merged cell's text in its first cell, and write a | inside a cell as \\|. A table with no header row takes its first row as the header.",
+  '- Forms: a label and its value as "Label: value" on one line, and a checkbox as ☐ or ☑ as it is marked.',
+  '- Emphasis: **bold** and *italic* only where the page shows it.',
+  '- Exactness: keep every number, amount, date, code and name as printed, with its currency symbol and decimal separator. Read handwriting too.',
+  '- Not text: a logo or a stamp with words in it is its words. A photo, chart or drawing is ![a few words on what it shows]() on a line of its own. A page number standing alone at the top or bottom is left out.',
+  '- Unreadable: write [illegible] for a word you cannot make out. Never guess.',
+  '',
+  'The page may be one of several: a page that starts mid-sentence, mid-list or mid-table starts with it, under no heading of your own.',
+  'Do not translate, summarise, correct, explain or add commentary, and add no heading, list, table or emphasis the page does not have. Write no HTML, and do not wrap the answer in a code block.',
   'Output the Markdown of the page and nothing else. A page with no text gets an empty answer.',
-].join(' ');
+].join('\n');
+
+/**
+ * The instruction a page is read with.
+ *
+ * @param vision - The run's settings.
+ * @returns The admin's own instruction when there is one, whatever the format; else the built-in
+ *   one for the format.
+ */
+export function visionInstruction(vision: Pick<VisionConfig, 'prompt' | 'textFormat'>): string {
+  return vision.prompt ?? builtInInstruction(vision.textFormat);
+}
+
+/**
+ * The built-in instruction for a format, which the settings page offers to start from.
+ *
+ * @param format - What the model is asked to write.
+ * @returns `TRANSCRIBE_MARKDOWN` for Markdown, else `TRANSCRIBE`.
+ */
+export function builtInInstruction(format: ContentFormat): string {
+  return format === ContentFormat.Markdown ? TRANSCRIBE_MARKDOWN : TRANSCRIBE;
+}
 
 // A whole answer inside one fence, which models write for "Markdown" however they are told not to.
 const WHOLE_ANSWER_FENCE = /^```(?:markdown|md)?[ \t]*\n([\s\S]*?)\n?```$/i;
@@ -122,16 +167,24 @@ export function rasterArgs(
  * @param image - The page's bytes.
  * @param mimeType - The image's media type, which the data URL carries.
  * @param detail - How closely the model looks at it, the admin's setting.
+ * @param position - Which page of how many, for a document of more than one. Each page is read
+ *   alone, so this is all the model knows of the pages around it: told it is page 3 of 7, it does
+ *   not open a table carried over from page 2 with a title of its own.
  * @returns The instruction's object and the page it applies to, as OpenAI content parts.
  */
 export function pageInput(
   image: Buffer,
   mimeType: string,
   detail: VisionImageDetail = VisionImageDetail.Auto,
+  position?: { page: number; of: number },
 ): SideTaskInput {
   const url = `data:${mimeType};base64,${image.toString('base64')}`;
+  const ask =
+    position === undefined || position.of < 2
+      ? 'Transcribe this page.'
+      : `Transcribe page ${position.page} of ${position.of}.`;
   return [
-    { type: 'text', text: 'Transcribe this page.' },
+    { type: 'text', text: ask },
     // `auto` is sent as no `detail` at all, which is what it means, and what a server that does
     // not know the field has always been sent.
     { type: 'image_url', image_url: detail === VisionImageDetail.Auto ? { url } : { url, detail } },
@@ -222,10 +275,10 @@ async function transcribe(
     await reportProgress(index, pages.length);
     const image = await readFile(page.file);
     const markdown = vision.textFormat === ContentFormat.Markdown;
-    const instruction = markdown ? TRANSCRIBE_MARKDOWN : TRANSCRIBE;
+    const input = pageInput(image, page.mimeType, vision.imageDetail, { page: index + 1, of: pages.length });
     let reply: SideTaskReply;
     try {
-      reply = await askReply(vision, vision.model, instruction, pageInput(image, page.mimeType, vision.imageDetail), {
+      reply = await askReply(vision, vision.model, visionInstruction(vision), input, {
         maxTokens: vision.maxResponseTokens,
         temperature: vision.temperature,
         extraBody: samplerBody(vision.sampler),

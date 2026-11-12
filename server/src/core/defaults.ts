@@ -257,6 +257,11 @@ export interface VisionSettings {
   maxPages: number;
   /** When Ghostscript rasterising one document, or Pillow splitting a TIFF, is given up on as wedged. */
   rasterTimeoutMinutes: number;
+  /**
+   * The longest instruction the admin may write, in characters. It is prefilled with every page,
+   * so a long one costs time on each; the built-in Markdown one is under 2,500.
+   */
+  maxPromptChars: number;
   /** How long an endpoint has to answer the settings page's request for its models. */
   modelsTimeoutSeconds: number;
   /** The most models the settings page is offered from one listing. */
@@ -278,6 +283,7 @@ export const VISION_DEFAULTS: Readonly<VisionSettings> = Object.freeze({
   maxRepeatPenalty: 2,
   maxPages: 200,
   rasterTimeoutMinutes: 10,
+  maxPromptChars: 8000,
   modelsTimeoutSeconds: 5,
   maxModels: 500,
 });

@@ -49,6 +49,9 @@ export const visionSettings = pgTable(
     repeatPenalty: doublePrecision('repeat_penalty'),
     // What the model is asked to write. Null is `plain`.
     textFormat: contentFormat('text_format'),
+    // The admin's own instruction to the model, in place of the built-in one for `text_format`.
+    // Null is the built-in, so an improved default reaches every instance that never edited it.
+    prompt: text('prompt'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -66,6 +69,7 @@ export const visionSettings = pgTable(
     check('vision_settings_presence_penalty', sql`${table.presencePenalty} between -2 and 2`),
     check('vision_settings_frequency_penalty', sql`${table.frequencyPenalty} between -2 and 2`),
     check('vision_settings_repeat_penalty', sql`${table.repeatPenalty} between 0 and 2`),
+    check('vision_settings_prompt', sql`${table.prompt} <> ''`),
   ],
 );
 

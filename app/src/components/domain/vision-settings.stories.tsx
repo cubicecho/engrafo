@@ -39,7 +39,14 @@ interface StoredSettings {
   frequencyPenalty: number | null;
   repeatPenalty: number | null;
   textFormat: VisionTextFormat;
+  prompt: string | null;
 }
+
+/** Stand-ins for the server's built-in instructions: the form only ever copies them. */
+const BUILT_IN_PROMPTS = {
+  plain: 'You are an OCR engine. Transcribe the page.',
+  markdown: 'You are an OCR engine that writes Markdown. Transcribe the page.',
+};
 
 const OFF: StoredSettings = {
   baseUrl: null,
@@ -58,6 +65,7 @@ const OFF: StoredSettings = {
   frequencyPenalty: null,
   repeatPenalty: null,
   textFormat: VisionTextFormat.Plain,
+  prompt: null,
 };
 const ON_OLLAMA: StoredSettings = { ...OFF, baseUrl: OLLAMA, model: 'qwen2.5vl:7b' };
 
@@ -74,7 +82,11 @@ interface Server {
 /** A server holding one set of settings, whose endpoint lists `MODELS` or refuses with `listError`. */
 function server(initial: StoredSettings, listError?: string): Server {
   let stored = initial;
-  const view = () => ({ ...stored, configured: Boolean(stored.baseUrl && stored.model) });
+  const view = () => ({
+    ...stored,
+    builtInPrompts: BUILT_IN_PROMPTS,
+    configured: Boolean(stored.baseUrl && stored.model),
+  });
   const state: Server = {
     saves: [],
     reads: 0,
@@ -114,6 +126,7 @@ function server(initial: StoredSettings, listError?: string): Server {
             frequencyPenalty: input.frequencyPenalty ?? null,
             repeatPenalty: input.repeatPenalty ?? null,
             textFormat: input.textFormat ?? VisionTextFormat.Plain,
+            prompt: input.prompt ?? null,
           };
           return view();
         },
@@ -181,6 +194,7 @@ export const PicksAModelAndSaves: Story = {
       frequencyPenalty: null,
       repeatPenalty: null,
       textFormat: VisionTextFormat.Plain,
+      prompt: null,
     });
     await expect('apiKey' in (picking.saves[0] ?? {})).toBe(false);
   },
@@ -200,6 +214,36 @@ export const SkipsOcr: Story = {
     await expect(skipping.saves[0]).toMatchObject({ auto: true, skipOcr: true });
     await expect(canvas.getByRole('radio', { name: /Skip OCR and read automatically/ })).toBeChecked();
     await expect(canvas.getByRole('button', { name: 'Save' })).toBeDisabled();
+  },
+};
+
+const instructing = server(ON_OLLAMA);
+
+/**
+ * Under Advanced: own instructions start from the built-in ones for the format picked, not the
+ * stored one, and are sent as written.
+ */
+export const WritesOwnInstructions: Story = {
+  parameters: { apolloClient: { resolvers: instructing.resolvers } },
+  play: async ({ canvas }) => {
+    await canvas.findByText('Connected');
+    await userEvent.click(canvas.getByRole('radio', { name: /^Markdown/ }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Advanced' }));
+    const instructions = await canvas.findByRole('textbox', { name: 'Instructions' });
+    await expect(instructions).toHaveValue('');
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Start from the built-in' }));
+    await expect(instructions).toHaveValue(BUILT_IN_PROMPTS.markdown);
+    await userEvent.type(instructions, ' Tables as HTML.');
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Saved')).toBeInTheDocument();
+    await expect(instructing.saves[0]).toMatchObject({
+      textFormat: VisionTextFormat.Markdown,
+      prompt: `${BUILT_IN_PROMPTS.markdown} Tables as HTML.`,
+    });
+    // Opens again on what was stored.
+    await expect(instructions).toHaveValue(`${BUILT_IN_PROMPTS.markdown} Tables as HTML.`);
   },
 };
 

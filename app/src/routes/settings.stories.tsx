@@ -72,6 +72,8 @@ const RESOLVERS = {
         frequencyPenalty: null,
         repeatPenalty: null,
         textFormat: 'PLAIN',
+        prompt: null,
+        builtInPrompts: { plain: 'Transcribe the page.', markdown: 'Transcribe the page as Markdown.' },
         configured: true,
       };
     },

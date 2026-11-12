@@ -76,6 +76,8 @@ export interface VisionConfig {
   sampler: VisionSampler;
   /** What the model is asked to write: the page's text as it reads, or Markdown. */
   textFormat: dbSchema.ContentFormat;
+  /** The admin's own instruction, or null for the built-in one for `textFormat`. */
+  prompt: string | null;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
   auto: boolean;
   /** With `auto`: whether the model reads in OCR's place, so ocrmypdf is not run first. */
@@ -108,6 +110,8 @@ export interface VisionSettingsUpdate {
   repeatPenalty: number | null;
   /** Null is plain. */
   textFormat: dbSchema.ContentFormat | null;
+  /** Null is the built-in instruction for the format. */
+  prompt: string | null;
 }
 
 /**
@@ -152,6 +156,7 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     temperature: row.temperature ?? VISION_DEFAULTS.temperature,
     sampler: samplerOf(row),
     textFormat: row.textFormat ?? dbSchema.ContentFormat.Plain,
+    prompt: row.prompt,
     auto: row.auto,
     skipOcr: row.auto && row.skipOcr,
   };

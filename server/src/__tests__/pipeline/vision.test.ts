@@ -91,6 +91,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | Finished | 
     temperature: 0.6,
     sampler: {},
     textFormat: 'plain',
+    prompt: null,
     auto: true,
     skipOcr: false,
   };
@@ -107,6 +108,7 @@ const VISION: VisionConfig = {
   temperature: 0.6,
   sampler: {},
   textFormat: 'plain',
+  prompt: null,
   auto: false,
   skipOcr: false,
 };
@@ -236,6 +238,17 @@ describe('vision step', () => {
     ]);
   });
 
+  it('tells the model which page of how many it is reading, when there is more than one', () => {
+    expect(pageInput(PIXEL, 'image/png', 'auto', { page: 3, of: 7 })[0]).toEqual({
+      type: 'text',
+      text: 'Transcribe page 3 of 7.',
+    });
+    expect(pageInput(PIXEL, 'image/png', 'auto', { page: 1, of: 1 })[0]).toEqual({
+      type: 'text',
+      text: 'Transcribe this page.',
+    });
+  });
+
   it('sends the image detail the admin chose, and none at all for auto', () => {
     const image = (detail?: 'auto' | 'low' | 'high') =>
       (pageInput(PIXEL, 'image/png', detail)[1] as unknown as { image_url: Record<string, string> }).image_url;
@@ -309,6 +322,22 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       const stored = storage.text.objects.get(patch?.contentKey ?? '');
       expect(stored?.body.toString()).toBe('# Invoice 4821\n\n| Item | Total |\n| --- | --- |\n| Kettle | 12.50 |');
       expect(stored?.contentType).toBe('text/markdown; charset=utf-8');
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it("sends the admin's own instructions in place of the built-in ones, whatever the format", async () => {
+    const endpoint = await fakeEndpoint(() => '# Invoice 4821');
+    try {
+      const prompt = 'Transcribe this page as Markdown. Tables as HTML.';
+      const { patch } = await runStep({
+        ...CONFIG,
+        vision: { ...endpoint.vision, textFormat: 'markdown', prompt },
+      });
+      expect(endpoint.bodies[0]?.messages[0]).toMatchObject({ role: 'system', content: prompt });
+      // The format still says how the answer is stored, and a fence still comes off.
+      expect(patch?.contentFormat).toBe('markdown');
     } finally {
       await endpoint.close();
     }

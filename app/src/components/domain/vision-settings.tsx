@@ -7,7 +7,7 @@ import {
   type VisionSettingsQuery,
   VisionTextFormat,
 } from '@/__generated__/graphql';
-import { ComboboxField, InputField, NumberField, useAppForm } from '@/components/app-form';
+import { ComboboxField, InputField, NumberField, TextareaField, useAppForm } from '@/components/app-form';
 import { CardLayout } from '@/components/card-layout';
 import { Collapsible } from '@/components/collapsible';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -48,6 +48,11 @@ export const VisionSettingsDocument = graphql(`
       frequencyPenalty
       repeatPenalty
       textFormat
+      prompt
+      builtInPrompts {
+        plain
+        markdown
+      }
       configured
     }
   }
@@ -72,6 +77,11 @@ const SetVisionSettings = graphql(`
       frequencyPenalty
       repeatPenalty
       textFormat
+      prompt
+      builtInPrompts {
+        plain
+        markdown
+      }
       configured
     }
   }
@@ -222,6 +232,18 @@ function isTextFormat(value: string): value is VisionTextFormat {
   return TEXT_FORMATS.some((option) => option.value === value);
 }
 
+/** The longest instructions the server takes (`VISION_DEFAULTS.maxPromptChars`). */
+const VISION_PROMPT_MAX_CHARS = 8000;
+const PROMPT_ROWS = 10;
+
+const PROMPT_HELP =
+  'Sent to the model before every page. Left blank, the built-in instructions for what it writes are sent, and they improve with updates. A model trained for OCR, such as olmOCR or Nanonets-OCR, reads best with the prompt on its model card. These replace the built-in ones whichever format is chosen, so say Markdown in them to get Markdown.';
+
+/** The built-in instructions for a format, as the server sends them. */
+function builtInPrompt(prompts: Settings['builtInPrompts'], format: string): string {
+  return format === VisionTextFormat.Markdown ? prompts.markdown : prompts.plain;
+}
+
 function isImageDetail(value: string): value is VisionImageDetail {
   return IMAGE_DETAILS.some((option) => option.value === value);
 }
@@ -276,6 +298,8 @@ interface VisionFormValues {
   frequencyPenalty: number | null;
   repeatPenalty: number | null;
   textFormat: string;
+  /** Blank is the built-in instructions. */
+  prompt: string;
 }
 
 /** The sampler fields of the settings or the form, null where blank. */
@@ -312,6 +336,7 @@ function toValues(settings: Settings): VisionFormValues {
     temperature: settings.temperature === VISION_TEMPERATURE_DEFAULT ? null : settings.temperature,
     ...samplerOf(settings),
     textFormat: settings.textFormat,
+    prompt: settings.prompt ?? '',
   };
 }
 
@@ -329,6 +354,7 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
     temperature: value.temperature,
     ...samplerOf(value),
     textFormat: isTextFormat(value.textFormat) ? value.textFormat : VisionTextFormat.Plain,
+    prompt: value.prompt.trim() || null,
     ...(apiKey ? { apiKey } : {}),
   };
 }
@@ -346,6 +372,7 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     temperature: settings.temperature,
     ...samplerOf(settings),
     textFormat: settings.textFormat,
+    prompt: settings.prompt ?? null,
     ...change,
   };
 }
@@ -698,6 +725,33 @@ function VisionForm({ settings }: { settings: Settings }) {
                 ))}
               </div>
               <RadioGroupField form={form} name="imageDetail" label="Image detail" options={IMAGE_DETAILS} />
+              <form.Subscribe selector={(state) => state.values.textFormat}>
+                {(textFormat) => (
+                  <TextareaField
+                    form={form}
+                    name="prompt"
+                    label="Instructions"
+                    rows={PROMPT_ROWS}
+                    className="font-mono text-xs"
+                    placeholder="Blank sends the built-in instructions."
+                    description={PROMPT_HELP}
+                    validators={{
+                      onChange: ({ value }) =>
+                        value.length > VISION_PROMPT_MAX_CHARS
+                          ? `At most ${VISION_PROMPT_MAX_CHARS.toLocaleString()} characters`
+                          : undefined,
+                    }}
+                    actionSlot={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        content="Start from the built-in"
+                        onClick={() => form.setFieldValue('prompt', builtInPrompt(settings.builtInPrompts, textFormat))}
+                      />
+                    }
+                  />
+                )}
+              </form.Subscribe>
             </div>
           }
         />

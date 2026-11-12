@@ -69,6 +69,7 @@ describe('pdf-text step', () => {
       temperature: 0.6,
       sampler: {},
       textFormat: 'plain',
+      prompt: null,
       auto: true,
       skipOcr: true,
     };

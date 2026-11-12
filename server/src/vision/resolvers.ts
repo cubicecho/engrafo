@@ -19,7 +19,7 @@ import { parseOrThrow } from '../core/validation.ts';
 import { loadOwned } from '../documents/resolvers.ts';
 import { folderAndDescendants, loadOwnedFolder } from '../folders/names.ts';
 import { isOcrable } from '../pipeline/mime.ts';
-import { VISION_STEP } from '../pipeline/steps/vision.ts';
+import { builtInInstruction, TRANSCRIBE, TRANSCRIBE_MARKDOWN, VISION_STEP } from '../pipeline/steps/vision.ts';
 import { notTrashed } from '../trash/trash.ts';
 import { baseUrlProblem, listVisionModels } from './models.ts';
 import { isConfigured, readVisionSettings, saveVisionSettings } from './settings.ts';
@@ -85,8 +85,18 @@ const VISION_SDL = parse(`
     repeatPenalty: Float
     "What the model is asked to write."
     textFormat: VisionTextFormat!
+    "The admin's own instruction to the model, sent before every page, or null for the built-in one for textFormat."
+    prompt: String
+    "The built-in instructions, to start an own one from."
+    builtInPrompts: VisionBuiltInPrompts!
     "Whether a base URL and a model are both set, so documents can be read."
     configured: Boolean!
+  }
+
+  "The instruction the model is given when the admin has written none, for each format."
+  type VisionBuiltInPrompts {
+    plain: String!
+    markdown: String!
   }
 
   input VisionSettingsInput {
@@ -115,6 +125,8 @@ const VISION_SDL = parse(`
     repeatPenalty: Float
     "Left out or null is PLAIN."
     textFormat: VisionTextFormat
+    "Left out, null, blank or the built-in one for textFormat is the built-in one, so it follows updates."
+    prompt: String
   }
 
   "A model an endpoint offers, as its \`/models\` lists it."
@@ -332,13 +344,26 @@ const settingsInputSchema = z
     presencePenalty: optionalBetween('The presence penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
     frequencyPenalty: optionalBetween('The frequency penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
     repeatPenalty: optionalBetween('The repeat penalty', 0, VISION_DEFAULTS.maxRepeatPenalty),
+    prompt: z
+      .string()
+      .max(
+        VISION_DEFAULTS.maxPromptChars,
+        `The instructions may be at most ${VISION_DEFAULTS.maxPromptChars.toLocaleString('en-US')} characters.`,
+      )
+      .nullish()
+      .transform((value) => value?.trim() || null),
   })
   // Skipping OCR is a way of reading automatically: with the model reading only when asked, a
   // document OCR skipped would have no text at all.
   .refine((input) => input.skipOcr === false || input.auto, {
     message: 'OCR can only be skipped when the vision model reads automatically.',
     path: ['skipOcr'],
-  });
+  })
+  // The built-in instruction sent back unchanged, as "Start from the built-in" and Save does, is
+  // stored as none, so the instance keeps getting the built-in one as it improves.
+  .transform((input) =>
+    input.prompt === builtInInstruction(input.textFormat ?? ContentFormat.Plain) ? { ...input, prompt: null } : input,
+  );
 
 /**
  * Refuses anyone but the admin.
@@ -373,6 +398,8 @@ async function visionSettings(context: Context) {
     frequencyPenalty: row?.frequencyPenalty ?? null,
     repeatPenalty: row?.repeatPenalty ?? null,
     textFormat: (row?.textFormat ?? ContentFormat.Plain).toUpperCase(),
+    prompt: row?.prompt ?? null,
+    builtInPrompts: { plain: TRANSCRIBE, markdown: TRANSCRIBE_MARKDOWN },
     configured: isConfigured(row),
   };
 }

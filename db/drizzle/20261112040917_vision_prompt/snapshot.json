@@ -1,0 +1,76 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5e0a4c4d-d15b-486d-8e94-a53e278342db",
+  "prevIds": [
+    "a7141323-e9d8-4ca2-aede-4df8636c4cd8"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "prompt"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.prompt",
+        "n|col|public.vision_settings.prompt",
+        "e|col|public.vision_settings.prompt"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_prompt",
+        "n|ck|public.vision_settings.vision_settings_prompt",
+        "e|ck|public.vision_settings.vision_settings_prompt",
+        "n|con|public.vision_settings.vision_settings_prompt"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.prompt"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "prompt",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_prompt",
+        "value": "\"prompt\" <> ''",
+        "entityType": "checks"
+      }
+    }
+  ]
+}
