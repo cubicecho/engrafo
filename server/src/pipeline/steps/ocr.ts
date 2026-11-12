@@ -10,7 +10,7 @@ import { storeContent } from '../content.ts';
 import { pngHasTransparency, toOpaquePng } from '../image.ts';
 import { isImage, isOcrable, needsPngForOcr } from '../mime.ts';
 import { readPdfText } from '../pdf-text.ts';
-import type { PipelineStep } from '../types.ts';
+import type { PipelineStep, RunConfig } from '../types.ts';
 
 const exec = promisify(execFile);
 
@@ -84,14 +84,27 @@ const SKIPPED_PAGE_MARKER = /\[OCR skipped on page\(s\) [\d-]+\]/g;
 const HAS_SKIPPED_PAGE = /\[OCR skipped on page\(s\) [\d-]+\]/;
 
 /**
+ * Whether the admin has the vision model read in OCR's place ("Skip OCR and read automatically").
+ * The vision step then reads every document OCR would have, so running ocrmypdf first would read
+ * each page twice; the model falls back to OCR itself when it cannot read one (see `visionStep`).
+ *
+ * @param config - The run's settings.
+ * @returns True when a model is set up and set to skip OCR.
+ */
+export function visionReadsInsteadOfOcr(config: RunConfig): boolean {
+  return config.vision?.skipOcr === true;
+}
+
+/**
  * Runs ocrmypdf over a PDF or an image, and stores the PDF/A archive and the text it recognised.
  * A WebP or GIF is handed over as a PNG of its first frame, and a PNG with transparency as one
- * laid on white (see `toOpaquePng`). Skipped when OCR was not requested, is unavailable here, or
- * the type is not one ocrmypdf takes.
+ * laid on white (see `toOpaquePng`). Skipped when OCR was not requested, is unavailable here, the
+ * type is not one ocrmypdf takes, or the vision model reads in its place.
  */
 export const ocrStep: PipelineStep = {
   name: 'ocr',
-  enabled: (doc, config) => doc.ocrRequested && config.ocrAvailable && isOcrable(doc.mimeType),
+  enabled: (doc, config) =>
+    doc.ocrRequested && config.ocrAvailable && isOcrable(doc.mimeType) && visionReadsInsteadOfOcr(config) === false,
   async run({ doc, storage, config, tmpDir }) {
     const original = join(tmpDir, 'original');
     const output = join(tmpDir, 'archive.pdf');

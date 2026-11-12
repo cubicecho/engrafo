@@ -30,7 +30,8 @@ const READ_FOLDER = `
     readFolderWithVision(id: $id, includeSubfolders: $includeSubfolders) { queued busy notReadable }
   }
 `;
-const SERVER_CONFIG = '{ serverConfig { visionAvailable visionAuto } }';
+const SERVER_CONFIG = '{ serverConfig { visionAvailable visionAuto visionSkipsOcr } }';
+const SKIP_SET = 'mutation ($input: VisionSettingsInput!) { setVisionSettings(input: $input) { auto skipOcr } }';
 
 async function makeAdmin(db: TestDb, id: string) {
   await db.update(dbSchema.users).set({ isAdmin: true }).where(eq(dbSchema.users.id, id));
@@ -133,7 +134,7 @@ describe('vision settings', () => {
     const data = await admin.expectOk(SET, { input: { baseUrl: '', model: 'm', auto: true } });
     expect(data.setVisionSettings).toMatchObject({ baseUrl: null, configured: false });
     const config = await admin.expectOk(SERVER_CONFIG);
-    expect(config.serverConfig).toEqual({ visionAvailable: false, visionAuto: false });
+    expect(config.serverConfig).toEqual({ visionAvailable: false, visionAuto: false, visionSkipsOcr: false });
   });
 
   it('refuses a base URL that is not http(s), and a timeout out of bounds', async () => {
@@ -244,6 +245,7 @@ describe('vision settings', () => {
       model: 'm',
       apiKey: undefined,
       auto: true,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,
@@ -254,11 +256,31 @@ describe('vision settings', () => {
     expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
       visionAvailable: true,
       visionAuto: true,
+      visionSkipsOcr: false,
     });
     expect((await createClient(db, null).expectOk(SERVER_CONFIG)).serverConfig).toEqual({
       visionAvailable: false,
       visionAuto: false,
+      visionSkipsOcr: false,
     });
+  });
+
+  it('skips OCR only while reading automatically, and says so to any signed-in caller', async () => {
+    const admin = createClient(db, adminId);
+    const base = { baseUrl: 'http://box/v1', model: 'm' };
+    const refused = await admin.expectError(SKIP_SET, { input: { ...base, auto: false, skipOcr: true } });
+    expect(refused.code).toBe(ErrorCode.BadUserInput);
+    expect(refused.message).toMatch(/reads automatically/);
+
+    const data = await admin.expectOk(SKIP_SET, { input: { ...base, auto: true, skipOcr: true } });
+    expect(data.setVisionSettings).toEqual({ auto: true, skipOcr: true });
+    expect((await loadVisionConfig(db))?.skipOcr).toBe(true);
+    expect((await createClient(db, userId).expectOk(SERVER_CONFIG)).serverConfig.visionSkipsOcr).toBe(true);
+    expect((await createClient(db, null).expectOk(SERVER_CONFIG)).serverConfig.visionSkipsOcr).toBe(false);
+
+    // Left out is off, as a client that predates it sends.
+    const left = await admin.expectOk(SKIP_SET, { input: { ...base, auto: true } });
+    expect(left.setVisionSettings.skipOcr).toBe(false);
   });
 });
 
@@ -295,6 +317,7 @@ describe('visionModels', () => {
       model: 'alpha',
       apiKey: 'sk-stored',
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,
@@ -321,6 +344,7 @@ describe('visionModels', () => {
       model: 'alpha',
       apiKey: 'sk-stored',
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,
@@ -403,6 +427,7 @@ describe('readDocumentWithVision', () => {
       model: 'm',
       apiKey: undefined,
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,
@@ -500,6 +525,7 @@ describe('readDocumentWithVision', () => {
       model: null,
       apiKey: null,
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,
@@ -568,6 +594,7 @@ describe('readDocumentWithVision', () => {
         model: null,
         apiKey: null,
         auto: false,
+        skipOcr: false,
         requestTimeoutSeconds: null,
         maxResponseTokens: null,
         imageDetail: null,

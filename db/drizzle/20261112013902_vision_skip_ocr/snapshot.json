@@ -1,0 +1,77 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "a7141323-e9d8-4ca2-aede-4df8636c4cd8",
+  "prevIds": [
+    "f5504cae-2d32-4ea0-a602-ff5226cd8a43"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vision_settings",
+        "skip_ocr"
+      ],
+      "writes": [
+        "s|col|public.vision_settings.skip_ocr",
+        "n|col|public.vision_settings.skip_ocr",
+        "e|col|public.vision_settings.skip_ocr"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "vision_settings"
+      ],
+      "writes": [
+        "s|ck|public.vision_settings.vision_settings_skip_ocr",
+        "n|ck|public.vision_settings.vision_settings_skip_ocr",
+        "e|ck|public.vision_settings.vision_settings_skip_ocr",
+        "n|con|public.vision_settings.vision_settings_skip_ocr"
+      ],
+      "reads": [
+        "n|tbl|public.vision_settings",
+        "n|sch|public",
+        "n|col|public.vision_settings.skip_ocr",
+        "n|col|public.vision_settings.auto"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "skip_ocr",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vision_settings",
+        "name": "vision_settings_skip_ocr",
+        "value": "not \"skip_ocr\" or \"auto\"",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

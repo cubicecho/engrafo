@@ -38,6 +38,7 @@ const SettingsPage = graphql(`
       ocrDefault
       visionAvailable
       visionAuto
+      visionSkipsOcr
     }
   }
 `);
@@ -161,6 +162,7 @@ export function SettingsRoute() {
                     isAdmin={data.me.isAdmin}
                     available={data.serverConfig.visionAvailable}
                     auto={data.serverConfig.visionAuto}
+                    skipsOcr={data.serverConfig.visionSkipsOcr}
                   />
 
                   <CardLayout

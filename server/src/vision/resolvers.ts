@@ -61,6 +61,8 @@ const VISION_SDL = parse(`
     hasApiKey: Boolean!
     "On, every document OCR runs on is re-read by the model. Off, only a document asked for from its page."
     auto: Boolean!
+    "With auto on: the model reads in OCR's place, so ocrmypdf does not read the page first and no PDF/A archive is written."
+    skipOcr: Boolean!
     "How long one page may take, in seconds."
     requestTimeoutSeconds: Int!
     "The longest reply one page may get, in tokens."
@@ -94,6 +96,8 @@ const VISION_SDL = parse(`
     "A new key. Left out keeps the stored one; an empty string clears it."
     apiKey: String
     auto: Boolean!
+    "Left out or null is false. True needs auto."
+    skipOcr: Boolean
     "Left out or null is the default."
     requestTimeoutSeconds: Int
     "Left out or null is the default."
@@ -125,6 +129,8 @@ const VISION_SDL = parse(`
     visionAvailable: Boolean!
     "Whether it reads every document OCR runs on by itself, rather than only when asked."
     visionAuto: Boolean!
+    "Whether, reading by itself, it reads in OCR's place rather than after it."
+    visionSkipsOcr: Boolean!
   }
 
   extend type Query {
@@ -243,85 +249,96 @@ function optionalBetween(name: string, min: number, max: number) {
     .transform((value) => value ?? null);
 }
 
-const settingsInputSchema = z.object({
-  // Stored as agent-core normalises it, which is the form its `resolveApiKey` compares in.
-  baseUrl: z
-    .string()
-    .nullish()
-    .transform((value, context) => {
-      if (!value?.trim()) {
-        return null;
-      }
-      const problem = baseUrlProblem(value);
-      if (problem !== null) {
-        context.addIssue({ code: 'custom', message: problem });
-        return z.NEVER;
-      }
-      return normalizeBaseUrl(value);
-    }),
-  model: z
-    .string()
-    .nullish()
-    .transform((value) => value?.trim() || null),
-  // Left out (or null) keeps the stored key; an empty string clears it.
-  apiKey: z
-    .string()
-    .nullish()
-    .transform((value) => (value === undefined || value === null ? undefined : value.trim() || null)),
-  auto: z.boolean(),
-  requestTimeoutSeconds: z
-    .number()
-    .int()
-    .min(
-      VISION_DEFAULTS.minRequestTimeoutSeconds,
-      `A page may take at least ${VISION_DEFAULTS.minRequestTimeoutSeconds} seconds.`,
-    )
-    .max(
-      VISION_DEFAULTS.maxRequestTimeoutSeconds,
-      `A page may take at most ${VISION_DEFAULTS.maxRequestTimeoutSeconds} seconds.`,
-    )
-    .nullish()
-    .transform((value) => value ?? null),
-  maxResponseTokens: z
-    .number()
-    .int()
-    .min(
-      VISION_DEFAULTS.minPageMaxTokens,
-      `A reply may be capped at no fewer than ${VISION_DEFAULTS.minPageMaxTokens} tokens.`,
-    )
-    .max(
-      VISION_DEFAULTS.maxPageMaxTokens,
-      `A reply may be capped at no more than ${VISION_DEFAULTS.maxPageMaxTokens} tokens.`,
-    )
-    .nullish()
-    .transform((value) => value ?? null),
-  // The SDL's names are the stored values in capitals.
-  imageDetail: z
-    .enum(['AUTO', 'LOW', 'HIGH'])
-    .nullish()
-    .transform((value) => (value ? VISION_DETAIL_BY_NAME[value] : null)),
-  textFormat: z
-    .enum(['PLAIN', 'MARKDOWN'])
-    .nullish()
-    .transform((value) => (value ? VISION_TEXT_FORMAT_BY_NAME[value] : null)),
-  temperature: z
-    .number()
-    .min(0, 'The temperature is at least 0.')
-    .max(VISION_DEFAULTS.maxTemperature, `The temperature is at most ${VISION_DEFAULTS.maxTemperature}.`)
-    .nullish()
-    .transform((value) => value ?? null),
-  topP: optionalBetween('Top P', 0, 1),
-  topK: z
-    .number()
-    .int()
-    .min(0, 'Top K is at least 0.')
-    .nullish()
-    .transform((value) => value ?? null),
-  minP: optionalBetween('Min P', 0, 1),
-  presencePenalty: optionalBetween('The presence penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
-  frequencyPenalty: optionalBetween('The frequency penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
-  repeatPenalty: optionalBetween('The repeat penalty', 0, VISION_DEFAULTS.maxRepeatPenalty),
-});
+const settingsInputSchema = z
+  .object({
+    // Stored as agent-core normalises it, which is the form its `resolveApiKey` compares in.
+    baseUrl: z
+      .string()
+      .nullish()
+      .transform((value, context) => {
+        if (!value?.trim()) {
+          return null;
+        }
+        const problem = baseUrlProblem(value);
+        if (problem !== null) {
+          context.addIssue({ code: 'custom', message: problem });
+          return z.NEVER;
+        }
+        return normalizeBaseUrl(value);
+      }),
+    model: z
+      .string()
+      .nullish()
+      .transform((value) => value?.trim() || null),
+    // Left out (or null) keeps the stored key; an empty string clears it.
+    apiKey: z
+      .string()
+      .nullish()
+      .transform((value) => (value === undefined || value === null ? undefined : value.trim() || null)),
+    auto: z.boolean(),
+    skipOcr: z
+      .boolean()
+      .nullish()
+      .transform((value) => value ?? false),
+    requestTimeoutSeconds: z
+      .number()
+      .int()
+      .min(
+        VISION_DEFAULTS.minRequestTimeoutSeconds,
+        `A page may take at least ${VISION_DEFAULTS.minRequestTimeoutSeconds} seconds.`,
+      )
+      .max(
+        VISION_DEFAULTS.maxRequestTimeoutSeconds,
+        `A page may take at most ${VISION_DEFAULTS.maxRequestTimeoutSeconds} seconds.`,
+      )
+      .nullish()
+      .transform((value) => value ?? null),
+    maxResponseTokens: z
+      .number()
+      .int()
+      .min(
+        VISION_DEFAULTS.minPageMaxTokens,
+        `A reply may be capped at no fewer than ${VISION_DEFAULTS.minPageMaxTokens} tokens.`,
+      )
+      .max(
+        VISION_DEFAULTS.maxPageMaxTokens,
+        `A reply may be capped at no more than ${VISION_DEFAULTS.maxPageMaxTokens} tokens.`,
+      )
+      .nullish()
+      .transform((value) => value ?? null),
+    // The SDL's names are the stored values in capitals.
+    imageDetail: z
+      .enum(['AUTO', 'LOW', 'HIGH'])
+      .nullish()
+      .transform((value) => (value ? VISION_DETAIL_BY_NAME[value] : null)),
+    textFormat: z
+      .enum(['PLAIN', 'MARKDOWN'])
+      .nullish()
+      .transform((value) => (value ? VISION_TEXT_FORMAT_BY_NAME[value] : null)),
+    temperature: z
+      .number()
+      .min(0, 'The temperature is at least 0.')
+      .max(VISION_DEFAULTS.maxTemperature, `The temperature is at most ${VISION_DEFAULTS.maxTemperature}.`)
+      .nullish()
+      .transform((value) => value ?? null),
+    topP: optionalBetween('Top P', 0, 1),
+    topK: z
+      .number()
+      .int()
+      .min(0, 'Top K is at least 0.')
+      .nullish()
+      .transform((value) => value ?? null),
+    minP: optionalBetween('Min P', 0, 1),
+    presencePenalty: optionalBetween('The presence penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
+    frequencyPenalty: optionalBetween('The frequency penalty', -VISION_DEFAULTS.maxPenalty, VISION_DEFAULTS.maxPenalty),
+    repeatPenalty: optionalBetween('The repeat penalty', 0, VISION_DEFAULTS.maxRepeatPenalty),
+  })
+  // Skipping OCR is a way of reading automatically: with the model reading only when asked, a
+  // document OCR skipped would have no text at all.
+  .refine((input) => input.skipOcr === false || input.auto, {
+    message: 'OCR can only be skipped when the vision model reads automatically.',
+    path: ['skipOcr'],
+  });
 
 /**
  * Refuses anyone but the admin.
@@ -344,6 +361,7 @@ async function visionSettings(context: Context) {
     model: row?.model ?? null,
     hasApiKey: Boolean(row?.apiKey),
     auto: row?.auto ?? false,
+    skipOcr: row?.skipOcr ?? false,
     requestTimeoutSeconds: row?.requestTimeoutSeconds ?? VISION_DEFAULTS.requestTimeoutSeconds,
     maxResponseTokens: row?.maxResponseTokens ?? VISION_DEFAULTS.pageMaxTokens,
     imageDetail: (row?.imageDetail ?? VisionImageDetail.Auto).toUpperCase(),
@@ -359,8 +377,8 @@ async function visionSettings(context: Context) {
   };
 }
 
-// `visionAvailable` and `visionAuto` are two fields of one `serverConfig`, and the row is read
-// once for both.
+// `visionAvailable`, `visionAuto` and `visionSkipsOcr` are three fields of one `serverConfig`, and the row is read
+// once for all of them.
 const serverConfigRows = new WeakMap<Context, ReturnType<typeof readVisionSettings>>();
 function serverConfigRow(context: Context) {
   let row = serverConfigRows.get(context);
@@ -393,6 +411,13 @@ export function applyVisionExtension(schema: GraphQLSchema): GraphQLSchema {
     }
     const row = await serverConfigRow(context);
     return isConfigured(row) && row?.auto === true;
+  };
+  serverConfig.visionSkipsOcr.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
+    if (context.userId === null) {
+      return false;
+    }
+    const row = await serverConfigRow(context);
+    return isConfigured(row) && row?.auto === true && row.skipOcr;
   };
 
   queries.visionSettings.resolve = async (_parent: unknown, _args: unknown, context: Context) => {

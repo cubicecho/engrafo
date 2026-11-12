@@ -7,6 +7,7 @@ import type { Document } from '@cubicecho/engrafo-db/schema';
 import { describe, expect, it } from 'vitest';
 import { detectOcr, ocrArgs, ocrStep } from '../../pipeline/steps/ocr.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
+import type { VisionConfig } from '../../vision/settings.ts';
 import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb, noProgress } from '../helpers.ts';
 
 const exec = promisify(execFile);
@@ -60,6 +61,24 @@ describe('ocr step', () => {
     expect(ocrStep.enabled(doc({ ocrRequested: false }), CONFIG)).toBe(false);
     expect(ocrStep.enabled(doc(), { ...CONFIG, ocrAvailable: false })).toBe(false);
     expect(ocrStep.enabled(doc({ mimeType: 'text/plain' }), CONFIG)).toBe(false);
+  });
+
+  it('stands aside when the vision model reads in its place, and only then', () => {
+    const vision: VisionConfig = {
+      baseUrl: 'http://box/v1',
+      apiKey: '',
+      model: 'm',
+      requestTimeoutSeconds: 30,
+      maxResponseTokens: 8192,
+      imageDetail: 'auto',
+      temperature: 0.6,
+      sampler: {},
+      textFormat: 'plain',
+      auto: true,
+      skipOcr: true,
+    };
+    expect(ocrStep.enabled(doc(), { ...CONFIG, vision })).toBe(false);
+    expect(ocrStep.enabled(doc(), { ...CONFIG, vision: { ...vision, skipOcr: false } })).toBe(true);
   });
 
   it('gives images a DPI and PDFs none', () => {

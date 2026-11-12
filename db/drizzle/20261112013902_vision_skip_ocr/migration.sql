@@ -1,0 +1,2 @@
+ALTER TABLE "vision_settings" ADD COLUMN "skip_ocr" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "vision_settings" ADD CONSTRAINT "vision_settings_skip_ocr" CHECK (not "skip_ocr" or "auto");

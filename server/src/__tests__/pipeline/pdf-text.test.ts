@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { detectPdfText } from '../../pipeline/pdf-text.ts';
 import { pdfTextStep } from '../../pipeline/steps/pdf-text.ts';
 import type { RunConfig } from '../../pipeline/types.ts';
+import type { VisionConfig } from '../../vision/settings.ts';
 import { bornDigitalPdf, createFakeEmbedder, createFakeStorage, createTestDb, noProgress } from '../helpers.ts';
 
 const CONFIG: RunConfig = {
@@ -55,6 +56,23 @@ describe('pdf-text step', () => {
   it('reads a PDF whenever OCR is not going to', () => {
     expect(pdfTextStep.enabled(doc(), CONFIG)).toBe(true);
     expect(pdfTextStep.enabled(doc({ ocrRequested: true }), { ...CONFIG, ocrAvailable: false })).toBe(true);
+  });
+
+  it('reads a PDF the vision model reads in place of OCR, so a failed read has its text to keep', () => {
+    const vision: VisionConfig = {
+      baseUrl: 'http://box/v1',
+      apiKey: '',
+      model: 'm',
+      requestTimeoutSeconds: 30,
+      maxResponseTokens: 8192,
+      imageDetail: 'auto',
+      temperature: 0.6,
+      sampler: {},
+      textFormat: 'plain',
+      auto: true,
+      skipOcr: true,
+    };
+    expect(pdfTextStep.enabled(doc({ ocrRequested: true }), { ...CONFIG, vision })).toBe(true);
   });
 
   it('stands aside when OCR runs, which reads the text itself, and without pdftotext', () => {

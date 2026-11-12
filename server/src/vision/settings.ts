@@ -78,6 +78,8 @@ export interface VisionConfig {
   textFormat: dbSchema.ContentFormat;
   /** Whether every document OCR runs on is read, rather than only one someone asked for. */
   auto: boolean;
+  /** With `auto`: whether the model reads in OCR's place, so ocrmypdf is not run first. */
+  skipOcr: boolean;
 }
 
 /** What `saveVisionSettings` writes. */
@@ -87,6 +89,8 @@ export interface VisionSettingsUpdate {
   /** Undefined keeps the stored key; null clears it. */
   apiKey: string | null | undefined;
   auto: boolean;
+  /** Only with `auto`. */
+  skipOcr: boolean;
   /** Null is `VISION_DEFAULTS.requestTimeoutSeconds`. */
   requestTimeoutSeconds: number | null;
   /** Null is `VISION_DEFAULTS.pageMaxTokens`. */
@@ -149,6 +153,7 @@ export async function loadVisionConfig(db: DB): Promise<VisionConfig | null> {
     sampler: samplerOf(row),
     textFormat: row.textFormat ?? dbSchema.ContentFormat.Plain,
     auto: row.auto,
+    skipOcr: row.auto && row.skipOcr,
   };
 }
 

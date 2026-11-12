@@ -690,7 +690,11 @@ instead of `TRANSCRIBE` and takes off a fence wrapped round a whole answer
 `vision` step sits after `ebook` and before `metadata`, breaking "new steps go
 last" because it produces text. It runs when a model is set up, the document is
 a PDF or an image, and either `visionRequested` is set or the model is on
-"Read automatically" and `ocrRequested` is. Pages are rasterised from the
+"Read automatically" and `ocrRequested` is. "Skip OCR and read automatically"
+(`vision_settings.skip_ocr`, which a check allows only with `auto`) is the same
+with the `ocr` step standing aside (`visionReadsInsteadOfOcr`), so a page is
+not read twice: there is no PDF/A archive, the model is shown the original, and
+a PDF still gets its own text layer from `pdf-text` first. Pages are rasterised from the
 archive (already deskewed and upright) at 200 DPI with Ghostscript; an image
 goes as uploaded, WebP, GIF and a see-through PNG as `toOpaquePng`, and a TIFF
 as a PNG per frame, so a multi-page scan keeps its later pages.
@@ -707,7 +711,9 @@ saved it would put the loop over good text), every page blank (a model that did 
 blank document), or more than `VISION_DEFAULTS.maxPages` (declined, never
 truncated) writes nothing. On an automatic run the old text stays, a
 `[vision]` line is logged and the step succeeds, so an endpoint being down
-never fails every scan filed meanwhile. On a run someone asked for, the step
+never fails every scan filed meanwhile; when OCR was skipped for the model, the
+step runs `ocrStep.run` there and then instead (if OCR would have run without
+the model), so the document ends as it would have with no model at all. On a run someone asked for, the step
 fails with the reason and Retry runs it again. `readDocumentWithVision` (the
 document page's "Read with vision model") takes a ready or failed PDF or image,
 claims it conditionally as retry and reprocess do, sets `visionRequested`, and
