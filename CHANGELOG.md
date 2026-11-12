@@ -1,3 +1,10 @@
+# [4.22.0](https://github.com/cubicecho/engrafo/compare/v4.21.0...v4.22.0) (2026-11-12)
+
+
+### Features
+
+* let the vision model read in place of OCR ([28aba2f](https://github.com/cubicecho/engrafo/commit/28aba2f9fa686f31d4eb06c2a23814f5452dc9b6))
+
 # [4.21.0](https://github.com/cubicecho/engrafo/compare/v4.20.0...v4.21.0) (2026-11-11)
 
 
