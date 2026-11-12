@@ -14,6 +14,7 @@ import { storeContent } from '../content.ts';
 import { pngHasTransparency, toOpaquePng } from '../image.ts';
 import { isImage, isOcrable, needsPngForOcr } from '../mime.ts';
 import type { PipelineStep, StepContext } from '../types.ts';
+import { ocrStep } from './ocr.ts';
 
 const exec = promisify(execFile);
 
@@ -258,10 +259,12 @@ async function transcribe(
  * Re-reads a PDF's or an image's pages with a vision model and replaces the text the steps before
  * it extracted.
  *
- * It runs after `ocr` and deliberately does not take over from it: ocrmypdf still writes the PDF/A
+ * It runs after `ocr` and by default does not take over from it: ocrmypdf still writes the PDF/A
  * archive, because the archive is the copy that has to outlive this instance and no vision model
  * emits one. Only the text in the text bucket is at stake, which is the half where a model that
- * reads a curved scan, a table or handwriting beats Tesseract.
+ * reads a curved scan, a table or handwriting beats Tesseract. On "Skip OCR and read
+ * automatically" (`skipOcr`) the admin trades the archive for not reading every page twice: `ocr`
+ * stands aside, there is no archive, and the model is shown the original.
  *
  * Every page has to come back or nothing is written: a transcript missing the page the endpoint
  * choked on would overwrite text that had it. What happens then depends on who wanted the run.
@@ -269,13 +272,15 @@ async function transcribe(
  * existing text is kept, the reason is logged, and the step succeeds: an endpoint that is down
  * must not fail every scan filed while it is. When someone asked for this document to be read, a
  * silent success would tell them it worked, so the step fails with the reason, and Retry runs it
- * again from here.
+ * again from here. When OCR was skipped for the model's sake, the text it would keep is at best a
+ * PDF's own text layer, so it runs OCR then, as it would have run without the model.
  */
 export const visionStep: PipelineStep = {
   name: VISION_STEP,
   enabled: (doc, { vision }) =>
     vision !== null && isOcrable(doc.mimeType) && (doc.visionRequested || (vision.auto && doc.ocrRequested)),
-  async run({ doc, storage, config, tmpDir, reportProgress }) {
+  async run(context) {
+    const { doc, storage, config, tmpDir, reportProgress } = context;
     const { vision } = config;
     if (vision === null) {
       return undefined;
@@ -292,6 +297,11 @@ export const visionStep: PipelineStep = {
     } catch (error) {
       if (doc.visionRequested) {
         throw error;
+      }
+      // The ocr step's own check, with the model taken out of it: would OCR have run without it?
+      if (vision.skipOcr && ocrStep.enabled(doc, { ...config, vision: null })) {
+        notice(`${doc.id}: ${errorMessage(error)} Running OCR instead.`);
+        return ocrStep.run(context);
       }
       notice(`${doc.id}: ${errorMessage(error)} Keeping the text it had.`);
       return undefined;

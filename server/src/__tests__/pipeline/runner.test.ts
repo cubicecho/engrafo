@@ -389,6 +389,7 @@ describe('pipeline runner', () => {
       model: 'reader',
       apiKey: undefined,
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: null,

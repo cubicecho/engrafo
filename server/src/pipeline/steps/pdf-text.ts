@@ -5,7 +5,8 @@ import type { PipelineStep } from '../types.ts';
 import { ocrStep } from './ocr.ts';
 
 /**
- * A PDF's own text, when OCR is not going to run: it was not asked for, or is unavailable here.
+ * A PDF's own text, when OCR is not going to run: it was not asked for, is unavailable here, or
+ * the vision model reads in its place (which then has this text to keep if it cannot read).
  * When OCR does run, it reads the text layer of what it produced, so this step stands aside.
  */
 export const pdfTextStep: PipelineStep = {

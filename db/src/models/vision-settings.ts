@@ -28,6 +28,9 @@ export const visionSettings = pgTable(
     apiKey: text('api_key'),
     // On, every document OCR runs on is re-read; off, only one asked for from its page.
     auto: boolean('auto').notNull().default(false),
+    // With `auto`, the model reads in OCR's place: ocrmypdf is not run, so a page is not read twice.
+    // A document then has no PDF/A archive, and the model is shown the original.
+    skipOcr: boolean('skip_ocr').notNull().default(false),
     // How long one page may take. Null is VISION_DEFAULTS.requestTimeoutSeconds.
     requestTimeoutSeconds: integer('request_timeout_seconds'),
     // The longest reply one page may get, in tokens. Null is VISION_DEFAULTS.pageMaxTokens.
@@ -53,6 +56,7 @@ export const visionSettings = pgTable(
   },
   (table) => [
     check('vision_settings_singleton', sql`${table.id} = 'vision'`),
+    check('vision_settings_skip_ocr', sql`not ${table.skipOcr} or ${table.auto}`),
     check('vision_settings_image_detail', sql`${table.imageDetail} in ('auto', 'low', 'high')`),
     check('vision_settings_max_response_tokens', sql`${table.maxResponseTokens} > 0`),
     check('vision_settings_temperature', sql`${table.temperature} between 0 and 2`),

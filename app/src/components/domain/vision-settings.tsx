@@ -36,6 +36,7 @@ export const VisionSettingsDocument = graphql(`
       model
       hasApiKey
       auto
+      skipOcr
       requestTimeoutSeconds
       maxResponseTokens
       imageDetail
@@ -59,6 +60,7 @@ const SetVisionSettings = graphql(`
       model
       hasApiKey
       auto
+      skipOcr
       requestTimeoutSeconds
       maxResponseTokens
       imageDetail
@@ -229,6 +231,7 @@ const BASE_URL_HELP =
   'Any OpenAI-compatible server: Ollama http://localhost:11434/v1, LM Studio http://localhost:1234/v1, vLLM http://localhost:8000/v1, OpenAI https://api.openai.com/v1, OpenRouter https://openrouter.ai/api/v1.';
 
 const MODE_AUTO = 'auto';
+const MODE_INSTEAD_OF_OCR = 'instead-of-ocr';
 const MODE_ASKED = 'asked';
 
 const RUN_MODES = [
@@ -236,6 +239,12 @@ const RUN_MODES = [
     value: MODE_AUTO,
     label: 'Read automatically',
     description: 'Every document OCR runs on is read again by the model once OCR is done.',
+  },
+  {
+    value: MODE_INSTEAD_OF_OCR,
+    label: 'Skip OCR and read automatically',
+    description:
+      'The model reads every document OCR would have, in its place, so no page is read twice. No searchable PDF is made, and OCR runs only on a document the model could not read.',
   },
   {
     value: MODE_ASKED,
@@ -281,12 +290,20 @@ function samplerOf(from: { [Field in SamplerField]?: number | null }): Record<Sa
   };
 }
 
+/** Which of `RUN_MODES` the stored settings are. */
+function modeOf(settings: Pick<Settings, 'auto' | 'skipOcr'>): string {
+  if (settings.auto === false) {
+    return MODE_ASKED;
+  }
+  return settings.skipOcr ? MODE_INSTEAD_OF_OCR : MODE_AUTO;
+}
+
 function toValues(settings: Settings): VisionFormValues {
   return {
     baseUrl: settings.baseUrl ?? '',
     apiKey: '',
     model: settings.model ?? null,
-    mode: settings.auto ? MODE_AUTO : MODE_ASKED,
+    mode: modeOf(settings),
     requestTimeoutSeconds:
       settings.requestTimeoutSeconds === VISION_TIMEOUT_DEFAULT_SECONDS ? null : settings.requestTimeoutSeconds,
     maxResponseTokens:
@@ -304,7 +321,8 @@ export function toInput(value: VisionFormValues): VisionSettingsInput {
   return {
     baseUrl: value.baseUrl.trim() || null,
     model: value.model?.trim() || null,
-    auto: value.mode === MODE_AUTO,
+    auto: value.mode === MODE_AUTO || value.mode === MODE_INSTEAD_OF_OCR,
+    skipOcr: value.mode === MODE_INSTEAD_OF_OCR,
     requestTimeoutSeconds: value.requestTimeoutSeconds,
     maxResponseTokens: value.maxResponseTokens,
     imageDetail: isImageDetail(value.imageDetail) ? value.imageDetail : VisionImageDetail.Auto,
@@ -321,6 +339,7 @@ function storedInput(settings: Settings, change: Partial<VisionSettingsInput>): 
     baseUrl: settings.baseUrl ?? null,
     model: settings.model ?? null,
     auto: settings.auto,
+    skipOcr: settings.skipOcr,
     requestTimeoutSeconds: settings.requestTimeoutSeconds,
     maxResponseTokens: settings.maxResponseTokens,
     imageDetail: settings.imageDetail,
@@ -338,31 +357,40 @@ interface VisionSettingsCardProps {
   available: boolean;
   /** `serverConfig.visionAuto`: it reads every OCR'd document by itself. */
   auto: boolean;
+  /** `serverConfig.visionSkipsOcr`: reading by itself, it reads in OCR's place. */
+  skipsOcr?: boolean;
 }
 
 /**
  * Settings' vision model card: the form for the admin, one read-only line for everyone else.
  */
-export function VisionSettingsCard({ isAdmin, available, auto }: VisionSettingsCardProps) {
-  return isAdmin ? <VisionSettingsForm /> : <VisionSummary available={available} auto={auto} />;
+export function VisionSettingsCard({ isAdmin, available, auto, skipsOcr = false }: VisionSettingsCardProps) {
+  return isAdmin ? <VisionSettingsForm /> : <VisionSummary available={available} auto={auto} skipsOcr={skipsOcr} />;
 }
 
 /** What the instance does with a vision model, in words. */
-export function visionSummary(available: boolean, auto: boolean): string {
+export function visionSummary(available: boolean, auto: boolean, skipsOcr = false): string {
   if (!available) {
     return 'Off';
   }
-  return auto ? 'On, reads every OCR’d document automatically' : 'On, reads a document when asked from its page';
+  if (auto === false) {
+    return 'On, reads a document when asked from its page';
+  }
+  return skipsOcr
+    ? 'On, reads every document automatically in place of OCR'
+    : 'On, reads every OCR’d document automatically';
 }
 
-function VisionSummary({ available, auto }: { available: boolean; auto: boolean }) {
+function VisionSummary({ available, auto, skipsOcr }: { available: boolean; auto: boolean; skipsOcr: boolean }) {
   return (
     <CardLayout
       level={2}
       title="Vision model"
       description="Reads scanned pages again with a model that sees them, for better text than OCR alone. Set up by the admin."
       contentSlot={
-        <PropertyList contentSlot={<PropertyRow label="Vision model" value={visionSummary(available, auto)} />} />
+        <PropertyList
+          contentSlot={<PropertyRow label="Vision model" value={visionSummary(available, auto, skipsOcr)} />}
+        />
       }
     />
   );

@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { resetAll } from '@cubicecho/agent-core';
 import type { Document } from '@cubicecho/engrafo-db/schema';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ocrStep } from '../../pipeline/steps/ocr.ts';
 import {
   pageInput,
   rasterArgs,
@@ -91,6 +92,7 @@ async function fakeEndpoint(reply: (body: OpenAIRequest) => string | Finished | 
     sampler: {},
     textFormat: 'plain',
     auto: true,
+    skipOcr: false,
   };
   return { vision, bodies, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
 }
@@ -106,6 +108,7 @@ const VISION: VisionConfig = {
   sampler: {},
   textFormat: 'plain',
   auto: false,
+  skipOcr: false,
 };
 const CONFIG: RunConfig = {
   ocrAvailable: true,
@@ -361,6 +364,31 @@ describe('vision step against an OpenAI-compatible endpoint', () => {
       expect(patch).toBeUndefined();
       expect(storage.text.objects.size).toBe(0);
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[vision\] .*page 1 of 1/));
+    } finally {
+      await endpoint.close();
+    }
+  });
+
+  it('in place of OCR, runs OCR when the endpoint refuses, as it would have run without the model', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ocr = vi.spyOn(ocrStep, 'run').mockResolvedValue({ archiveKey: 'archives/u/scan.pdf' });
+    const endpoint = await fakeEndpoint(() => ({ status: 400 }));
+    try {
+      const skipping = { ...CONFIG, vision: { ...endpoint.vision, skipOcr: true } };
+      const { patch } = await runStep(skipping, doc({ visionRequested: false }));
+      expect(ocr).toHaveBeenCalledOnce();
+      expect(patch).toEqual({ archiveKey: 'archives/u/scan.pdf' });
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[vision\] .*Running OCR instead\.$/));
+
+      // Without ocrmypdf there is nothing to fall back to, and the text it had is kept.
+      ocr.mockClear();
+      const { patch: kept } = await runStep({ ...skipping, ocrAvailable: false }, doc({ visionRequested: false }));
+      expect(ocr).not.toHaveBeenCalled();
+      expect(kept).toBeUndefined();
+
+      // Someone asked for this read, so they are told it failed rather than handed OCR's text.
+      await expect(runStep(skipping)).rejects.toThrow(/page 1 of 1/);
+      expect(ocr).not.toHaveBeenCalled();
     } finally {
       await endpoint.close();
     }

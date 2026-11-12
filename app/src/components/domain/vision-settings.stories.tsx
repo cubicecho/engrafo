@@ -27,6 +27,7 @@ interface StoredSettings {
   model: string | null;
   hasApiKey: boolean;
   auto: boolean;
+  skipOcr: boolean;
   requestTimeoutSeconds: number;
   maxResponseTokens: number;
   imageDetail: VisionImageDetail;
@@ -45,6 +46,7 @@ const OFF: StoredSettings = {
   model: null,
   hasApiKey: false,
   auto: true,
+  skipOcr: false,
   requestTimeoutSeconds: VISION_TIMEOUT_DEFAULT_SECONDS,
   maxResponseTokens: VISION_MAX_RESPONSE_DEFAULT_TOKENS,
   imageDetail: VisionImageDetail.Auto,
@@ -100,6 +102,7 @@ function server(initial: StoredSettings, listError?: string): Server {
             model: input.model || null,
             hasApiKey: input.apiKey === undefined ? stored.hasApiKey : input.apiKey !== '',
             auto: input.auto,
+            skipOcr: input.skipOcr ?? false,
             requestTimeoutSeconds: input.requestTimeoutSeconds ?? VISION_TIMEOUT_DEFAULT_SECONDS,
             maxResponseTokens: input.maxResponseTokens ?? VISION_MAX_RESPONSE_DEFAULT_TOKENS,
             imageDetail: input.imageDetail ?? VisionImageDetail.Auto,
@@ -166,6 +169,7 @@ export const PicksAModelAndSaves: Story = {
       baseUrl: OLLAMA,
       model: 'gemma3:12b',
       auto: false,
+      skipOcr: false,
       requestTimeoutSeconds: null,
       maxResponseTokens: null,
       imageDetail: VisionImageDetail.Auto,
@@ -179,6 +183,23 @@ export const PicksAModelAndSaves: Story = {
       textFormat: VisionTextFormat.Plain,
     });
     await expect('apiKey' in (picking.saves[0] ?? {})).toBe(false);
+  },
+};
+
+const skipping = server(ON_OLLAMA);
+
+/** "Skip OCR and read automatically" is reading automatically, with OCR skipped, and opens on itself once saved. */
+export const SkipsOcr: Story = {
+  parameters: { apolloClient: { resolvers: skipping.resolvers } },
+  play: async ({ canvas }) => {
+    await canvas.findByText('Connected');
+    await userEvent.click(canvas.getByRole('radio', { name: /Skip OCR and read automatically/ }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+
+    await expect(await canvas.findByText('Saved')).toBeInTheDocument();
+    await expect(skipping.saves[0]).toMatchObject({ auto: true, skipOcr: true });
+    await expect(canvas.getByRole('radio', { name: /Skip OCR and read automatically/ })).toBeChecked();
+    await expect(canvas.getByRole('button', { name: 'Save' })).toBeDisabled();
   },
 };
 
@@ -334,6 +355,14 @@ export const ReadOnlyForOthers: Story = {
     await expect(await canvas.findByText('On, reads a document when asked from its page')).toBeInTheDocument();
     await expect(canvas.queryByRole('textbox', { name: 'Base URL' })).not.toBeInTheDocument();
     await expect(forbidden.reads).toBe(0);
+  },
+};
+
+/** Reading in OCR's place says so to someone who is not the admin. */
+export const SkipsOcrForOthers: Story = {
+  args: { isAdmin: false, available: true, auto: true, skipsOcr: true },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('On, reads every document automatically in place of OCR')).toBeInTheDocument();
   },
 };
 
