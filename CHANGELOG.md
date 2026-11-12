@@ -1,3 +1,10 @@
+# [4.23.0](https://github.com/cubicecho/engrafo/compare/v4.22.0...v4.23.0) (2026-11-12)
+
+
+### Features
+
+* let the admin write the vision model's instructions, and improve the Markdown one ([8e15a52](https://github.com/cubicecho/engrafo/commit/8e15a524ad5f8c75d2aff9e4f3256be49af40d55))
+
 # [4.22.0](https://github.com/cubicecho/engrafo/compare/v4.21.0...v4.22.0) (2026-11-12)
 
 
