@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLimiter } from '../../pipeline/limiter.ts';
+import { createLimiter } from '../../core/limiter.ts';
 
 /** Waits `depth` microtasks, then calls `then`: an arrival at a chosen moment. */
 function afterMicrotasks(depth: number, then: () => void) {
