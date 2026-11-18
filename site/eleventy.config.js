@@ -8,6 +8,7 @@
 export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ "src/css": "css" });
   eleventyConfig.addPassthroughCopy({ "src/assets": "assets" });
+  eleventyConfig.addPassthroughCopy({ "src/js": "js" });
   // Pages runs Jekyll over the artifact unless told not to; a leading-underscore
   // directory (like _includes output, if any) would vanish without this.
   eleventyConfig.addPassthroughCopy({ "src/nojekyll": ".nojekyll" });

@@ -21,11 +21,11 @@
         <span class="name">{{ site.name }}</span>
       </a>
       <nav>
-        <a href="{{ '/' | url }}"{% if page.url == ('/' | url) %} aria-current="page"{% endif %}>Home</a>
+        <a href="{{ '/#features' | url }}">Features</a>
+        <a href="{{ '/self-hosting/' | url }}"{% if page.url == '/self-hosting/' %} aria-current="page"{% endif %}>Self-hosting</a>
         <a href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
         {% if site.npm %}<a href="{{ site.npm }}" rel="noopener">npm ↗</a>{% endif %}
-        {% if site.docker %}<a href="{{ site.docker }}" rel="noopener">Docker ↗</a>{% endif %}
-        <a href="{{ site.org }}" rel="noopener">Cubic Echo ↗</a>
+        <a class="button small" href="{{ '/self-hosting/' | url }}">Get started</a>
       </nav>
     </header>
 
@@ -36,7 +36,9 @@
     <footer class="site-footer">
       <span>© {% year %} Cubic Echo</span>
       <span class="footer-links">
+        <a href="{{ '/self-hosting/' | url }}">Self-hosting</a>
         <a href="{{ site.repo }}" rel="noopener">Source</a>
+        {% if site.docker %}<a href="{{ site.docker }}" rel="noopener">Docker Hub</a>{% endif %}
         <a href="{{ site.org }}" rel="noopener">cubicecho.com</a>
       </span>
     </footer>
