@@ -1,3 +1,9 @@
+## [4.28.1](https://github.com/cubicecho/engrafo/compare/v4.28.0...v4.28.1) (2026-11-18)
+
+### Performance Improvements
+
+* a merge of finished documents reads no page again ([e85ba01](https://github.com/cubicecho/engrafo/commit/e85ba01aeae159f266e9babfbfaee15755bb1ff3))
+
 # [4.28.0](https://github.com/cubicecho/engrafo/compare/v4.27.0...v4.28.0) (2026-11-18)
 
 ### Features
