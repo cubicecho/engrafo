@@ -15,6 +15,8 @@ export const ROUTES = Object.freeze({
   trash: '/trash',
   /** What the pipeline is doing: running, queued, failed and lately finished. */
   processing: '/processing',
+  /** Documents that look like one scan filed as several. Link to one with {@link mergeSuggestionPath}. */
+  mergeSuggestions: '/merge-suggestions',
   settings: '/settings',
   login: '/login',
   /** Where a magic link lands, carrying its token in the query string. */
@@ -31,6 +33,19 @@ export const ROUTES = Object.freeze({
  */
 export function documentPath(id: string): string {
   return generatePath(ROUTES.document, { id });
+}
+
+/** The query string key that says which suggested merge's dialog is open. */
+export const REVIEW_PARAM = 'review';
+
+/**
+ * The suggested merges page with one suggestion's merge dialog open: where the document page's
+ * "Review merge" goes.
+ *
+ * @param suggestionId - The suggestion to review.
+ */
+export function mergeSuggestionPath(suggestionId: string): string {
+  return `${ROUTES.mergeSuggestions}?${REVIEW_PARAM}=${encodeURIComponent(suggestionId)}`;
 }
 
 /** The query string key that says which folder the upload panel files into. */

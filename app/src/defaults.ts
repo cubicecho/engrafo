@@ -76,3 +76,18 @@ export interface ProcessingPageSettings {
 export const PROCESSING_PAGE_DEFAULTS: Readonly<ProcessingPageSettings> = Object.freeze({
   idleIntervalMs: 15_000,
 });
+
+/** How the sidebar's count of suggested merges keeps up. */
+export interface MergeSuggestionSettings {
+  /**
+   * How often the count is asked again, whatever else is happening. A suggestion is written about
+   * a minute after a batch of documents settles, by a job no page sees, so neither a write made
+   * here nor the archive's poll (which stops once nothing is moving) would bring it.
+   */
+  countIntervalMs: number;
+}
+
+/** What the suggested merges' count polls at unless something says otherwise. */
+export const MERGE_SUGGESTION_DEFAULTS: Readonly<MergeSuggestionSettings> = Object.freeze({
+  countIntervalMs: 60_000,
+});

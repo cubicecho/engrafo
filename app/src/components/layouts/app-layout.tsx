@@ -1,4 +1,5 @@
 import { useLinkClickHandler, useMatch } from 'react-router';
+import { DocumentStatusEnum } from '@/__generated__/graphql';
 import { Activity, LogOut } from '@/components/domain/app-icons';
 import { ArchiveSidebarSection } from '@/components/domain/archive-sidebar';
 import { SavedSearchesSidebarSection } from '@/components/domain/saved-searches';
@@ -6,9 +7,10 @@ import { isInProgress } from '@/components/domain/status-badge';
 import { AppBarItem, Sidebar, SidebarItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
-import { FileText, type IconProps, Settings, Trash2 } from '@/components/ui/icons';
+import { FileText, type IconProps, Layers, Settings, Trash2 } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { useArchive } from '@/lib/archive';
+import { useMergeSuggestionCount } from '@/lib/merge-suggestions';
 import { ROUTES } from '@/lib/routes';
 import { useSignOut } from '@/lib/sign-out';
 import { useTrashCount } from '@/lib/trash';
@@ -21,8 +23,8 @@ type NavItem = {
   end: boolean;
   /** Where the sidebar draws it: with the places, or at the foot with sign-out, as cubeui apps put Settings. */
   placement: 'main' | 'footer';
-  /** Which count the row wears, if any: what is in the trash, or what is running or queued. */
-  count?: 'trash' | 'processing' | undefined;
+  /** Which count the row wears, if any: what is in the trash, what is running or queued, or what might be merged. */
+  count?: 'trash' | 'processing' | 'mergeSuggestions' | undefined;
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
@@ -30,6 +32,14 @@ const NAV_ITEMS: readonly NavItem[] = [
   // route is a document, not the list, and two lit rows read as a bug.
   { to: ROUTES.documents, label: 'Documents', icon: FileText, end: true, placement: 'main' },
   { to: ROUTES.processing, label: 'Processing', icon: Activity, end: true, placement: 'main', count: 'processing' },
+  {
+    to: ROUTES.mergeSuggestions,
+    label: 'Suggested merges',
+    icon: Layers,
+    end: true,
+    placement: 'main',
+    count: 'mergeSuggestions',
+  },
   { to: ROUTES.trash, label: 'Trash', icon: Trash2, end: true, placement: 'main', count: 'trash' },
   { to: ROUTES.settings, label: 'Settings', icon: Settings, end: false, placement: 'footer' },
 ];
@@ -93,7 +103,16 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
   // count follows the pipeline with no poll of its own.
   const { documents } = useArchive();
   const moving = documents.filter((doc) => isInProgress(doc.status)).length;
-  const counts = { trash: trashCount, processing: moving > 0 ? moving : undefined };
+  // Refetched by name after a merge, a dismissal or a rescore, and on a slow poll besides, since
+  // the suggester writes in the background; asked again too when a document settles or leaves.
+  const suggestionCount = useMergeSuggestionCount(
+    documents.filter((doc) => doc.status === DocumentStatusEnum.Ready).length,
+  );
+  const counts = {
+    trash: trashCount,
+    processing: moving > 0 ? moving : undefined,
+    mergeSuggestions: suggestionCount,
+  };
   const countOf = (item: NavItem) => (item.count === undefined ? undefined : counts[item.count]);
 
   return (

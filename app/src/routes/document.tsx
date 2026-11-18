@@ -18,6 +18,7 @@ import { DocumentPreviewCard, isPreviewable } from '@/components/domain/document
 import { DocumentReceiptCard } from '@/components/domain/document-receipt-card';
 import { DocumentTextCard } from '@/components/domain/document-text-card';
 import { DuplicateAlert } from '@/components/domain/duplicate-alert';
+import { MergeSuggestionAlert } from '@/components/domain/merge-suggestion-alert';
 import { MoveDialog } from '@/components/domain/move-dialog';
 import { ReceiptDialog } from '@/components/domain/receipt-dialog';
 import { RenameDocumentDialog } from '@/components/domain/rename-document-dialog';
@@ -100,6 +101,23 @@ const DocumentDuplicatesOf = graphql(`
         id
         title
         folderId
+      }
+    }
+  }
+`);
+
+// Its own query and never polled: a suggestion only names ready documents, so it is asked once the
+// document is settled, not on every tick of the poll that runs while it is processed.
+const DocumentMergeSuggestions = graphql(`
+  query DocumentMergeSuggestions($id: UUID!) {
+    mergeSuggestions {
+      suggestions(documentId: $id) {
+        id
+        confidence
+        documents {
+          id
+          title
+        }
       }
     }
   }
@@ -320,6 +338,12 @@ export function DocumentRoute() {
     fetchPolicy: 'cache-and-network',
   });
   const duplicates = duplicatesOf.data?.documentDuplicates[0]?.duplicates ?? [];
+  const suggestedMerges = useQuery(DocumentMergeSuggestions, {
+    variables: { id },
+    skip: doc?.status !== DocumentStatus.Ready,
+    // Network as well as cache: a suggestion may have been merged or dismissed since.
+    fetchPolicy: 'cache-and-network',
+  });
   // The sidebar's query, answered from the cache, for the other copies' folder paths.
   const { folders } = useArchive();
 
@@ -625,6 +649,11 @@ export function DocumentRoute() {
                 onConfirm={() => deleteThis(doc.id)}
               />
             }
+          />
+
+          <MergeSuggestionAlert
+            documentId={doc.id}
+            suggestions={suggestedMerges.data?.mergeSuggestions.suggestions ?? []}
           />
 
           <SplitLayout

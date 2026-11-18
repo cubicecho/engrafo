@@ -359,7 +359,7 @@ function mergeServer(serverConfig: typeof SERVER_CONFIG) {
     Mutation: {
       mergeDocuments: (_parent: unknown, args: { input: Record<string, unknown> }) => {
         mergedWith.push(args.input);
-        return { id: '00000000-0000-4000-8000-0000000000aa' };
+        return { id: '00000000-0000-4000-8000-0000000000aa', title: args.input.title };
       },
     },
   };

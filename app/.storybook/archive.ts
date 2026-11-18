@@ -51,8 +51,9 @@ export function archiveServer(start: { folders: Folder[]; documents: Document[] 
       serverConfig: () => SERVER_CONFIG,
       folders: () => folders,
       documents: () => documents,
-      // The shell asks for the trash's count on every page.
+      // The shell asks for the trash's count on every page, and the suggested merges' too.
       trash: () => ({ count: 0, retentionDays: 30, documents: [] }),
+      mergeSuggestions: () => ({ count: 0, suggestions: [] }),
       // The sidebar lists them under the tree on every page, and a list draws thumbnails.
       savedSearches: () => [],
       documentThumbnailUrls: () => [],

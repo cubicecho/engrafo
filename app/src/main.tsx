@@ -10,6 +10,7 @@ import { ROUTES } from '@/lib/routes';
 import { DocumentRoute } from '@/routes/document';
 import { DocumentsRoute } from '@/routes/documents';
 import { LoginPage } from '@/routes/login';
+import { MergeSuggestionsRoute } from '@/routes/merge-suggestions';
 import { ProcessingRoute } from '@/routes/processing';
 import { SettingsRoute } from '@/routes/settings';
 import { SsoPage } from '@/routes/sso';
@@ -46,6 +47,7 @@ createRoot(root).render(
             <Route path={ROUTES.document} element={<RequireAuth contentSlot={<DocumentRoute />} />} />
             <Route path={ROUTES.trash} element={<RequireAuth contentSlot={<TrashRoute />} />} />
             <Route path={ROUTES.processing} element={<RequireAuth contentSlot={<ProcessingRoute />} />} />
+            <Route path={ROUTES.mergeSuggestions} element={<RequireAuth contentSlot={<MergeSuggestionsRoute />} />} />
             <Route path={ROUTES.settings} element={<RequireAuth contentSlot={<SettingsRoute />} />} />
             <Route path="*" element={<Navigate to={ROUTES.documents} replace />} />
           </Routes>
