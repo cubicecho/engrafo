@@ -7,7 +7,7 @@ import {
   processingSteps,
   StepStatus,
 } from '@cubicecho/engrafo-db/schema';
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { assertObjectType, extendSchema, type GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { z } from 'zod';
 import { maxUploadBytes, ocrDefault, version } from '../core/config.ts';
@@ -179,6 +179,46 @@ export async function loadOwned(context: Context, id: string, db: Context['db'] 
     throw documentNotFound();
   }
   return doc;
+}
+
+/**
+ * Several filed documents the caller owns, in the order asked for: what a merge or a title
+ * suggestion reads. Unlike `loadOwned` it leaves out a `pending_upload` row, which has no bytes yet.
+ *
+ * @param db - The database.
+ * @param userId - The caller.
+ * @param ids - The documents, in the order wanted.
+ * @returns One row per id, in that order.
+ * @throws NOT_FOUND when any id is not a UUID, not the caller's, in the trash or never finished
+ *   uploading, so none of those can be told apart.
+ */
+export async function loadOwnedDocuments(
+  db: Context['db'],
+  userId: string,
+  ids: readonly string[],
+): Promise<Document[]> {
+  if (ids.some((id) => z.uuid().safeParse(id).success === false)) {
+    throw documentNotFound();
+  }
+  const rows = await db
+    .select()
+    .from(documents)
+    .where(
+      and(
+        eq(documents.userId, userId),
+        inArray(documents.id, [...ids]),
+        notTrashed(),
+        ne(documents.status, DocumentStatus.PendingUpload),
+      ),
+    );
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.map((id) => {
+    const doc = byId.get(id);
+    if (!doc) {
+      throw documentNotFound();
+    }
+    return doc;
+  });
 }
 
 /**

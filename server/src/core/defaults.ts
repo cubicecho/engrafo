@@ -586,3 +586,32 @@ export const MERGE_DEFAULTS: Readonly<MergeSettings> = Object.freeze({
   python: 'python3',
   timeoutMinutes: 5,
 });
+
+/** Asking the vision model, text only, for a title for one or more documents. */
+export interface TitleSuggestionSettings {
+  /** The most documents one suggestion may read. A merge's worth. */
+  maxDocuments: number;
+  /** The most of one document's extracted text the model is shown, in characters: its first page or so. */
+  textPerDocumentMaxChars: number;
+  /**
+   * The most extracted text the model is shown across all of them, in characters, shared evenly, so
+   * the last document of a long merge is still in it. Kept small: a local model prefills all of it.
+   */
+  textTotalMaxChars: number;
+  /** The longest title suggested, in characters. Far under `DOCUMENT_DEFAULTS.titleMaxLength`: it is read in a tree row. */
+  titleMaxChars: number;
+  /** The longest reply the model may write, in tokens. Room for a model that thinks before a short answer. */
+  maxResponseTokens: number;
+  /** How long the model may take, in seconds, when the admin's own timeout is longer: someone is waiting on the button. */
+  requestTimeoutSeconds: number;
+}
+
+/** The shipped values of `TitleSuggestionSettings`. */
+export const TITLE_SUGGESTION_DEFAULTS: Readonly<TitleSuggestionSettings> = Object.freeze({
+  maxDocuments: 100,
+  textPerDocumentMaxChars: 2000,
+  textTotalMaxChars: 8000,
+  titleMaxChars: 120,
+  maxResponseTokens: 2048,
+  requestTimeoutSeconds: 120,
+});

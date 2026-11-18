@@ -79,6 +79,7 @@ engrafo/
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
 │       ├── merge/           # pdf (pikepdf + img2pdf through python3, detectMerge), merge (mergeDocuments), resolvers
+│       ├── title-suggestion/ # prompt (the instruction, titlePrompt, sanitizeTitle), suggest (suggestDocumentTitle), resolvers
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
 │       ├── metadata/        # document-date and receipt (the extractors), csv, schemas, resolvers (edits, export)
@@ -600,6 +601,21 @@ alone. A failure after the row is written deletes the row and the object.
 numbered because an original held it. The merge runs inside the request: it
 copies pages and draws nothing. Nothing from the sources' metadata is carried
 over; the metadata step reads the merged text afresh.
+
+**A merged copy's title can be suggested, and the suggestion writes nothing.** While
+`visionAvailable`, the dialog's Title field has "Suggest a title", which asks
+`suggestDocumentTitle(ids)` (`title-suggestion/`), a root query named for any set of
+documents so a rename can use it later. It reads them with `loadOwnedDocuments`, the
+merge's own read (NOT_FOUND for anyone else's, a trashed or a `pending_upload` one, or a
+non-UUID), and asks the admin's vision model, text only, through `askReply` with its
+temperature and sampler: each one's title, `documentDate`, vendor and the start of its
+text from the text bucket, read only as far as `TITLE_SUGGESTION_DEFAULTS` allows (a cap
+per document, and an even share of a total, so the last of a long merge is still in it).
+No model is BAD_USER_INPUT. `sanitizeTitle` (pure, beside the prompt in `prompt.ts`) makes
+the answer one line the name rule takes: fences, quotes, bullets and "Title:" off, `/` a
+dash, capped at `titleMaxChars`. An answer with nothing left, or one that hit the reply
+limit, is BAD_USER_INPUT saying so, never an empty string. The answer only fills the
+field, still editable; a failure is an Alert under it and leaves what was typed.
 
 **A saved search is a query string under a name.** `saved_searches` (scoped
 like every user-owned table) holds a `name`, unique per user ignoring case, a
