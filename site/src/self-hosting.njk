@@ -1,0 +1,391 @@
+---
+layout: base.njk
+title: Self-hosting
+description: Run Engrafo on your own machine with Docker Compose — install, first sign-in, configuration, a scanner's watched folder, single sign-on, MCP, backups, upgrades and what to check before exposing it.
+permalink: /self-hosting/
+---
+<section class="hero guide-hero">
+  <p class="eyebrow">Get started</p>
+  <h1>Self-hosting</h1>
+  <p>
+    Engrafo runs from one compose file on any machine with Docker and Docker
+    Compose: a NAS, a home server, a small VPS. It is four containers from
+    published images: Engrafo itself, Postgres, RustFS (the S3-compatible bucket
+    your files live in) and a one-shot job that creates the buckets. Nothing to
+    clone and nothing to build.
+  </p>
+</section>
+
+<nav class="section toc" aria-labelledby="on-this-page">
+  <h2 id="on-this-page">On this page</h2>
+  <div class="prose">
+    <ol>
+      <li><a href="#quickstart">Quickstart</a></li>
+      <li><a href="#first-sign-in">First sign-in</a></li>
+      <li><a href="#configuration">Configuration essentials</a></li>
+      <li><a href="#watched-folder">A scanner's watched folder</a></li>
+      <li><a href="#sso">Single sign-on (OIDC)</a></li>
+      <li><a href="#mcp">Connecting an AI agent over MCP</a></li>
+      <li><a href="#backups">Backups</a></li>
+      <li><a href="#security">Before you expose it to the internet</a></li>
+      <li><a href="#upgrading">Upgrading</a></li>
+      <li><a href="#minio">Coming from MinIO</a></li>
+    </ol>
+  </div>
+</nav>
+
+<section class="section" id="quickstart">
+  <h2>Quickstart</h2>
+  <p class="section-intro">
+    Three commands with the docker CLI, or one paste in Portainer or TrueNAS.
+  </p>
+  <div class="prose">
+    <ol>
+      <li>
+        <p>Make a directory, download the compose file, and write a <code>.env</code> beside it with the address you will browse to and three fresh secrets. Then start it:</p>
+        <pre class="code"><code>mkdir engrafo &amp;&amp; cd engrafo
+curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
+
+# The three secrets it refuses to start without, plus the address you reach it at.
+printf 'ENGRAFO_HOST=%s\nBETTER_AUTH_SECRET=%s\nPOSTGRES_PASSWORD=%s\nRUSTFS_PASSWORD=%s\n' \
+  "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" &gt; .env
+
+docker compose -f docker-compose.quickstart.yml up -d</code></pre>
+      </li>
+      <li>
+        <p>
+          <strong>Check <code>ENGRAFO_HOST</code>.</strong> <code>hostname -f</code>
+          is a guess. It has to be the hostname or LAN IP you will actually open
+          Engrafo at, with no scheme: <code>truenas.local</code>,
+          <code>192.168.1.50</code>. Edit <code>.env</code> if the guess is wrong.
+        </p>
+      </li>
+      <li>
+        <p>
+          <strong>Open <code>http://ENGRAFO_HOST:3004</code>.</strong> Migrations
+          run at boot and the job creates both buckets (one for your files, one
+          for the text extracted from them), so there is no setup step.
+        </p>
+      </li>
+    </ol>
+
+    <h3>On Portainer or TrueNAS SCALE</h3>
+    <p>
+      Paste the contents of
+      <a href="{{ site.repo }}/blob/main/docker-compose.quickstart.yml" rel="noopener"><code>docker-compose.quickstart.yml</code></a>
+      instead of downloading it: Portainer's <em>Stacks → Add stack → Web
+      editor</em>, or TrueNAS's <em>Apps → Discover → Custom App → Install via
+      YAML</em> (Dockge works the same way). Put <code>ENGRAFO_HOST</code>,
+      <code>BETTER_AUTH_SECRET</code>, <code>POSTGRES_PASSWORD</code> and
+      <code>RUSTFS_PASSWORD</code> in the stack's environment-variables box, and
+      <code>TZ</code> (e.g. <code>America/Chicago</code>) if you want it. Make
+      each secret with <code>openssl rand -hex 32</code> for
+      <code>BETTER_AUTH_SECRET</code> and <code>openssl rand -hex 24</code> for
+      the two passwords. The stack refuses to start until the three secrets are
+      set, which is deliberate. The file's header comments are the same
+      instructions as this page.
+    </p>
+
+    <h3>Why <code>ENGRAFO_HOST</code> is not <code>localhost</code></h3>
+    <p>
+      Your browser uploads files straight to RustFS, over a link Engrafo signs,
+      and the signature covers the hostname and the port. If
+      <code>ENGRAFO_HOST</code> says <code>localhost</code> while you browse from
+      another machine, uploads fail with a signature error rather than one that
+      names the real problem. That is also why RustFS's port has to be reachable
+      from your browser, not only from Engrafo.
+    </p>
+
+    <h3>If the ports are taken</h3>
+    <p>
+      If something on the machine already owns 3004, 9000 or 9001 (9000 is
+      popular), set <code>ENGRAFO_PORT</code>, <code>RUSTFS_PORT</code> or
+      <code>RUSTFS_CONSOLE_PORT</code> in <code>.env</code> rather than editing
+      the file. The addresses Engrafo signs its upload links with are built from
+      these, so changing a port only in the <code>ports:</code> list breaks
+      uploads.
+    </p>
+
+    <h3>Keep the <code>.env</code></h3>
+    <p>
+      <code>BETTER_AUTH_SECRET</code> signs sessions, so changing it signs
+      everyone out. Your documents and their text live in the
+      <code>engrafo_rustfs</code> volume and their metadata in
+      <code>engrafo_pgdata</code>. Both survive <code>docker compose down</code>.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="first-sign-in">
+  <h2>First sign-in</h2>
+  <div class="prose">
+    <p>
+      Sign in with any email address. Engrafo sends no mail: the sign-in link is
+      written to the container log, and that is how you get it.
+    </p>
+    <pre class="code"><code>docker logs -f engrafo          # or the Logs tab in Portainer</code></pre>
+    <p>
+      The first account ever created is the admin. The admin is the only one who
+      sees instance settings, such as <strong>Settings → Sign-in</strong>.
+      Registration is open to anyone who can reach the page, so keep it on a
+      network you trust until you have read
+      <a href="#security">Before you expose it</a>.
+    </p>
+    <p>
+      Fetching a link from the log every time gets tedious on a home network.
+      <code>SECURE_LOCAL_NET=true</code> skips the link entirely, so entering an
+      address signs you in. That makes the address the entire credential, so use
+      it only on a LAN you control. Or set up <a href="#sso">single sign-on</a>.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="configuration">
+  <h2>Configuration essentials</h2>
+  <p class="section-intro">
+    The variables the quickstart file reads from <code>.env</code> (or
+    Portainer's environment box). Change one, then run <code>up -d</code> again.
+  </p>
+  <div class="prose">
+    <table>
+      <thead>
+        <tr><th>Variable</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>ENGRAFO_HOST</code></td><td>required</td><td>The hostname or LAN IP you open Engrafo at, no scheme. Sign-in links and signed upload links are built from it.</td></tr>
+        <tr><td><code>BETTER_AUTH_SECRET</code></td><td>required</td><td>Signs sessions and hashes magic-link tokens. At least 32 characters: <code>openssl rand -hex 32</code>.</td></tr>
+        <tr><td><code>POSTGRES_PASSWORD</code></td><td>required</td><td>The database password: <code>openssl rand -hex 24</code>.</td></tr>
+        <tr><td><code>RUSTFS_PASSWORD</code></td><td>required</td><td>The bucket's secret key, and the RustFS console's root password: <code>openssl rand -hex 24</code>.</td></tr>
+        <tr><td><code>TZ</code></td><td><code>UTC</code></td><td>Time zone for all four containers, e.g. <code>America/Chicago</code>.</td></tr>
+        <tr><td><code>ENGRAFO_PORT</code>, <code>RUSTFS_PORT</code>, <code>RUSTFS_CONSOLE_PORT</code></td><td><code>3004</code>, <code>9000</code>, <code>9001</code></td><td>The published ports. Change them here, never only in the file.</td></tr>
+        <tr><td><code>SECURE_LOCAL_NET</code></td><td><code>false</code></td><td><code>true</code> signs you in from an address alone, with no link. A LAN you control only.</td></tr>
+        <tr><td><code>SESSION_STORE</code></td><td><code>memory</code></td><td><code>memory</code> signs everyone out when the container restarts; <code>database</code> keeps sessions.</td></tr>
+        <tr><td><code>TRUST_PROXY</code></td><td><code>false</code></td><td>Behind a reverse proxy, the number of proxies in front (usually <code>1</code>).</td></tr>
+        <tr><td><code>TRASH_RETENTION_DAYS</code></td><td><code>30</code></td><td>How long a deleted document waits in the Trash, restorable, before it and its files are deleted for good.</td></tr>
+        <tr><td><code>WATCH_OWNER</code></td><td>unset</td><td>Turns on the <a href="#watched-folder">watched folder</a>, filing into this account.</td></tr>
+        <tr><td><code>WATCH_STABLE_SECONDS</code></td><td><code>10</code></td><td>How long a file must stop changing before the watched folder takes it.</td></tr>
+        <tr><td><code>OIDC_ISSUER</code>, <code>OIDC_CLIENT_ID</code>, <code>OIDC_CLIENT_SECRET</code>, <code>OIDC_NAME</code></td><td>unset, <code>SSO</code></td><td>Pins an OpenID Connect provider. See <a href="#sso">Single sign-on</a>.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Some settings are written into the file's <code>environment:</code> block
+      rather than read from <code>.env</code>: OCR is on with
+      <code>OCR_LANGUAGES=eng</code> and <code>OCR_CONCURRENCY=1</code> (OCR is
+      CPU-bound, so raise it only with cores to spare), and
+      <code>DATE_ORDER=DMY</code>, which reads <code>03/04/2025</code> day first.
+      A US archive wants <code>MDY</code>. Edit those lines under the
+      <code>engrafo</code> service to change them. Anything else from the full
+      list, such as <code>MAX_UPLOAD_BYTES</code> (100 MiB by default), has to be
+      added there too.
+    </p>
+    <p>
+      The full list, with every default, is in the README's
+      <a href="{{ site.repo }}#configuration" rel="noopener">Configuration</a>
+      section.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="watched-folder">
+  <h2>A scanner's watched folder</h2>
+  <p class="section-intro">
+    Engrafo can file whatever a scanner saves to a network share, then delete it
+    from the share.
+  </p>
+  <div class="prose">
+    <ol>
+      <li>
+        <p>
+          Sign in once with the account the files should go to. Then set
+          <code>WATCH_OWNER</code> to its email address, e.g.
+          <code>WATCH_OWNER=you@example.com</code>. Until that account exists,
+          the log says so and nothing is filed.
+        </p>
+      </li>
+      <li>
+        <p>
+          Under the <code>engrafo</code> service, uncomment the two
+          <code>volumes</code> lines and put the share's path on this machine
+          before <code>:/consume</code>:
+        </p>
+        <pre class="code"><code>    volumes:
+      - /mnt/tank/scans:/consume</code></pre>
+      </li>
+      <li><p>Redeploy (<code>docker compose -f docker-compose.quickstart.yml up -d</code>).</p></li>
+    </ol>
+    <p>What to expect:</p>
+    <ul>
+      <li><strong>Subfolders become folders.</strong> <code>Taxes/2026/receipt.pdf</code> is filed in <code>Taxes</code> → <code>2026</code>, made if missing. A name already taken in a folder is numbered, <code>scan (2)</code>.</li>
+      <li><strong>A file is taken once it stops changing</strong> for <code>WATCH_STABLE_SECONDS</code> (10). Raise it for a slow scanner. The share is polled, because file-change events do not cross a network share.</li>
+      <li><strong>It is deleted only once it is stored.</strong> Engrafo needs permission to delete files in the share; if it cannot, each file is filed once and then stays, and the log says so.</li>
+      <li><strong>The same bytes are not filed twice.</strong> A file already in the owner's archive is removed without adding a copy.</li>
+      <li><strong>A file Engrafo cannot take</strong> (a type it does not accept, too big, empty) stays where it is, and the log says why.</li>
+      <li><strong>Skipped silently:</strong> dotfiles, <code>~$</code> and <code>*.tmp</code>/<code>*.part</code> files, and NAS housekeeping folders such as <code>@eaDir</code> and <code>#recycle</code>.</li>
+    </ul>
+    <p>
+      More detail in the README's
+      <a href="{{ site.repo }}#the-watched-folder" rel="noopener">The watched folder</a>.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sso">
+  <h2>Single sign-on (OIDC)</h2>
+  <p class="section-intro">
+    Sign people in through any OpenID Connect provider, such as heautou, next to
+    magic links.
+  </p>
+  <div class="prose">
+    <h3>Pairing from the app (the easy way)</h3>
+    <p>For a provider that supports Dynamic Client Registration. No variables needed.</p>
+    <ol>
+      <li>In the provider, make a setup URL for Engrafo. It looks like <code>https://&lt;heautou&gt;/oidc#setup=…&amp;name=heautou</code> and works once, for a short while.</li>
+      <li>Paste it into Engrafo. On a new instance, before anyone has an account, that is the login page's <strong>Set up sign-in</strong> tab; after that it is <strong>Settings → Sign-in</strong>, which only the admin sees.</li>
+      <li>The login page shows "Sign in with heautou" straight away, with no restart.</li>
+    </ol>
+    <p>
+      Disconnecting in Settings removes the button and deletes Engrafo's client at
+      the provider. Accounts stay, and can still sign in with a link.
+    </p>
+
+    <h3>From the environment</h3>
+    <p>For a provider without registration, or to pin the provider so it cannot be changed from the app:</p>
+    <ol>
+      <li>Register a client at the provider whose redirect URI is exactly <code>http://ENGRAFO_HOST:3004/api/auth/callback/oidc</code>.</li>
+      <li>Set <code>OIDC_ISSUER</code>, <code>OIDC_CLIENT_ID</code>, <code>OIDC_CLIENT_SECRET</code> (leave it unset for a public client) and, for the button, <code>OIDC_NAME</code>.</li>
+      <li>Redeploy. The login page then shows "Sign in with &lt;OIDC_NAME&gt;", and the server logs the redirect URI it expects.</li>
+    </ol>
+    <p>
+      Set <code>OIDC_ISSUER</code> and <code>OIDC_CLIENT_ID</code> together:
+      one without the other stops the server at boot. An issuer set in the
+      environment wins over a pairing, and Settings then shows it read-only.
+      Someone signing in this way gets the account with the email address the
+      provider vouches for, or a new one.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="mcp">
+  <h2>Connecting an AI agent over MCP</h2>
+  <p class="section-intro">
+    Engrafo serves one MCP endpoint, <code>/mcp</code> (Streamable HTTP), next to
+    the app. An agent sees only the folders you share, and cannot change anything.
+  </p>
+  <div class="prose">
+    <ol>
+      <li>Open a folder's ⋯ menu and choose <strong>Share with MCP</strong>. The folders inside it are shared too. Everything else, including documents at the top level, stays out of reach.</li>
+      <li>
+        <p>In <strong>Settings → MCP</strong>, make an API key. It is shown once, with the command to paste:</p>
+        <pre class="code"><code>claude mcp add --transport http engrafo http://ENGRAFO_HOST:3004/mcp \
+  --header "Authorization: Bearer engr_…"</code></pre>
+      </li>
+    </ol>
+    <p>
+      Any other client takes the same URL and header (<code>x-api-key</code> works
+      too). The tools are <code>engrafo_folders</code>, <code>engrafo_search</code>,
+      <code>engrafo_list</code> and <code>engrafo_read</code>. Turning a folder off
+      takes effect on the agent's next call, and revoking a key refuses it from
+      then on. A key works as its owner, and needs to be there even with
+      <code>SECURE_LOCAL_NET</code>, so treat it like a password.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="backups">
+  <h2>Backups</h2>
+  <div class="prose">
+    <h3>Your archive: export and import</h3>
+    <p>
+      <strong>Settings → Backup</strong> exports your whole archive as one
+      <code>.tar</code>: every original you uploaded, the searchable PDF and
+      extracted text where there are any, and a <code>metadata.json</code> with
+      titles, folder paths, dates, receipt fields and checksums. It streams
+      straight from the bucket to your browser. The tree inside reads like your
+      folders (<code>originals/Taxes/2026/invoice.pdf</code>), so it is useful
+      without Engrafo too.
+    </p>
+    <p>
+      The same tab imports one back, into this instance or a new one (a
+      <code>.tar.gz</code> too, up to 5 GiB by default). A document already in
+      your archive is skipped, so importing the same export twice adds nothing.
+      Dates and receipts you corrected by hand are kept, and every document is
+      processed again like a new upload, so a large import takes a while to
+      settle. Folder sharing with MCP is not restored.
+    </p>
+    <h3>The whole instance</h3>
+    <p>
+      An export is per account. To back up the instance itself (accounts, API
+      keys, sign-in settings), back up the <code>engrafo_pgdata</code> and
+      <code>engrafo_rustfs</code> volumes together, as a database dump plus a
+      bucket sync. One without the other is not a working archive.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="security">
+  <h2>Before you expose it to the internet</h2>
+  <p class="section-intro">
+    Registration is open: any address that completes a sign-in gets an account.
+    That is right for an instance only you can reach, and wrong on the public
+    internet. Before giving Engrafo a domain:
+  </p>
+  <div class="prose">
+    <ul>
+      <li><strong>Put it behind something.</strong> A reverse proxy with TLS and, if the instance is yours alone, an allowlist, VPN or auth in front of it. Set <code>TRUST_PROXY</code> to the number of proxies in front, or every visitor counts as the proxy and shares one sign-in rate limit.</li>
+      <li><strong>The bucket is reachable too.</strong> Browsers upload and download directly, so RustFS's port is published. Terminate TLS in front of it and set <code>S3_PUBLIC_ENDPOINT</code> to that address.</li>
+      <li><strong>Drop the RustFS console port</strong> (<code>9001</code>) from the file if you do not want it exposed. It takes the root password.</li>
+      <li><strong>Never set <code>SECURE_LOCAL_NET=true</code></strong> (or the older <code>AUTH_MAGIC_LINK=false</code>) on a reachable instance. Either one lets anyone who can load the login page sign in as anyone.</li>
+      <li><strong>Never set <code>EXPOSE_MAGIC_LINK=true</code></strong> on a reachable instance. It hands the sign-in token to whoever asked for it.</li>
+      <li><strong>Treat MCP keys like passwords.</strong> Anyone with one reads the folders you shared.</li>
+      <li><strong>Set a real <code>BETTER_AUTH_SECRET</code></strong> and keep it. Changing it signs everyone out; leaking it lets anyone mint a session.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="upgrading">
+  <h2>Upgrading</h2>
+  <div class="prose">
+    <pre class="code"><code>docker compose -f docker-compose.quickstart.yml pull &amp;&amp; docker compose -f docker-compose.quickstart.yml up -d</code></pre>
+    <p>
+      Migrations run at boot, and documents that finished before the upgrade get
+      any new processing step in the background. On Portainer or TrueNAS,
+      redeploy the stack with the latest image. With the default
+      <code>SESSION_STORE=memory</code>, the restart signs everyone out.
+    </p>
+    <p>
+      <strong>From a stack older than search:</strong> search needs Postgres with
+      pgvector, so the <code>postgres</code> service's image is now
+      <code>pgvector/pgvector:pg17</code> instead of
+      <code>postgres:17-alpine</code>. Paste the new file again, or change that one
+      line, before you pull. The data volume is kept as it is. On its first boot
+      Engrafo rebuilds its database indexes and then indexes every document it
+      already has, in the background; search answers from what is done so far.
+      Without the new image, the <code>engrafo</code> container stops at boot and
+      its log says so.
+    </p>
+  </div>
+</section>
+
+<section class="section" id="minio">
+  <h2>Coming from MinIO</h2>
+  <div class="prose">
+    <p>
+      Earlier versions of the quickstart file ran MinIO. RustFS cannot read a
+      MinIO data directory, so the new stack starts on an empty
+      <code>engrafo_rustfs</code> volume and leaves <code>engrafo_minio</code>
+      untouched beside it. Your files are not lost, but Engrafo lists documents
+      it cannot open until they are copied across. The README's
+      <a href="{{ site.repo }}#coming-from-a-minio-install" rel="noopener">Coming from a MinIO install</a>
+      has the commands: rename the <code>MINIO_</code> variables to
+      <code>RUSTFS_</code>, start RustFS alone, run the old MinIO from its volume
+      and <code>mc mirror</code> both buckets across. Remove the old volume only
+      once you have opened a few documents from the new stack.
+    </p>
+  </div>
+
+  <p class="readme-link">
+    Full documentation lives in the project README:
+    <a href="{{ site.repo }}#readme" rel="noopener">{{ site.repo }}</a>
+    · <a href="{{ '/' | url }}">Back to the overview</a>
+  </p>
+</section>

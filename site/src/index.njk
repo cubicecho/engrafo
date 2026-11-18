@@ -1,73 +1,166 @@
 ---
 layout: base.njk
 ---
-<section class="hero project-hero">
-  <h1>{{ site.name }}</h1>
-  <p>{{ site.tagline }}</p>
+<section class="lander-hero">
+  <p class="eyebrow">Self-hosted document archive</p>
+  <h1>Every scan, receipt and PDF, searchable on your own server.</h1>
+  <p class="lead">
+    Engrafo is a small, self-hostable home for your paperwork. Drop in a scan,
+    a receipt or an ebook: it reads the text, files it in your folders, and
+    finds it again by what it says. Everything stays in your own bucket and
+    database.
+  </p>
   <p class="cta">
-    <a class="button" href="#start">Get started</a>
-    <a class="button secondary" href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
+    <a class="button large" href="{{ '/self-hosting/' | url }}">
+      Get started
+      {% set icon = "arrow-right" %}{% include "icon.njk" %}
+    </a>
+    <a class="button large secondary" href="{{ site.repo }}" rel="noopener">View on GitHub ↗</a>
   </p>
-</section>
-
-<section class="section">
-  <h2>What it does</h2>
-  <p class="section-intro">
-    Upload a file and it goes straight into a bucket you own. A small pipeline
-    runs over it, the text it found is stored beside it, and the document's page
-    shows what came out. It is for someone who wants scans and PDFs kept and
-    readable on their own server, without the search, tags, correspondents and
-    mail ingestion that Paperless-ngx is for.
-  </p>
-
-  <ul class="card-grid">
-    <li>
-      <article class="card">
-        <h3>Upload straight to your bucket</h3>
-        <p>Drag in a folder of PDFs or scans, each with its own progress bar. The browser uploads directly to S3-compatible storage; the server only signs the URL.</p>
-      </article>
-    </li>
-    <li>
-      <article class="card">
-        <h3>OCR, optionally</h3>
-        <p><code>ocrmypdf</code> with Paperless's own flags turns a scan into a searchable PDF/A plus its plain text. A born-digital PDF keeps the text layer it already has.</p>
-      </article>
-    </li>
-    <li>
-      <article class="card">
-        <h3>A pipeline you can watch</h3>
-        <p>Every step is a row with a status, so a document says where it got to, and a failed one says why and offers a retry.</p>
-      </article>
-    </li>
+  <ul class="hero-facts">
+    <li>Free and open source, MIT</li>
+    <li>One Docker Compose file</li>
+    <li>Runs on a CPU, no cloud</li>
   </ul>
 </section>
 
-<section class="section" id="start">
-  <h2>Get started</h2>
-  <div class="prose">
-    <p>
-      Four containers from a published image: Engrafo, Postgres, RustFS and a
-      one-shot job that creates the buckets. Nothing to clone or build.
-    </p>
+{% if screenshots.length %}
+<section class="showcase" aria-roledescription="carousel" aria-label="Screenshots of Engrafo">
+  <div class="showcase-frame">
+    <div class="frame-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+    <ul class="showcase-track" data-carousel-track tabindex="0" aria-label="Screenshots, scroll sideways for more">
+      {% for shot in screenshots %}
+      <li class="showcase-slide" id="screenshot-{{ loop.index }}" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ screenshots.length }}: {{ shot.caption }}">
+        <figure>
+          <picture>
+            {% if shot.dark %}<source srcset="{{ ('/assets/screenshots/' + shot.dark) | url }}" media="(prefers-color-scheme: dark)" />{% endif %}
+            <img
+              src="{{ ('/assets/screenshots/' + shot.light) | url }}"
+              alt="{{ shot.alt }}"
+              width="{{ shot.width }}"
+              height="{{ shot.height }}"
+              {% if not loop.first %}loading="lazy"{% endif %}
+              decoding="async"
+            />
+          </picture>
+          <figcaption>{{ shot.caption }}</figcaption>
+        </figure>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {# Without script the track still scrolls and snaps; these only appear once
+     the script below has wired them up. #}
+  <div class="showcase-controls" data-carousel-controls hidden>
+    <button type="button" class="icon-button" data-carousel-prev aria-label="Previous screenshot">
+      {% set icon = "chevron-left" %}{% include "icon.njk" %}
+    </button>
+    <div class="showcase-dots" role="group" aria-label="Choose a screenshot">
+      {% for shot in screenshots %}
+      <button type="button" class="dot" data-carousel-dot="{{ loop.index0 }}" aria-label="Screenshot {{ loop.index }}: {{ shot.caption }}"></button>
+      {% endfor %}
+    </div>
+    <button type="button" class="icon-button" data-carousel-next aria-label="Next screenshot">
+      {% set icon = "chevron-right" %}{% include "icon.njk" %}
+    </button>
+  </div>
+</section>
+{% endif %}
+
+<section class="section lander-section" id="features">
+  <p class="eyebrow">Features</p>
+  <h2>Keep it, read it, find it again</h2>
+  <p class="section-intro">
+    Upload a file and it goes straight into a bucket you own. A pipeline reads
+    it, files it and indexes it, and its page shows what came out.
+  </p>
+
+  <ol class="feature-rows">
+    {% for feature in features %}
+    <li class="feature-row" id="feature-{{ feature.slug }}">
+      <article class="feature-card">
+        <span class="feature-icon">{% set icon = feature.icon %}{% include "icon.njk" %}</span>
+        <h3>{{ feature.title }}</h3>
+        <p>{{ feature.blurb }}</p>
+      </article>
+      <div class="feature-detail">
+        <p>{{ feature.detail }}</p>
+        {% if feature.points.length %}
+        <ul class="check-list">
+          {% for point in feature.points %}
+          <li>{% set icon = "check" %}{% include "icon.njk" %}<span>{{ point }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if feature.link %}
+        <a class="more-link" href="{{ feature.link.href | url }}">
+          {{ feature.link.label }} {% set icon = "arrow-right" %}{% include "icon.njk" %}
+        </a>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="section lander-section" id="scope">
+  <p class="eyebrow">Small on purpose</p>
+  <h2>One job, done well</h2>
+  <p class="section-intro">
+    Engrafo keeps your documents and finds them again, and that is all it
+    tries to do. Folders are the one way to organise, so there is nothing
+    else to learn or maintain.
+  </p>
+  <div class="scope-grid">
+    <div class="scope-col">
+      <h3>What you get</h3>
+      <ul class="check-list">
+        <li>{% set icon = "check" %}{% include "icon.njk" %}<span>Folders, as deep as you like</span></li>
+        <li>{% set icon = "check" %}{% include "icon.njk" %}<span>OCR and local search in one image</span></li>
+        <li>{% set icon = "check" %}{% include "icon.njk" %}<span>Dates and receipts read for you</span></li>
+        <li>{% set icon = "check" %}{% include "icon.njk" %}<span>Four containers, set up in minutes</span></li>
+      </ul>
+    </div>
+    <div class="scope-col muted">
+      <h3>What it leaves out</h3>
+      <ul class="check-list">
+        <li>{% set icon = "minus" %}{% include "icon.njk" %}<span>Tags and correspondents</span></li>
+        <li>{% set icon = "minus" %}{% include "icon.njk" %}<span>Mail ingestion</span></li>
+        <li>{% set icon = "minus" %}{% include "icon.njk" %}<span>Workflows and matching rules</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section lander-section" id="start">
+  <div class="cta-band">
+    <div class="cta-band-text">
+      <p class="eyebrow">Get started</p>
+      <h2>Running in five minutes</h2>
+      <p>
+        One compose file pulls everything from Docker Hub: Engrafo, Postgres,
+        RustFS for storage, and a one-shot job that creates the buckets.
+        Nothing to clone or build. Then open
+        <code>http://ENGRAFO_HOST:3004</code> and sign in; the first account
+        is the admin.
+      </p>
+      <p class="cta">
+        <a class="button large" href="{{ '/self-hosting/' | url }}">
+          Read the self-hosting guide
+          {% set icon = "arrow-right" %}{% include "icon.njk" %}
+        </a>
+        {% if site.docker %}<a class="button large secondary" href="{{ site.docker }}" rel="noopener">Docker Hub ↗</a>{% endif %}
+      </p>
+    </div>
     <pre class="code"><code>mkdir engrafo &amp;&amp; cd engrafo
 curl -fsSLO https://raw.githubusercontent.com/cubicecho/engrafo/main/docker-compose.quickstart.yml
 
 # The three secrets it refuses to start without, plus the address you reach it at.
-printf 'ENGRAFO_HOST=%s\nJWT_SECRET=%s\nPOSTGRES_PASSWORD=%s\nRUSTFS_PASSWORD=%s\n' \
+printf 'ENGRAFO_HOST=%s\nBETTER_AUTH_SECRET=%s\nPOSTGRES_PASSWORD=%s\nRUSTFS_PASSWORD=%s\n' \
   "$(hostname -f)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" &gt; .env
 
 docker compose -f docker-compose.quickstart.yml up -d</code></pre>
-    <p>
-      Engrafo is then on <code>http://ENGRAFO_HOST:3004</code>. Set
-      <code>ENGRAFO_HOST</code> to the hostname or LAN address you browse to,
-      not <code>localhost</code>: uploads go to a URL signed for that host.
-      Sign in with any email address; the magic link is written to the
-      container's log.
-    </p>
   </div>
-
-  <p class="readme-link">
-    Full documentation lives in the project README:
-    <a href="{{ site.repo }}#readme" rel="noopener">{{ site.repo }}</a>
-  </p>
 </section>
+
+<script src="{{ '/js/carousel.js' | url }}" defer></script>
