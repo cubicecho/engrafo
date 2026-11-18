@@ -1,3 +1,9 @@
+## [4.25.1](https://github.com/cubicecho/engrafo/compare/v4.25.0...v4.25.1) (2026-11-18)
+
+### Bug Fixes
+
+* **server:** never run more documents at once than OCR_CONCURRENCY ([7a4e035](https://github.com/cubicecho/engrafo/commit/7a4e0351e6eb25a4e0c474c3d9297b046042daba))
+
 # [4.25.0](https://github.com/cubicecho/engrafo/compare/v4.24.0...v4.25.0) (2026-11-18)
 
 ### Features
