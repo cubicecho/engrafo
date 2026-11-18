@@ -282,7 +282,8 @@ function ProcessingRow({ row, info, now, folder, retrying, onRetry }: Processing
         }
       />
       {fraction !== null ? (
-        <Progress value={fraction * PERCENT} label={`${row.document.title} progress`} className="mx-3" />
+        // `w-auto` over the track's `w-full`: full width plus the margins would hang past the row.
+        <Progress value={fraction * PERCENT} label={`${row.document.title} progress`} className="mx-3 w-auto" />
       ) : null}
     </div>
   );

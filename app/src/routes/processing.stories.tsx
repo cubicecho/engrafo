@@ -180,7 +180,10 @@ export const ShowsWhatIsRunning: Story = {
     await expect(running).toHaveAttribute('href', expect.stringContaining('/documents/'));
     await expect(canvas.getByText('Vision model · Page 3 of 12')).toBeInTheDocument();
     await expect(canvas.getByText('For 3m')).toBeInTheDocument();
-    await expect(canvas.getByRole('progressbar', { name: 'Lease agreement progress' })).toBeInTheDocument();
+    const bar = canvas.getByRole('progressbar', { name: 'Lease agreement progress' });
+    // Inside its row, not hanging past the tiles' right edge.
+    const row = running.closest('[data-slot="list-item"]') ?? running;
+    await expect(bar.getBoundingClientRect().right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
     await expect(canvas.getByRole('button', { name: /Running\s*1/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(canvas.getByRole('button', { name: /Failed\s*1/ })).toHaveAttribute('aria-pressed', 'false');
   },
