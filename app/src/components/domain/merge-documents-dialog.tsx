@@ -1,4 +1,6 @@
+import { useApolloClient } from '@apollo/client/react';
 import { useState } from 'react';
+import { graphql } from '@/__generated__';
 import { InputField, SelectField, SwitchField, useAppForm } from '@/components/app-form';
 import { DialogLayout } from '@/components/dialog-layout';
 import { useDocumentPreviewUrl } from '@/components/domain/document-preview-card';
@@ -9,13 +11,20 @@ import { ListItem } from '@/components/list-item';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FormElement } from '@/components/ui/form-element';
-import { ChevronDown, ChevronUp, X } from '@/components/ui/icons';
+import { ChevronDown, ChevronUp, Sparkles, X } from '@/components/ui/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { messageOf } from '@/lib/error-message';
 import { type FolderRow, folderOptions, folderPaths, TOP_LEVEL, TOP_LEVEL_LABEL } from '@/lib/folder-tree';
 import { formatBytes, joinStats } from '@/lib/format';
 import { MERGE_MIN_DOCUMENTS, type MergeCandidate, mergeTypeLabel, moveCandidate } from '@/lib/merge';
 import { useThumbnailUrls } from '@/lib/thumbnails';
+
+// Asked anew on every press, never from the cache: pressing again is asking for another.
+const SuggestDocumentTitle = graphql(`
+  query SuggestDocumentTitle($ids: [UUID!]!) {
+    suggestDocumentTitle(ids: $ids)
+  }
+`);
 
 /** What the dialog asks the server for. */
 export interface MergeRequest {
@@ -31,6 +40,8 @@ interface MergeDocumentsDialogProps {
   documents: readonly MergeCandidate[];
   /** Every folder the caller has, for the picker. */
   folders: readonly FolderRow[];
+  /** `serverConfig.visionAvailable`: a model is set up, so the title can be suggested by it. */
+  visionAvailable?: boolean | undefined;
   /**
    * The documents reordered, or one taken out. The page owns the selection, so taking one out
    * here unchecks it there too.
@@ -73,17 +84,22 @@ function MergePreview({ doc }: { doc: MergeCandidate }) {
  * "Merge documents": the picked PDFs and images in the order their pages go in, each with its
  * first page, its folder, its type and size, and a button each to move it or take it out; the one
  * pressed is previewed beside the list, the first until another is. Then the merged copy's title
- * and folder and whether the originals go to the trash. Mounted only while open, so the title and
+ * and folder and whether the originals go to the trash. With a vision model set up, the title can
+ * be suggested from the documents' text and then edited. Mounted only while open, so the title and
  * folder start from the first document each time.
  */
 export function MergeDocumentsDialog({
   documents,
   folders,
+  visionAvailable = false,
   onDocumentsChange,
   onMerge,
   onClose,
 }: MergeDocumentsDialogProps) {
+  const client = useApolloClient();
   const [refusal, setRefusal] = useState<string | undefined>();
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionFailure, setSuggestionFailure] = useState<string | undefined>();
   const [previewId, setPreviewId] = useState<string | undefined>();
   const first = documents[0];
   // Falls back to the first when the one previewed is left out.
@@ -113,6 +129,27 @@ export function MergeDocumentsDialog({
       onClose();
     },
   });
+
+  // Only a title that came back replaces the field, so a failure leaves what was typed there.
+  async function suggestTitle() {
+    setSuggesting(true);
+    setSuggestionFailure(undefined);
+    try {
+      const { data } = await client.query({
+        query: SuggestDocumentTitle,
+        variables: { ids: documents.map((doc) => doc.id) },
+        fetchPolicy: 'no-cache',
+      });
+      if (!data) {
+        throw new Error('The server returned no title');
+      }
+      form.setFieldValue('title', data.suggestDocumentTitle);
+    } catch (error) {
+      setSuggestionFailure(messageOf(error) ?? 'The server refused it');
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   const last = documents.length - 1;
   return (
@@ -199,7 +236,24 @@ export function MergeDocumentsDialog({
               label="Title"
               required
               validators={{ onSubmit: ({ value }) => titleError(value) }}
+              actionSlot={
+                visionAvailable && (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    iconSlot={<Sparkles />}
+                    content="Suggest a title"
+                    loading={suggesting}
+                    loadingLabel="Suggesting…"
+                    hint="The vision model reads each document's title, date and the start of its text"
+                    onClick={suggestTitle}
+                  />
+                )
+              }
             />
+            {suggestionFailure && (
+              <Alert variant="destructive" title="Could not suggest a title" description={suggestionFailure} />
+            )}
             <SelectField
               form={form}
               name="folderId"

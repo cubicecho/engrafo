@@ -244,6 +244,7 @@ export function DocumentsRoute() {
         <MergeDocumentsDialog
           documents={selected}
           folders={folders}
+          visionAvailable={page.data?.serverConfig.visionAvailable === true}
           onDocumentsChange={setSelected}
           onMerge={merge}
           onClose={() => setMerging(false)}
