@@ -11,6 +11,7 @@ import { ocrStep } from './ocr.ts';
  */
 export const pdfTextStep: PipelineStep = {
   name: 'pdf-text',
+  extractsText: true,
   enabled: (doc, config) =>
     doc.mimeType === 'application/pdf' && config.pdfTextAvailable && ocrStep.enabled(doc, config) === false,
   async run({ doc, storage, tmpDir }) {

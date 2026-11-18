@@ -192,7 +192,7 @@ export function MergeDocumentsDialog({
           }
         }}
         title="Merge documents"
-        description="Their pages are put into one PDF, in this order, filed as a new document and processed like an upload. Press one to preview it."
+        description="Their pages are put into one PDF, in this order, and filed as a new document. When every one is ready, their text comes with them rather than being read again. Press one to preview it."
         size="xl"
         contentSlot={
           <FormElement className="grid gap-4" onSubmit={() => form.handleSubmit()}>

@@ -595,9 +595,17 @@ drawn without it). A source the script cannot read (a password, a broken image)
 exits 2 and is BAD_USER_INPUT naming it. The result is filed exactly as the
 watched folder files a file: `insertPendingDocument` (the name rule, the
 checksum, `createUploadSchema` so `MAX_UPLOAD_BYTES` holds), `putFile`,
-`completePendingDocument`, so the pipeline runs on it; `ocrRequested` is set if
-any source had it, and `--skip-text` leaves the pages that came with text
-alone. A failure after the row is written deletes the row and the object.
+`completePendingDocument`, so the pipeline runs on it. **A merge of finished
+documents reads no page again:** when every source is `ready`, their stored
+text is joined in page order (Markdown only if every source with text was) and
+stored as the merged copy's before `completePendingDocument`, and every step
+with `extractsText` (text, ocr, pdf-text, ebook, vision) gets its row
+`skipped` first, so the run is inspect, metadata, index and thumbnail. The
+merged PDF is built from the archives, so its pages keep OCR's text layer.
+When any source `failed`, nothing is carried and every step runs:
+`ocrRequested` is set if any source had it, and `--skip-text` leaves the pages
+that came with text alone. Reprocess on the merged copy reads it afresh. A
+failure after the row is written deletes the row and both objects.
 `trashOriginals` puts the sources in the trash (never deleted outright), under
 `lockNames`, and then the merged copy takes the requested title if it was only
 numbered because an original held it. The merge runs inside the request: it

@@ -15,6 +15,7 @@ import type { PipelineStep } from '../types.ts';
 // finished document back through the pipeline at upgrade, for a row each.
 export const textStep: PipelineStep = {
   name: 'text',
+  extractsText: true,
   enabled: (doc) => isText(doc.mimeType) || doc.mimeType === HTML_MIME_TYPE,
   async run({ doc, storage }) {
     const html = doc.mimeType === HTML_MIME_TYPE;

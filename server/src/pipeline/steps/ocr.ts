@@ -103,6 +103,7 @@ export function visionReadsInsteadOfOcr(config: RunConfig): boolean {
  */
 export const ocrStep: PipelineStep = {
   name: 'ocr',
+  extractsText: true,
   enabled: (doc, config) =>
     doc.ocrRequested && config.ocrAvailable && isOcrable(doc.mimeType) && visionReadsInsteadOfOcr(config) === false,
   async run({ doc, storage, config, tmpDir }) {

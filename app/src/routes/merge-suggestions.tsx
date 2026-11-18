@@ -194,7 +194,7 @@ export function MergeSuggestionsRoute() {
                     <Link className="font-medium underline underline-offset-2" to={documentPath(merged.id)}>
                       {merged.title}
                     </Link>
-                    , and processed like an upload.
+                    , with the text already read from them.
                   </p>
                 }
               />

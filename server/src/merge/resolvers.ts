@@ -22,7 +22,8 @@ const MERGE_SDL = parse(`
 
   extend type Mutation {
     """
-    Merges PDFs and images into one PDF, filed as a new document and processed like an upload.
+    Merges PDFs and images into one PDF, filed as a new document. When every source is ready, their text
+    is carried over and only the steps that read it run; otherwise it is processed like an upload.
     Each source's searchable PDF is used when it has one, so its text comes along.
     """
     mergeDocuments(input: MergeDocumentsInput!): Document!

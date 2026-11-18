@@ -330,6 +330,7 @@ async function transcribe(
  */
 export const visionStep: PipelineStep = {
   name: VISION_STEP,
+  extractsText: true,
   enabled: (doc, { vision }) =>
     vision !== null && isOcrable(doc.mimeType) && (doc.visionRequested || (vision.auto && doc.ocrRequested)),
   async run(context) {
