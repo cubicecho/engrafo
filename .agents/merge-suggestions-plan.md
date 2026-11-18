@@ -127,7 +127,8 @@ row gone stale between runs.
   next rescore, which is why reads go through `membersAreLive()`.
 
 - Gets a `scope` entry in `tenancy.ts` (`tenancy.test.ts` enforces it), and reads
-  come from the generated schema.
+  come from the generated schema. (Step 4 changed this: the reads are hand-written,
+  see section 5.)
 - Reads leave out any suggestion with a member that has since been trashed,
   merged or deleted.
 - A dismissed member set is never proposed again. A *different* set is (for
@@ -161,6 +162,54 @@ row gone stale between runs.
 - Every read of `documents` uses `notTrashed()`, and anyone else's ids answer
   `NOT_FOUND`.
 
+As built (step 4): the reads are hand-written, not generated. A generated read
+cannot apply `membersAreLive()` or `isShown()`, so `merge_suggestions` is in a new
+`SUGGESTION_TABLES` (excluded from the schema like `SEARCH_TABLES`) and its
+relations entries are gone, so no `User.mergeSuggestions` field bypasses them. Its
+`scope` entry stays, as `contextValues` keeps its stamps; the tenancy test counts
+it as unserved and checks the hand-written read across tenants instead.
+
+```graphql
+enum MergeSuggestionBand { HIGH MEDIUM LOW }
+type MergeSuggestionReason { signal: String! text: String! points: Float! }
+type MergeSuggestionVerdict {
+  fromId: UUID! toId: UUID! continues: Boolean! confidence: Float!
+  reason: String! model: String! checkedAt: DateTime!
+}
+type MergeSuggestion {
+  id: UUID!
+  documents: [Document!]!          # page order, plain rows
+  confidence: Float!  heuristicConfidence: Float!  band: MergeSuggestionBand!
+  reasons: [MergeSuggestionReason!]!  verdicts: [MergeSuggestionVerdict!]!
+  createdAt: DateTime!
+}
+type MergeSuggestions {
+  suggestions(documentId: UUID): [MergeSuggestion!]!   # surest first
+  count: Int!
+}
+extend type Query { mergeSuggestions: MergeSuggestions! }
+extend type Mutation {
+  dismissMergeSuggestion(id: UUID!): Boolean!
+  rescoreMergeSuggestions: MergeSuggestions!
+}
+```
+
+- `loadOpenSuggestions` takes `{ documentId, settings }` and orders by confidence,
+  then newest; `countOpenSuggestions` applies the same conditions for the badge.
+- `dismissMergeSuggestion`: an open row becomes `dismissed` and is logged with its
+  scores; an already dismissed row answers true; a merged row, someone else's or no
+  row is NOT_FOUND (a non-UUID is refused by the `UUID` scalar first).
+- `rescoreMergeSuggestions` calls the suggester's new `rescoreNow(userId)`: it
+  cancels the user's waiting timer, runs the same rescore and model check, and waits.
+  A run of that user's already going is not run beside: the request becomes the one
+  run after it, so any number of presses meanwhile are one more run. The suggester
+  reaches resolvers on the context as `mergeSuggester`.
+- A merge from the UI with the pages reordered still marks the row `merged`, since
+  `member_key` is order-free. A merge with a page left out (or added) is a different
+  set and leaves the row open: what was merged was not what was suggested, and the
+  merged copy finishing wakes the suggester, whose rescore decides what is left. If
+  the originals went to the trash, `membersAreLive()` hides the row at once.
+
 ## 6. UI
 
 - **Sidebar:** a "Suggested merges" entry in `NAV_ITEMS`. Its badge counts open
@@ -174,6 +223,35 @@ row gone stale between runs.
   - **Dismiss** records the dismissal.
 - **Document page:** an alert above the tabs, e.g. "This may be part of a
   3-page scan with *scan_0004* (87%) · Review merge".
+
+As built (step 5):
+
+- **Badge:** `useMergeSuggestionCount` (`lib/merge-suggestions.ts`) reads
+  `MergeSuggestionCount`, refetched by name (`MERGE_SUGGESTION_QUERY_NAMES`) after
+  a merge from either page, a dismissal and a rescore. Suggestions are written about
+  `quietSeconds` after a batch settles, by a job no mutation sees, so the count also
+  polls at `MERGE_SUGGESTION_DEFAULTS.countIntervalMs`, 60 s, in `app/src/defaults.ts`,
+  and is asked again when the archive's ready count changes. The row sits between
+  Processing and Trash, with `Layers`, the merge button's icon; the narrow bar still
+  fits at 320 px.
+- **Page:** `/merge-suggestions`, `MergeSuggestionsRoute`. One `MergeSuggestionCard`
+  per suggestion, titled by its first document ("scan_0004 and 2 more"), the band
+  as a soft badge in words and a percentage, the documents in page order (number,
+  first page, title, folder path, type, size, each a link to its page), the rules'
+  reasons under For and Against headings with a tick or a cross (the model's are
+  left out of those lists), and the model's part in one line from `modelSummary`.
+  Review merge opens `MergeDocumentsDialog` through `?review=<id>`; Dismiss is an
+  outline button; "Check again" is the header action. After a merge the page stays,
+  with an alert linking to the merged copy.
+- `MergeDocuments` and `mergeRefetchQueries` moved beside the dialog, so the
+  documents page's merge refreshes the badge too. The mutation now also selects the
+  merged copy's `title`.
+- **Document page:** `MergeSuggestionAlert`, an `info` alert under the duplicate
+  warning, from `DocumentMergeSuggestions` (skipped until the document is `ready`,
+  never polled): "It may be part of a 3-page scan with scan_0003 and scan_0005 (87%
+  sure)", each name a link, and Review merge a link to `mergeSuggestionPath(id)`.
+- The For and Against headings are `SectionHeading`s over a `List`, not `Section`s:
+  a section is a region landmark, and every card has a "For".
 
 ## 7. Tests and docs
 
@@ -205,6 +283,7 @@ real behaviour later.
 1. Scorer and its fixtures (pure, testable alone). **Done.**
 2. Table, tenancy scope and the suggester. **Done.**
 3. The model check. **Done** (see section 2, "As built").
-4. API.
-5. UI.
-6. Docs.
+4. API. **Done** (see section 5, "As built").
+5. UI. **Done** (see section 6, "As built").
+6. Docs. **Done**: AGENTS.md has a paragraph on the reads and one on the page, the
+   badge and the document alert, and the project-structure block names the new files.
