@@ -68,9 +68,27 @@ confidence + reasons), `group.ts` (links → ordered groups).
 
 ## 3. Storage: `merge_suggestions`
 
-Columns: `id`, `user_id`, `document_ids uuid[]` (in page order), `confidence`,
-`reasons jsonb`, `ai_checked`, `status` (`open` / `dismissed` / `merged`),
-`created_at`, `updated_at`.
+Columns: `id`, `user_id`, `document_ids uuid[]` (in page order), `member_key`
+(the ids sorted and joined, unique per user: one identity per set whatever its
+order), `confidence`, `reasons jsonb`, `ai_checked`, `status` (`open` /
+`dismissed` / `merged`), `created_at`, `updated_at`.
+
+As built (step 2): `rescoreUser` in `store.ts` reconciles through the pure
+`reconcile`. An open set found again is updated, a new one inserted open, an
+open one not found deleted, and a dismissed or merged one left alone.
+`loadOpenSuggestions` (through `membersAreLive()`) is the read that leaves out a
+row gone stale between runs.
+
+- Open rows are deleted when not proposed, so an open suggestion whose members
+  have aged out of `lookbackDays` goes on the next rescore, even if nothing
+  about it changed. If that proves annoying, keep open rows whose members are
+  all older than the lookback.
+- For step 3: an update overwrites `confidence` and `reasons` with the
+  heuristic's and leaves `ai_checked` as it was. The model check has to decide
+  whether a rescore that changes a set's order or scores asks the model again,
+  or keep the heuristic score in its own column and re-apply the cached answer.
+- Trashing a member does not wake the suggester; the row is stale until the
+  next rescore, which is why reads go through `membersAreLive()`.
 
 - Gets a `scope` entry in `tenancy.ts` (`tenancy.test.ts` enforces it), and reads
   come from the generated schema.
@@ -89,6 +107,14 @@ Columns: `id`, `user_id`, `document_ids uuid[]` (in page order), `confidence`,
 - At boot it runs once for any user with documents finished since its last
   run, so a restart loses nothing. `stopOnSignals` stops it beside the watcher
   and the trash purger.
+  - As built: no last-run time is kept. `catchUp()` rescores every user with a
+    mergeable `ready` document created within `lookbackDays`. It is stateless,
+    and a rescore is cheap: a few rows, the ends of a few texts, one `avg`.
+- As built: the event is `document.processed` (`{ documentId, userId, status }`,
+  ready or failed), emitted by the runner where it settles a document. Failed
+  counts too, because a document that fails a re-run has left the candidates.
+  One rescore runs at a time per user, and one asked for meanwhile runs once
+  after it. Text reads are bounded by `textReadConcurrency`.
 - Its log lines start with `[merge-suggestions]`.
 
 ## 5. API

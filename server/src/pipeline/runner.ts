@@ -12,12 +12,12 @@ import {
 } from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
+import { createLimiter } from '../core/limiter.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { notTrashed } from '../trash/trash.ts';
 import { loadVisionConfig, type VisionConfig } from '../vision/settings.ts';
 import type { PipelineEvents } from './events.ts';
-import { createLimiter } from './limiter.ts';
 import type { PipelineConfig, PipelineStep, RunConfig } from './types.ts';
 
 /** What a pipeline is built from. */
@@ -91,6 +91,8 @@ export function createPipeline({
   loadVision = () => loadVisionConfig(db),
   log = console.error,
 }: PipelineOptions): Pipeline {
+  // OCR is CPU-bound, and without a limit a folder dropped on the upload form forks one ocrmypdf
+  // per file at once.
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
@@ -188,11 +190,13 @@ export function createPipeline({
           const message = errorMessage(error);
           await setStep(documentId, step.name, { status: StepStatus.Failed, error: message, finishedAt: new Date() });
           await failDocument(documentId, `${step.name}: ${message}`);
+          events.emit('document.processed', { documentId, userId: doc.userId, status: DocumentStatus.Failed });
           return;
         }
       }
 
       await db.update(documents).set({ status: DocumentStatus.Ready }).where(eq(documents.id, documentId));
+      events.emit('document.processed', { documentId, userId: doc.userId, status: DocumentStatus.Ready });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

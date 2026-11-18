@@ -11,6 +11,8 @@ export const SECONDS_PER_DAY = 86_400;
 /** Bytes in one mebibyte, the unit upload limits are shown in. */
 export const BYTES_PER_KIBIBYTE = 1024;
 export const BYTES_PER_MEBIBYTE = 1_048_576;
+/** The most bytes of UTF-8 one UTF-16 code unit (one place in a JS string) takes: a character past U+FFFF is two units in four bytes. */
+export const MAX_UTF8_BYTES_PER_CODE_UNIT = 3;
 
 /** The HTTP statuses this server answers with by hand. */
 export const HttpStatus = {

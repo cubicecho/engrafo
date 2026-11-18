@@ -1,6 +1,8 @@
+import { buffer } from 'node:stream/consumers';
 import type { Document } from '@cubicecho/engrafo-db';
 import { ContentFormat } from '@cubicecho/engrafo-db/schema';
-import { type StorageSet, textKey } from '../storage/s3.ts';
+import { MAX_UTF8_BYTES_PER_CODE_UNIT } from '../core/wire.ts';
+import { type Storage, type StorageSet, textKey } from '../storage/s3.ts';
 import { hasHeadings } from './mime.ts';
 import type { DocumentPatch } from './types.ts';
 
@@ -44,4 +46,42 @@ export async function storeContent(
  */
 export function textContentType(format: ContentFormat): string {
   return format === ContentFormat.Markdown ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8';
+}
+
+/**
+ * The first `maxChars` of a stored text, read only as far as that: a book's text runs to megabytes.
+ *
+ * @param bucket - The text bucket.
+ * @param key - The document's `contentKey`.
+ * @param maxChars - How much is wanted.
+ * @returns The text's start, up to `maxChars`.
+ */
+export async function readTextStart(bucket: Storage, key: string, maxChars: number): Promise<string> {
+  const decoder = new TextDecoder();
+  let read = '';
+  for await (const chunk of await bucket.getStream(key)) {
+    read += decoder.decode(chunk, { stream: true });
+    if (read.length >= maxChars) {
+      break;
+    }
+  }
+  return read.slice(0, maxChars);
+}
+
+/**
+ * The last `maxChars` of a stored text, read with a byte range from its end.
+ *
+ * @param bucket - The text bucket.
+ * @param key - The document's `contentKey`.
+ * @param sizeBytes - The document's `contentBytes`: where the end is.
+ * @param maxChars - How much is wanted.
+ * @returns The text's end, up to `maxChars`; the whole text when it is shorter.
+ */
+export async function readTextEnd(bucket: Storage, key: string, sizeBytes: number, maxChars: number): Promise<string> {
+  // One code unit more than asked for, because the range can start partway into a character,
+  // which decodes as replacement characters that the slice then leaves out.
+  const wantedBytes = (maxChars + 1) * MAX_UTF8_BYTES_PER_CODE_UNIT;
+  const range = { first: Math.max(0, sizeBytes - wantedBytes), last: sizeBytes - 1 };
+  const bytes = await buffer(await bucket.getStream(key, range));
+  return new TextDecoder().decode(bytes).slice(-maxChars);
 }

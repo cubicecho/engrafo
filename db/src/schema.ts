@@ -2,6 +2,7 @@ export * from './models/auth.ts';
 export * from './models/document-chunks.ts';
 export * from './models/documents.ts';
 export * from './models/folders.ts';
+export * from './models/merge-suggestions.ts';
 export * from './models/oidc-settings.ts';
 export * from './models/processing-steps.ts';
 export * from './models/saved-searches.ts';

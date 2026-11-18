@@ -58,6 +58,7 @@ engrafo/
 │       │   ├── wire.ts      # Unit conversions and HttpStatus
 │       │   ├── errors.ts    # ErrorCode and the errors the API answers with; requireAuth
 │       │   ├── validation.ts # parseOrThrow: zod → BAD_USER_INPUT
+│       │   ├── limiter.ts   # createLimiter: a counting semaphore (the runner's OCR bound, the suggester's text reads)
 │       │   ├── context.ts   # The per-request GraphQL context
 │       │   └── preload-env.ts # Loads ../.env for codegen
 │       ├── http/            # The Express side
@@ -79,6 +80,7 @@ engrafo/
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
 │       ├── merge/           # pdf (pikepdf + img2pdf through python3, detectMerge), merge (mergeDocuments), resolvers
+│       ├── merge-suggestions/ # features, score, group (the pure scorer), candidates (loadCandidates), store (reconcile, rescoreUser, markMerged), suggester (the debounced job)
 │       ├── title-suggestion/ # prompt (the instruction, titlePrompt, sanitizeTitle), suggest (suggestDocumentTitle), resolvers
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
@@ -90,7 +92,7 @@ engrafo/
 │       ├── storage/s3.ts    # StorageSet { files, text }: presigned PUT/GET, head, download, put, delete
 │       ├── pipeline/
 │       │   ├── content.ts   # storeContent(): extracted text → the text bucket
-│       │   ├── events.ts    # Typed EventEmitter: 'document.uploaded'
+│       │   ├── events.ts    # Typed EventEmitter: 'document.uploaded' in, 'document.processed' out
 │       │   ├── runner.ts    # createPipeline({…}) → { run, resume, idle, stop }
 │       │   ├── step-list.ts # STEPS, in order
 │       │   ├── mime.ts      # The upload allowlist
@@ -105,7 +107,7 @@ engrafo/
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, documents, folders, processing-steps, document-chunks, saved-searches, auth (better-auth's tables)
+│       ├── models/          # users, documents, folders, processing-steps, document-chunks, saved-searches, merge-suggestions, auth (better-auth's tables)
 │       ├── schema.ts        # Every model, for Drizzle and for `@cubicecho/engrafo-db/schema`
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       ├── defaults.ts      # DATABASE_DEFAULTS
@@ -602,6 +604,31 @@ numbered because an original held it. The merge runs inside the request: it
 copies pages and draws nothing. Nothing from the sources' metadata is carried
 over; the metadata step reads the merged text afresh.
 
+**Suggested merges are stored, and a job writes them.** A scan filed as several documents
+(a page per file, front and back apart) is a `merge_suggestions` row (scoped like every
+user-owned table): `document_ids` in page order, `member_key` (the ids sorted and joined,
+unique per user, so a set has one identity whatever its order), the scorer's `confidence`
+and `reasons`, `ai_checked`, and `status` `open`, `dismissed` or `merged`. The scorer
+(`merge-suggestions/features.ts`, `score.ts`, `group.ts`) is pure; `loadCandidates` hands
+it the caller's `ready`, `notTrashed()` PDFs and images from the last `lookbackDays`, with
+only `aiContextChars` from each end of the text (a ranged read from the end, `readTextEnd`)
+and pgvector's `avg(embedding)` over passages it filters by `user_id` itself.
+`rescoreUser` reconciles in one transaction through `reconcile`, which is pure: an open set
+found again takes the new order and scores, a new set is inserted open, an open set not
+found is deleted (a member trashed, changed, or out of the lookback), and a dismissed or
+merged set is never proposed again and keeps the scores it had, as the record to tune the
+weights against; a larger set containing a dismissed one is a new set. `mergeDocuments`
+marks the row whose `member_key` is the merged set `merged`. A row can go stale between
+runs, so a read for the person goes through `membersAreLive()` (`loadOpenSuggestions`).
+It is not a pipeline step: a step would send every finished document back through
+`catchUp()`, and the job looks across a user's documents, not at one. The runner emits
+`document.processed` (ready or failed) and `createMergeSuggester` waits per user until
+`quietSeconds` pass with no other, so a batch is scored once after its last page, one run
+at a time per user and one more after for what arrived meanwhile. At boot `catchUp()`
+rescores every user with a mergeable document in the lookback, which needs no record of
+the last run; `stopOnSignals` stops it beside the watcher and the purger. A failure is a
+`[merge-suggestions]` line, never a crash.
+
 **A merged copy's title can be suggested, and the suggestion writes nothing.** While
 `visionAvailable`, the dialog's Title field has "Suggest a title", which asks
 `suggestDocumentTitle(ids)` (`title-suggestion/`), a root query named for any set of
@@ -943,7 +970,7 @@ package read `process.env`. Errors the API answers with come from
 `core/errors.ts`, and tests compare against `ErrorCode`, not a string.
 
 **Every log line says where it came from.** `[server]`, `[db]`, `[auth]`, `[trash]`,
-`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[backup]`, `[preflight]`. No emoji.
+`[pipeline]`, `[ocr]`, `[vision]`, `[watch]`, `[backup]`, `[merge-suggestions]`, `[preflight]`. No emoji.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
 and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not

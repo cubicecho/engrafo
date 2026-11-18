@@ -6,7 +6,8 @@ import { TITLE_SUGGESTION_DEFAULTS } from '../core/defaults.ts';
 import { badInput, errorMessage } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import { loadOwnedDocuments } from '../documents/resolvers.ts';
-import type { Storage, StorageSet } from '../storage/s3.ts';
+import { readTextStart } from '../pipeline/content.ts';
+import type { StorageSet } from '../storage/s3.ts';
 import { loadVisionConfig, samplerBody } from '../vision/settings.ts';
 import { excerptBudgetChars, SUGGEST_TITLE, sanitizeTitle, type TitleSource, titlePrompt } from './prompt.ts';
 
@@ -27,26 +28,6 @@ const suggestInputSchema = z
 export interface TitleSuggestionDeps {
   db: DB;
   storage: StorageSet;
-}
-
-/**
- * The first `maxChars` of a stored text, read only as far as that: a book's text runs to megabytes.
- *
- * @param bucket - The text bucket.
- * @param key - The document's `contentKey`.
- * @param maxChars - How much is wanted.
- * @returns The text's start, up to `maxChars`.
- */
-async function readTextStart(bucket: Storage, key: string, maxChars: number): Promise<string> {
-  const decoder = new TextDecoder();
-  let read = '';
-  for await (const chunk of await bucket.getStream(key)) {
-    read += decoder.decode(chunk, { stream: true });
-    if (read.length >= maxChars) {
-      break;
-    }
-  }
-  return read.slice(0, maxChars);
 }
 
 /** One document as the prompt shows it. A text that cannot be read leaves the title to speak for it. */

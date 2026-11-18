@@ -113,7 +113,10 @@ export function createFakeBucket(): FakeBucket {
       const object = objects.get(key);
       return object ? { size: object.body.length, contentType: object.contentType } : null;
     },
-    getStream: async (key) => Readable.from([get(key).body]),
+    getStream: async (key, range) => {
+      const { body } = get(key);
+      return Readable.from([range === undefined ? body : body.subarray(range.first, range.last + 1)]);
+    },
     download: async (key, path) => {
       await pipeline(Readable.from([get(key).body]), createWriteStream(path));
     },
