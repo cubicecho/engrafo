@@ -1,0 +1,392 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "946bb6b0-267f-4194-9996-8b9a5fd205e6",
+  "prevIds": [
+    "5e0a4c4d-d15b-486d-8e94-a53e278342db"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "merge_suggestion_status"
+      ],
+      "writes": [
+        "s|enum|public.merge_suggestion_status",
+        "n|enum|public.merge_suggestion_status",
+        "e|enum|public.merge_suggestion_status",
+        "n|type|public.merge_suggestion_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "merge_suggestions"
+      ],
+      "writes": [
+        "s|tbl|public.merge_suggestions",
+        "n|tbl|public.merge_suggestions",
+        "e|tbl|public.merge_suggestions",
+        "n|rel|public.merge_suggestions",
+        "n|type|public.merge_suggestions",
+        "n|rel|public.merge_suggestions_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.merge_suggestion_status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "merge_suggestions",
+        "uq_merge_suggestions_user_member_key"
+      ],
+      "writes": [
+        "s|idx|public.uq_merge_suggestions_user_member_key",
+        "n|idx|public.uq_merge_suggestions_user_member_key",
+        "e|idx|public.uq_merge_suggestions_user_member_key",
+        "n|rel|public.uq_merge_suggestions_user_member_key"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public",
+        "n|col|public.merge_suggestions.user_id",
+        "n|col|public.merge_suggestions.member_key"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "merge_suggestions",
+        "idx_merge_suggestions_user_status"
+      ],
+      "writes": [
+        "s|idx|public.idx_merge_suggestions_user_status",
+        "n|idx|public.idx_merge_suggestions_user_status",
+        "e|idx|public.idx_merge_suggestions_user_status",
+        "n|rel|public.idx_merge_suggestions_user_status"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public",
+        "n|col|public.merge_suggestions.user_id",
+        "n|col|public.merge_suggestions.status"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "merge_suggestions"
+      ],
+      "writes": [
+        "s|fk|public.merge_suggestions.merge_suggestions_user_id_users_id_fkey",
+        "n|fk|public.merge_suggestions.merge_suggestions_user_id_users_id_fkey",
+        "e|fk|public.merge_suggestions.merge_suggestions_user_id_users_id_fkey",
+        "n|con|public.merge_suggestions.merge_suggestions_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.merge_suggestions.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "merge_suggestions",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "merge_suggestion_status",
+        "values": [
+          "open",
+          "dismissed",
+          "merged"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "user_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "document_ids",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "member_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "confidence",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "reasons",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "ai_checked",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "status",
+        "type": "merge_suggestion_status",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'open'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "uq_merge_suggestions_user_member_key",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "member_key",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "idx_merge_suggestions_user_status",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "status",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "merge_suggestions_user_id_users_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "user_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "merge_suggestions_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

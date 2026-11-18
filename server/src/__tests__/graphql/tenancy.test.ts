@@ -27,7 +27,14 @@ const tableKeys = Object.entries(dbSchema)
 
 describe('tenancy configuration', () => {
   it('finds the tables', () => {
-    expect(tableKeys.sort()).toEqual(['documents', 'folders', 'processingSteps', 'savedSearches', 'users']);
+    expect(tableKeys.sort()).toEqual([
+      'documents',
+      'folders',
+      'mergeSuggestions',
+      'processingSteps',
+      'savedSearches',
+      'users',
+    ]);
   });
 
   it.each(tableKeys)('scopes %s to the caller', (key) => {
@@ -85,6 +92,17 @@ describe('tenancy at runtime', () => {
     const asBob = await createClient(db, bob).expectOk('{ documents { id } processingSteps { id } }');
     expect(asBob.documents).toEqual([]);
     expect(asBob.processingSteps).toEqual([]);
+  });
+
+  it('lists only the caller’s merge suggestions', async () => {
+    await db
+      .insert(dbSchema.mergeSuggestions)
+      .values({ userId: alice, documentIds: [aliceDoc], memberKey: aliceDoc, confidence: 0.9 });
+    const asAlice = await createClient(db, alice).expectOk('{ mergeSuggestions { documentIds status } }');
+    expect(asAlice.mergeSuggestions).toEqual([{ documentIds: [aliceDoc], status: 'open' }]);
+
+    const asBob = await createClient(db, bob).expectOk('{ mergeSuggestions { id } }');
+    expect(asBob.mergeSuggestions).toEqual([]);
   });
 
   it('cannot be widened by a client filter', async () => {

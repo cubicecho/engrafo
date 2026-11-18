@@ -625,6 +625,8 @@ export interface MergeSuggestionSettings {
   letterheadLines: number;
   /** The largest "of N" a page marker may state before it is taken for some other number. */
   maxPageTotal: number;
+  /** How many documents' texts a rescore reads from the text bucket at once. */
+  textReadConcurrency: number;
   weights: Readonly<MergeSuggestionWeights>;
 }
 
@@ -654,6 +656,7 @@ export const MERGE_SUGGESTION_DEFAULTS: Readonly<MergeSuggestionSettings> = Obje
   minIdentifierDigits: 5,
   letterheadLines: 4,
   maxPageTotal: 500,
+  textReadConcurrency: 8,
   weights: Object.freeze({
     // Time and a sequential name together, and nothing else, land in Medium (0.73), where the
     // model is asked: a scanner names two unrelated receipts in sequence just as readily.

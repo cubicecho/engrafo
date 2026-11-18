@@ -30,6 +30,7 @@ import { errorChainMessage, errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
 import { detectMerge } from './merge/pdf.ts';
+import { createMergeSuggester } from './merge-suggestions/suggester.ts';
 import { createPipelineEvents } from './pipeline/events.ts';
 import { detectPdfText } from './pipeline/pdf-text.ts';
 import { createPipeline } from './pipeline/runner.ts';
@@ -137,6 +138,9 @@ const watcher: Watcher | null = watch === null ? null : createWatcher({ db, stor
 // Always on: what has sat in the trash past its retention period is deleted for good, at boot and hourly.
 const trashPurger = createTrashPurger({ db, storage, config: trashConfig() });
 
+// Always on: rescores a user's suggested merges once their documents stop finishing for a while.
+const mergeSuggester = createMergeSuggester({ db, storage, events });
+
 // After migrate: the provider may be a pairing, which lives in the database.
 const authHost = await createAuthHost(db);
 const app = createApp({
@@ -184,13 +188,19 @@ const server = app.listen(PORT, LISTEN_HOST, async () => {
   }
   watcher?.start();
   trashPurger.start();
+  // After the pipeline's backlog is handed out: what it finishes is scored again as it settles.
+  const rescored = await mergeSuggester.catchUp();
+  if (rescored > 0) {
+    console.log(`[merge-suggestions] rescoring ${rescored} user(s)`);
+  }
 });
 // The watcher first, and waited for, so the file it is filing is either filed and removed or
-// untouched. The purger too, so a purge is not cut off between its objects and its rows. Then the
-// pipeline: a run the exit cuts off is not a failure, and the next boot resumes it.
+// untouched. The purger too, so a purge is not cut off between its objects and its rows, and the
+// suggester, whose rescore is one transaction. Then the pipeline: a run the exit cuts off is not a
+// failure, and the next boot resumes it.
 stopOnSignals(server, {
   before: async () => {
-    await Promise.all([watcher?.stop(), trashPurger.stop()]);
+    await Promise.all([watcher?.stop(), trashPurger.stop(), mergeSuggester.stop()]);
     pipeline.stop();
   },
   after: closeDatabase,

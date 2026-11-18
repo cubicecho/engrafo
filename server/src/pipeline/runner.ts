@@ -12,6 +12,7 @@ import {
 } from '@cubicecho/engrafo-db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { errorMessage } from '../core/errors.ts';
+import { createLimiter } from '../core/limiter.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
 import { notTrashed } from '../trash/trash.ts';
@@ -70,27 +71,6 @@ export interface Pipeline {
 }
 
 /**
- * A counting semaphore. OCR is CPU-bound, and without a limit a folder dropped
- * on the upload form forks one ocrmypdf per file at once.
- */
-function createLimiter(concurrency: number) {
-  let active = 0;
-  const waiting: Array<() => void> = [];
-  return async <T>(task: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiting.push(resolve));
-    }
-    active += 1;
-    try {
-      return await task();
-    } finally {
-      active -= 1;
-      waiting.shift()?.();
-    }
-  };
-}
-
-/**
  * Builds the runner and subscribes it to `document.uploaded`.
  *
  * @param options - The database, buckets, emitter, steps and settings a run needs.
@@ -111,6 +91,8 @@ export function createPipeline({
   loadVision = () => loadVisionConfig(db),
   log = console.error,
 }: PipelineOptions): Pipeline {
+  // OCR is CPU-bound, and without a limit a folder dropped on the upload form forks one ocrmypdf
+  // per file at once.
   const limit = createLimiter(config.concurrency);
   // Queued as well as running: a document emitted twice before it starts (a
   // double-clicked retry, a resume racing a late completion) runs once.
@@ -208,11 +190,13 @@ export function createPipeline({
           const message = errorMessage(error);
           await setStep(documentId, step.name, { status: StepStatus.Failed, error: message, finishedAt: new Date() });
           await failDocument(documentId, `${step.name}: ${message}`);
+          events.emit('document.processed', { documentId, userId: doc.userId, status: DocumentStatus.Failed });
           return;
         }
       }
 
       await db.update(documents).set({ status: DocumentStatus.Ready }).where(eq(documents.id, documentId));
+      events.emit('document.processed', { documentId, userId: doc.userId, status: DocumentStatus.Ready });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

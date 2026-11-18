@@ -18,6 +18,7 @@ import {
 } from '../documents/create.ts';
 import { loadOwnedDocuments } from '../documents/resolvers.ts';
 import { freeName, lockNames, ownedParent } from '../folders/names.ts';
+import { markMerged } from '../merge-suggestions/store.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import { pngHasTransparency, toOpaquePng } from '../pipeline/image.ts';
 import { isOcrable, needsPngForOcr } from '../pipeline/mime.ts';
@@ -168,6 +169,8 @@ export async function mergeDocuments(deps: MergeDeps, userId: string, raw: unkno
       await db.delete(documents).where(eq(documents.id, pending.id));
       throw error;
     }
+    // A suggested set that was merged is never suggested again, whether or not the originals stay.
+    await markMerged(db, userId, input.ids);
 
     if (input.trashOriginals !== true) {
       return filed;

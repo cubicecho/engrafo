@@ -93,6 +93,41 @@ describe('pipeline runner', () => {
     ]);
   });
 
+  it('says when a run settles a document, ready or failed, and whose it is', async () => {
+    const processed: unknown[] = [];
+    events.on('document.processed', (event) => processed.push(event));
+    let shouldFail = false;
+    const step: PipelineStep = {
+      name: 'step',
+      enabled: () => true,
+      run: async () => {
+        if (shouldFail) {
+          throw new Error('boom');
+        }
+      },
+    };
+    const pipeline = createPipeline({
+      db,
+      storage,
+      events,
+      steps: [step],
+      config: CONFIG,
+      embedder: createFakeEmbedder(),
+    });
+    const ready = await insertDocument();
+    await pipeline.run(ready.id);
+    shouldFail = true;
+    const failed = await insertDocument();
+    await pipeline.run(failed.id);
+    // A document already ready is not run, so it says nothing.
+    await pipeline.run(ready.id);
+
+    expect(processed).toEqual([
+      { documentId: ready.id, userId, status: 'ready' },
+      { documentId: failed.id, userId, status: 'failed' },
+    ]);
+  });
+
   it('records a failure, and a retry resumes from the failed step without re-running earlier ones', async () => {
     let firstRuns = 0;
     let shouldFail = true;

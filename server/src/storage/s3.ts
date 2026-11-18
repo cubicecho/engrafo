@@ -15,6 +15,12 @@ import type { S3Config } from '../core/config.ts';
 import { STORAGE_DEFAULTS } from '../core/defaults.ts';
 import { SECONDS_PER_MINUTE } from '../core/wire.ts';
 
+/** Part of an object, by byte offsets from its start, both inclusive, as an HTTP `Range` counts them. */
+export interface ByteRange {
+  first: number;
+  last: number;
+}
+
 /**
  * Everything the app asks of object storage. An interface rather than the S3
  * client itself so tests hand in a map, and so nothing outside this file knows
@@ -30,7 +36,8 @@ export interface Storage {
   ): Promise<string>;
   /** The stored object's size and type, or null when nothing is at the key. */
   head(key: string): Promise<{ size: number; contentType: string | null } | null>;
-  getStream(key: string): Promise<Readable>;
+  /** The object's bytes, or only those in `range`. */
+  getStream(key: string, range?: ByteRange): Promise<Readable>;
   download(key: string, path: string): Promise<void>;
   put(key: string, body: string | Uint8Array, contentType: string): Promise<void>;
   putFile(key: string, path: string, contentType: string): Promise<void>;
@@ -145,8 +152,9 @@ function bucketStorage(client: S3Client, signer: S3Client, Bucket: string): Stor
       }
     },
 
-    async getStream(key) {
-      const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
+    async getStream(key, range) {
+      const Range = range === undefined ? undefined : `bytes=${range.first}-${range.last}`;
+      const result = await client.send(new GetObjectCommand({ Bucket, Key: key, Range }));
       return bodyStream(result.Body);
     },
 
