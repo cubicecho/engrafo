@@ -1,3 +1,9 @@
+# [4.26.0](https://github.com/cubicecho/engrafo/compare/v4.25.1...v4.26.0) (2026-11-18)
+
+### Features
+
+* store suggested merges and rescore them when a user's documents settle ([5aafd11](https://github.com/cubicecho/engrafo/commit/5aafd118c45bba5060fd4cb5740da23a2e92db02))
+
 ## [4.25.1](https://github.com/cubicecho/engrafo/compare/v4.25.0...v4.25.1) (2026-11-18)
 
 ### Bug Fixes
