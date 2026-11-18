@@ -1,3 +1,9 @@
+## [4.28.2](https://github.com/cubicecho/engrafo/compare/v4.28.1...v4.28.2) (2026-11-18)
+
+### Bug Fixes
+
+* the processing page's progress bar stays inside its row ([1ab20ae](https://github.com/cubicecho/engrafo/commit/1ab20aefc02f50a873011f11dfa057962189e0c4))
+
 ## [4.28.1](https://github.com/cubicecho/engrafo/compare/v4.28.0...v4.28.1) (2026-11-18)
 
 ### Performance Improvements
