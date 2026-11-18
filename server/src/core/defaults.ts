@@ -567,6 +567,116 @@ export const PROCESSING_DEFAULTS: Readonly<ProcessingSettings> = Object.freeze({
   listLimit: 200,
 });
 
+/**
+ * Points each signal adds to the case that one document continues another, or takes from it
+ * when negative. Every key under a signal is a kind that signal can report.
+ */
+export interface MergeSuggestionWeights {
+  /** Where a pair with no evidence either way starts, before the logistic. */
+  bias: number;
+  timeGap: { close: number; near: number; apart: number; far: number };
+  filename: { next: number; series: number; unrelated: number };
+  pageMarkers: {
+    consecutive: number;
+    sameSet: number;
+    restart: number;
+    complete: number;
+    conflict: number;
+    none: number;
+  };
+  identifiers: { shared: number; none: number };
+  documentDate: { agree: number; onlyFirst: number; conflict: number; none: number };
+  vendor: { agree: number; onlyFirst: number; conflict: number; none: number };
+  textFlow: { runsOn: number; freshStart: number; none: number };
+  embedding: { similar: number; dissimilar: number; none: number };
+}
+
+/** Suggesting merges of a scan filed as several documents: one file per page, or front and back apart. */
+export interface MergeSuggestionSettings {
+  /** How far back the suggester looks for documents to compare. */
+  lookbackDays: number;
+  /** Two documents filed further apart than this are never compared. */
+  pairWindowHours: number;
+  /** How long the suggester waits after the last finished run before it scores a batch. */
+  quietSeconds: number;
+  /** A pair below this confidence (0–1) is not linked, and a group with such a link is not suggested. */
+  minConfidence: number;
+  /** A confidence at or above this is High. */
+  highBand: number;
+  /** A confidence at or above this, and under `highBand`, is Medium; below is Low. */
+  mediumBand: number;
+  /** The confidences (0–1, inclusive) the model is asked to confirm when one is set up. */
+  aiBand: Readonly<{ min: number; max: number }>;
+  /** How much of each document's text the scorer and the model see, in characters from its start and its end. */
+  aiContextChars: number;
+  /** Filed at most this far apart is "close" in time. */
+  closeSeconds: number;
+  /** Filed at most this far apart, and further than `closeSeconds`, is "near". */
+  nearSeconds: number;
+  /** Filed further apart than this is "far", which counts against. */
+  farSeconds: number;
+  /** A mean-embedding cosine at or above this is similar content. */
+  similarCosine: number;
+  /** A mean-embedding cosine below this is unrelated content, the only way an embedding counts against. */
+  dissimilarCosine: number;
+  /** The fewest digits a labelled number needs to count as an identifier, so a quantity or a year does not. */
+  minIdentifierDigits: number;
+  /** How many of a document's first non-empty lines are read for a letterhead, a date or a greeting. */
+  letterheadLines: number;
+  /** The largest "of N" a page marker may state before it is taken for some other number. */
+  maxPageTotal: number;
+  weights: Readonly<MergeSuggestionWeights>;
+}
+
+/**
+ * The shipped values of `MergeSuggestionSettings`. The weights were set against the fixtures in
+ * `__tests__/merge-suggestions/`; dismissals are logged with their scores so they can be tuned.
+ */
+export const MERGE_SUGGESTION_DEFAULTS: Readonly<MergeSuggestionSettings> = Object.freeze({
+  lookbackDays: 14,
+  pairWindowHours: 6,
+  quietSeconds: 60,
+  minConfidence: 0.5,
+  highBand: 0.85,
+  mediumBand: 0.65,
+  aiBand: Object.freeze({ min: 0.4, max: 0.85 }),
+  aiContextChars: 1500,
+  // A sheet feeder files a page every few seconds; a person turning pages on a flatbed, or
+  // photographing them, takes a minute or two. Someone scanning one document after another is a
+  // few minutes apart, so "near" is barely a plus.
+  closeSeconds: 120,
+  nearSeconds: 600,
+  farSeconds: 3600,
+  // Search's floor for an unrelated prompt is 0.75 on single passages; a mean over a document's
+  // passages sits nearer the centre, so similar has to be higher and dissimilar much lower.
+  similarCosine: 0.85,
+  dissimilarCosine: 0.4,
+  minIdentifierDigits: 5,
+  letterheadLines: 4,
+  maxPageTotal: 500,
+  weights: Object.freeze({
+    // Time and a sequential name together, and nothing else, land in Medium (0.73), where the
+    // model is asked: a scanner names two unrelated receipts in sequence just as readily.
+    bias: -2.5,
+    // Near and a sequential name, and nothing else, stay under minConfidence (0.44).
+    timeGap: Object.freeze({ close: 1.5, near: 0.25, apart: 0, far: -1 }),
+    filename: Object.freeze({ next: 2, series: 0.5, unrelated: -0.5 }),
+    // The strongest signal: a printed "page 2 of 3" is the document saying it continues, and
+    // "page 3 of 3" with an unnumbered page after it is one saying it has ended.
+    pageMarkers: Object.freeze({ consecutive: 3, sameSet: 1, restart: -2, complete: -1.5, conflict: -2, none: 0 }),
+    identifiers: Object.freeze({ shared: 1.5, none: 0 }),
+    // A conflicting date is weaker than a conflicting vendor: the first date on a statement's
+    // second page is often a transaction's, while a vendor is only read beside a total.
+    documentDate: Object.freeze({ agree: 0.5, onlyFirst: 0.5, conflict: -1.5, none: 0 }),
+    // Only the first naming a vendor says nothing: a vendor is read beside the total, which is on
+    // a document's last page, not its first.
+    vendor: Object.freeze({ agree: 0.5, onlyFirst: 0, conflict: -2.5, none: 0 }),
+    textFlow: Object.freeze({ runsOn: 2, freshStart: -1.5, none: 0 }),
+    // Weak by design: pages of one document and two documents on one subject look alike.
+    embedding: Object.freeze({ similar: 0.5, dissimilar: -1, none: 0 }),
+  }),
+});
+
 /** Merging documents into one PDF, which is filed as a new document. */
 export interface MergeSettings {
   /** The most documents one merge may take. It runs inside the request, so it is bounded. */
