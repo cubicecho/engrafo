@@ -9,9 +9,12 @@ import { type MergeCandidate, type PairSignals, readSignals, type Signal } from 
 /** The signals by name. */
 export type MergeSignalName = keyof PairSignals;
 
+/** What a reason that came from the model's answer, not a rule, names as its signal. */
+export const AI_SIGNAL = 'ai';
+
 /** One signal that moved a pair's confidence, as the UI shows it. */
 export interface MergeReason {
-  signal: MergeSignalName;
+  signal: MergeSignalName | typeof AI_SIGNAL;
   /** For the person deciding: `scanned 40 s apart`, `same invoice no. 10432`. */
   text: string;
   /** What it added; negative when it counts against. */
@@ -87,7 +90,13 @@ export function scorePair(
   return scoreSignals(readSignals(a, b, settings), settings);
 }
 
-function logistic(points: number): number {
+/**
+ * Turns points into a confidence.
+ *
+ * @param points - Any sum of weights.
+ * @returns Between 0 and 1; 0.5 for no points.
+ */
+export function logistic(points: number): number {
   return 1 / (1 + Math.exp(-points));
 }
 

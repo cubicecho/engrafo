@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
 import { resetAll } from '@cubicecho/agent-core';
 import { DocumentStatus, documents } from '@cubicecho/engrafo-db/schema';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -8,6 +7,7 @@ import { ErrorCode } from '../../core/errors.ts';
 import { SUGGEST_TITLE } from '../../title-suggestion/prompt.ts';
 import { suggestDocumentTitle } from '../../title-suggestion/suggest.ts';
 import { saveVisionSettings } from '../../vision/settings.ts';
+import { fakeEndpoint } from '../fake-model.ts';
 import {
   createClient,
   createFakeStorage,
@@ -19,67 +19,6 @@ import {
 } from '../helpers.ts';
 
 const SUGGEST = 'query ($ids: [UUID!]!) { suggestDocumentTitle(ids: $ids) }';
-
-interface ChatRequest {
-  model: string;
-  temperature?: number;
-  max_tokens?: number;
-  max_completion_tokens?: number;
-  messages: Array<{ role: string; content: unknown }>;
-}
-
-/** What the fake endpoint answers: the reply's text, and why it stopped, `stop` unless said. */
-interface Answer {
-  content: string;
-  finishReason?: string;
-}
-
-/**
- * A real OpenAI-compatible endpoint on an ephemeral port, as the vision step's tests use, so what
- * is proven is the request that reaches the wire, not a stub's arguments.
- */
-async function fakeEndpoint(answer: (body: ChatRequest) => Answer | { status: number }) {
-  const bodies: ChatRequest[] = [];
-  const server: Server = createServer((req, res) => {
-    let raw = '';
-    req.on('data', (chunk) => {
-      raw += chunk;
-    });
-    req.on('end', () => {
-      const body = JSON.parse(raw) as ChatRequest;
-      bodies.push(body);
-      const reply = answer(body);
-      if ('status' in reply) {
-        res.writeHead(reply.status, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ error: { message: 'the model is not loaded' } }));
-        return;
-      }
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          id: 'chatcmpl-test',
-          object: 'chat.completion',
-          created: 0,
-          model: body.model,
-          choices: [
-            {
-              index: 0,
-              message: { role: 'assistant', content: reply.content },
-              finish_reason: reply.finishReason ?? 'stop',
-            },
-          ],
-        }),
-      );
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as { port: number };
-  return {
-    baseUrl: `http://127.0.0.1:${port}/v1`,
-    bodies,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
-  };
-}
 
 describe('suggestDocumentTitle', () => {
   let db: TestDb;

@@ -5,13 +5,15 @@ import { errorMessage } from '../core/errors.ts';
 import { MS_PER_SECOND } from '../core/wire.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { StorageSet } from '../storage/s3.ts';
+import { type AiCheckResult, checkUser } from './ai-check.ts';
 import { isMergeableRecent, lookbackStart } from './candidates.ts';
 import { type RescoreResult, rescoreUser } from './store.ts';
 
 // The job that writes suggested merges. Not a pipeline step: a step would send every finished
 // document back through `catchUp()`, and the job looks across a user's documents, not at one. It
 // waits for a user's runs to go quiet, so a scan batch is scored once, after its last page is in.
-// A timer in the process, like the trash purger's, because there is one server.
+// A timer in the process, like the trash purger's, because there is one server. After each
+// rescore it asks the model about the steps the rules are unsure of, when one is set up.
 
 /** What the suggester is built from. */
 export interface MergeSuggesterOptions {
@@ -24,6 +26,11 @@ export interface MergeSuggesterOptions {
   now?: () => Date;
   /** Rescores one user. Defaults to `rescoreUser`; a test hands in one it can hold open. */
   rescore?: (userId: string) => Promise<RescoreResult>;
+  /**
+   * Asks the model about one user's unsure steps, after each rescore. Defaults to `checkUser`,
+   * with the failures it remembers kept here across passes and the stop signal handed in.
+   */
+  check?: (userId: string) => Promise<AiCheckResult>;
   log?: (message: string) => void;
 }
 
@@ -38,9 +45,9 @@ export interface MergeSuggester {
    * @returns How many users were rescored.
    */
   catchUp(): Promise<number>;
-  /** Resolves once no rescore is running. For tests. */
+  /** Resolves once no rescore or model check is running. For tests. */
   idle(): Promise<void>;
-  /** Cancels every waiting rescore and waits for the ones running. */
+  /** Cancels every waiting rescore, abandons the model's questions, and waits for what is running. */
   stop(): Promise<void>;
 }
 
@@ -51,7 +58,8 @@ export interface MergeSuggester {
  * @returns The suggester. Nothing runs until an event arrives or `catchUp` is called.
  *
  * @remarks
- * One rescore at a time per user: one asked for while another runs is run once after it.
+ * One rescore at a time per user, with its model check after it: one asked for while another runs
+ * is run once after it.
  */
 export function createMergeSuggester({
   db,
@@ -60,8 +68,15 @@ export function createMergeSuggester({
   settings = MERGE_SUGGESTION_DEFAULTS,
   now = () => new Date(),
   rescore = (userId) => rescoreUser({ db, storage }, userId, { now: now(), settings }),
+  check,
   log = console.log,
 }: MergeSuggesterOptions): MergeSuggester {
+  const stopping = new AbortController();
+  const failedSteps = new Map<string, Date>();
+  const checkModel =
+    check ??
+    ((userId: string) =>
+      checkUser({ db, storage, failedSteps }, userId, { now: now(), settings, log, signal: stopping.signal }));
   const quietMs = settings.quietSeconds * MS_PER_SECOND;
   const timers = new Map<string, NodeJS.Timeout>();
   const running = new Map<string, Promise<void>>();
@@ -78,14 +93,7 @@ export function createMergeSuggester({
     }
     // Started inside a promise, so even a rescore that throws before its first await is a log line.
     const task = Promise.resolve()
-      .then(() => rescore(userId))
-      .then(({ inserted, updated, deleted }) => {
-        const changedAnything = inserted + updated + deleted > 0;
-        if (changedAnything) {
-          log(`[merge-suggestions] ${userId}: ${inserted} new, ${updated} rescored, ${deleted} dropped`);
-        }
-      })
-      .catch((error) => log(`[merge-suggestions] rescore of ${userId} failed: ${errorMessage(error)}`))
+      .then(() => rescoreThenCheck(userId))
       .finally(() => {
         running.delete(userId);
         if (runAgain.delete(userId)) {
@@ -93,6 +101,30 @@ export function createMergeSuggester({
         }
       });
     running.set(userId, task);
+  }
+
+  async function rescoreThenCheck(userId: string): Promise<void> {
+    try {
+      const { inserted, updated, deleted } = await rescore(userId);
+      const changedAnything = inserted + updated + deleted > 0;
+      if (changedAnything) {
+        log(`[merge-suggestions] ${userId}: ${inserted} new, ${updated} rescored, ${deleted} dropped`);
+      }
+    } catch (error) {
+      log(`[merge-suggestions] rescore of ${userId} failed: ${errorMessage(error)}`);
+      return;
+    }
+    if (isStopping) {
+      return;
+    }
+    try {
+      const { asked, recorded } = await checkModel(userId);
+      if (asked > 0) {
+        log(`[merge-suggestions] ${userId}: asked the model about ${asked} steps, recorded ${recorded}`);
+      }
+    } catch (error) {
+      log(`[merge-suggestions] model check of ${userId} failed: ${errorMessage(error)}`);
+    }
   }
 
   function notify(userId: string): void {
@@ -142,6 +174,7 @@ export function createMergeSuggester({
 
     async stop() {
       isStopping = true;
+      stopping.abort();
       for (const timer of timers.values()) {
         clearTimeout(timer);
       }

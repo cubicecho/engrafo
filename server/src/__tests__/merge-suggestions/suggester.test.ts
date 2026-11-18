@@ -1,6 +1,7 @@
 import { DocumentStatus } from '@cubicecho/engrafo-db/schema';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MERGE_SUGGESTION_DEFAULTS } from '../../core/defaults.ts';
+import type { AiCheckResult } from '../../merge-suggestions/ai-check.ts';
 import type { RescoreResult } from '../../merge-suggestions/store.ts';
 import { createMergeSuggester, type MergeSuggesterOptions } from '../../merge-suggestions/suggester.ts';
 import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
@@ -10,6 +11,7 @@ import { seedCandidates } from './seed.ts';
 
 const QUIET_MS = MERGE_SUGGESTION_DEFAULTS.quietSeconds * 1000;
 const NOTHING: RescoreResult = { inserted: 0, updated: 0, deleted: 0 };
+const NOTHING_ASKED: AiCheckResult = { asked: 0, recorded: 0 };
 
 /** A rescore a test finishes by hand, and every user it was started for, in order. */
 function heldRescore() {
@@ -44,13 +46,17 @@ describe('the merge suggester', () => {
     vi.useRealTimers();
   });
 
-  // Every test here hands in its own rescore, so the database is never read.
-  const suggester = (rescore: MergeSuggesterOptions['rescore']) =>
+  // Every test here hands in its own rescore and model check, so the database is never read.
+  const suggester = (
+    rescore: MergeSuggesterOptions['rescore'],
+    check: MergeSuggesterOptions['check'] = async () => NOTHING_ASKED,
+  ) =>
     createMergeSuggester({
       db,
       storage: createFakeStorage(),
       events,
       rescore,
+      check,
       log: (message) => logged.push(message),
     });
 
@@ -115,6 +121,70 @@ describe('the merge suggester', () => {
     await job.idle();
     expect(calls).toBe(2);
     expect(logged[1]).toMatch(/^\[merge-suggestions\] alice: 1 new/);
+  });
+
+  it('asks the model after each rescore, and not after one that failed', async () => {
+    const order: string[] = [];
+    let rescores = 0;
+    const job = suggester(
+      async (userId) => {
+        rescores += 1;
+        order.push(`rescore ${userId}`);
+        if (rescores === 2) {
+          throw new Error('database went away');
+        }
+        return NOTHING;
+      },
+      async (userId) => {
+        order.push(`check ${userId}`);
+        return { asked: 2, recorded: 1 };
+      },
+    );
+    job.notify('alice');
+    await vi.advanceTimersByTimeAsync(QUIET_MS);
+    await job.idle();
+    job.notify('alice');
+    await vi.advanceTimersByTimeAsync(QUIET_MS);
+    await job.idle();
+    expect(order).toEqual(['rescore alice', 'check alice', 'rescore alice']);
+    expect(logged[0]).toBe('[merge-suggestions] alice: asked the model about 2 steps, recorded 1');
+  });
+
+  it('logs a failed model check and carries on', async () => {
+    const job = suggester(
+      async () => NOTHING,
+      async () => {
+        throw new Error('no route to host');
+      },
+    );
+    job.notify('alice');
+    await vi.advanceTimersByTimeAsync(QUIET_MS);
+    await job.idle();
+    expect(logged).toEqual(['[merge-suggestions] model check of alice failed: no route to host']);
+  });
+
+  it('waits for a model check in flight when it stops', async () => {
+    let finishCheck = () => {};
+    const checking = new Promise<AiCheckResult>((resolve) => {
+      finishCheck = () => resolve(NOTHING_ASKED);
+    });
+    const job = suggester(
+      async () => NOTHING,
+      () => checking,
+    );
+    job.notify('alice');
+    await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+    let stopped = false;
+    const stopping = job.stop().then(() => {
+      stopped = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stopped).toBe(false);
+
+    finishCheck();
+    await stopping;
+    expect(stopped).toBe(true);
   });
 
   it('stops: cancels what is waiting and waits for what is running', async () => {

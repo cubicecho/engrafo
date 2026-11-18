@@ -1,5 +1,4 @@
 import {
-  boolean,
   doublePrecision,
   index,
   jsonb,
@@ -31,6 +30,33 @@ export interface StoredMergeReason {
 }
 
 /**
+ * One adjacent step of a suggestion, in page order, and the rules' confidence (0–1) that `toId`
+ * continues `fromId`. Mirrors the server's `MergeLink`.
+ */
+export interface StoredMergeLink {
+  fromId: string;
+  toId: string;
+  heuristic: number;
+}
+
+/**
+ * What the model answered about one adjacent step: whether `toId` continues `fromId`, how sure it
+ * was (0–1), and why. Kept for as long as the two stay adjacent in that order, whatever the
+ * rules' score does meanwhile. Mirrors the server's `MergeVerdict`.
+ */
+export interface StoredMergeVerdict {
+  fromId: string;
+  toId: string;
+  continues: boolean;
+  confidence: number;
+  reason: string;
+  /** The model that answered. */
+  model: string;
+  /** When it answered, as an ISO timestamp. */
+  checkedAt: string;
+}
+
+/**
  * Documents that look like one scan filed as several, written by the server's merge suggester and
  * never by a client. The members are an array rather than a join table because a suggestion is
  * one decision about one set, replaced whole when it is scored again.
@@ -47,11 +73,17 @@ export const mergeSuggestions = pgTable(
     // The members' ids sorted and joined, so one set has one identity whatever its page order.
     // This is what a dismissal is remembered by.
     memberKey: text('member_key').notNull(),
-    // Between 0 and 1: the weakest step in the page order.
+    // The rules' side and the model's are kept apart, so a rescore replaces one and keeps the
+    // other. `links` is each adjacent step's rules score, in page order; `ai_verdicts` the model's
+    // answers about those steps.
+    links: jsonb('links').$type<StoredMergeLink[]>().notNull().default([]),
+    aiVerdicts: jsonb('ai_verdicts').$type<StoredMergeVerdict[]>().notNull().default([]),
+    // Derived from the two, and written with them, so a read needs no arithmetic: the weakest step
+    // by the rules alone, and the weakest once each verdict has moved its step (0–1 both).
+    heuristicConfidence: doublePrecision('heuristic_confidence').notNull(),
     confidence: doublePrecision('confidence').notNull(),
+    // The rules' reasons and one per verdict, the strongest for first.
     reasons: jsonb('reasons').$type<StoredMergeReason[]>().notNull().default([]),
-    // Whether the model has confirmed or doubted it, once one is set up.
-    aiChecked: boolean('ai_checked').notNull().default(false),
     status: mergeSuggestionStatus('status').notNull().default('open'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
