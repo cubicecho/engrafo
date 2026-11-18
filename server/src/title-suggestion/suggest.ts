@@ -1,4 +1,4 @@
-import { askReply, FinishReason, type SideTaskReply } from '@cubicecho/agent-core';
+import { FinishReason, type SideTaskReply } from '@cubicecho/agent-core';
 import type { DB } from '@cubicecho/engrafo-db';
 import type { Document } from '@cubicecho/engrafo-db/schema';
 import { z } from 'zod';
@@ -8,7 +8,8 @@ import { parseOrThrow } from '../core/validation.ts';
 import { loadOwnedDocuments } from '../documents/resolvers.ts';
 import { readTextStart } from '../pipeline/content.ts';
 import type { StorageSet } from '../storage/s3.ts';
-import { loadVisionConfig, samplerBody } from '../vision/settings.ts';
+import { askTextQuestion } from '../vision/ask.ts';
+import { loadVisionConfig } from '../vision/settings.ts';
 import { excerptBudgetChars, SUGGEST_TITLE, sanitizeTitle, type TitleSource, titlePrompt } from './prompt.ts';
 
 // The only model this instance has is the admin's vision model, and an OpenAI-compatible vision
@@ -71,17 +72,12 @@ export async function suggestDocumentTitle(
 
   const budget = excerptBudgetChars(docs.length);
   const sources = await Promise.all(docs.map((doc) => titleSource(deps.storage, doc, budget)));
-  // The admin's timeout is per page and can be ten minutes; someone is waiting on this one.
-  const endpoint = {
-    ...vision,
-    requestTimeoutSeconds: Math.min(vision.requestTimeoutSeconds, TITLE_SUGGESTION_DEFAULTS.requestTimeoutSeconds),
-  };
   let reply: SideTaskReply;
   try {
-    reply = await askReply(endpoint, vision.model, SUGGEST_TITLE, titlePrompt(sources), {
+    // Someone is waiting on this one, so it gets a timeout of its own.
+    reply = await askTextQuestion(vision, SUGGEST_TITLE, titlePrompt(sources), {
       maxTokens: TITLE_SUGGESTION_DEFAULTS.maxResponseTokens,
-      temperature: vision.temperature,
-      extraBody: samplerBody(vision.sampler),
+      maxTimeoutSeconds: TITLE_SUGGESTION_DEFAULTS.requestTimeoutSeconds,
       onNotice: notice,
     });
   } catch (error) {
