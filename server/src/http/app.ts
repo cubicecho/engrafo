@@ -8,6 +8,7 @@ import { trustProxy } from '../core/config.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
 import { mountMcp } from '../mcp/endpoint.ts';
+import type { MergeSuggester } from '../merge-suggestions/suggester.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -32,6 +33,8 @@ export interface AppDeps {
   mergeAvailable: boolean;
   /** Embeds search queries, with the model the pipeline indexes with. */
   embedder: Embedder;
+  /** The suggested merges' job, which `rescoreMergeSuggestions` runs now rather than after its wait. */
+  mergeSuggester: Pick<MergeSuggester, 'rescoreNow'>;
   /** Export links and import runs. Left out, the app keeps its own; a test passes one to reach in. */
   backups?: Backups;
   /** The built web client. Left out, the app serves the API alone. */

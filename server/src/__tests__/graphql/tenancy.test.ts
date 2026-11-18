@@ -17,6 +17,7 @@ const UNSERVED_TABLES = new Set<string>([
   ...dbSchema.AUTH_TABLES,
   ...dbSchema.SERVER_TABLES,
   ...dbSchema.SEARCH_TABLES,
+  ...dbSchema.SUGGESTION_TABLES,
 ]);
 
 const isServedTable = (key: string, value: unknown): boolean => is(value, Table) && UNSERVED_TABLES.has(key) === false;
@@ -27,14 +28,7 @@ const tableKeys = Object.entries(dbSchema)
 
 describe('tenancy configuration', () => {
   it('finds the tables', () => {
-    expect(tableKeys.sort()).toEqual([
-      'documents',
-      'folders',
-      'mergeSuggestions',
-      'processingSteps',
-      'savedSearches',
-      'users',
-    ]);
+    expect(tableKeys.sort()).toEqual(['documents', 'folders', 'processingSteps', 'savedSearches', 'users']);
   });
 
   it.each(tableKeys)('scopes %s to the caller', (key) => {
@@ -94,6 +88,8 @@ describe('tenancy at runtime', () => {
     expect(asBob.processingSteps).toEqual([]);
   });
 
+  // Out of the generated schema (SUGGESTION_TABLES), so its own reads state ownership themselves;
+  // merge-suggestions/resolvers.test.ts holds the rest of what they hide.
   it('lists only the caller’s merge suggestions', async () => {
     await db.insert(dbSchema.mergeSuggestions).values({
       userId: alice,
@@ -102,11 +98,12 @@ describe('tenancy at runtime', () => {
       heuristicConfidence: 0.9,
       confidence: 0.9,
     });
-    const asAlice = await createClient(db, alice).expectOk('{ mergeSuggestions { documentIds status } }');
-    expect(asAlice.mergeSuggestions).toEqual([{ documentIds: [aliceDoc], status: 'open' }]);
+    const query = '{ mergeSuggestions { count suggestions { documents { id } } } }';
+    const asAlice = await createClient(db, alice).expectOk(query);
+    expect(asAlice.mergeSuggestions).toEqual({ count: 1, suggestions: [{ documents: [{ id: aliceDoc }] }] });
 
-    const asBob = await createClient(db, bob).expectOk('{ mergeSuggestions { id } }');
-    expect(asBob.mergeSuggestions).toEqual([]);
+    const asBob = await createClient(db, bob).expectOk(query);
+    expect(asBob.mergeSuggestions).toEqual({ count: 0, suggestions: [] });
   });
 
   it('cannot be widened by a client filter', async () => {

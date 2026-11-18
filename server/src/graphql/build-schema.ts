@@ -1,5 +1,5 @@
 import type { DB } from '@cubicecho/engrafo-db';
-import { AUTH_TABLES, SEARCH_TABLES, SERVER_TABLES } from '@cubicecho/engrafo-db/schema';
+import { AUTH_TABLES, SEARCH_TABLES, SERVER_TABLES, SUGGESTION_TABLES } from '@cubicecho/engrafo-db/schema';
 import { buildSchema, type GeneratedData } from '@vantreeseba/drizzle-graphql';
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { applyApiKeysExtension } from '../api-keys/resolvers.ts';
@@ -9,6 +9,7 @@ import { applyDuplicatesExtension } from '../documents/duplicates.ts';
 import { applyDocumentsExtension } from '../documents/resolvers.ts';
 import { applyFoldersExtension } from '../folders/resolvers.ts';
 import { applyMergeExtension } from '../merge/resolvers.ts';
+import { applyMergeSuggestionsExtension } from '../merge-suggestions/resolvers.ts';
 import { applyMetadataExtension } from '../metadata/resolvers.ts';
 import { applyProcessingExtension } from '../processing/resolvers.ts';
 import { applySavedSearchesExtension } from '../saved-searches/resolvers.ts';
@@ -53,8 +54,9 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
     // and single-row fields (Document, document).
     typeNameMapper: 'singularize',
     // Sessions and magic-link tokens are only ever touched through better-auth,
-    // and the OIDC pairing holds credentials only the server reads.
-    exclude: { tables: [...AUTH_TABLES, ...SERVER_TABLES, ...SEARCH_TABLES] },
+    // the OIDC pairing holds credentials only the server reads, and suggested merges are shown
+    // only through merge-suggestions/resolvers.ts, which hides the stale and the rejected.
+    exclude: { tables: [...AUTH_TABLES, ...SERVER_TABLES, ...SEARCH_TABLES, ...SUGGESTION_TABLES] },
     scope,
     contextValues,
     features,
@@ -65,6 +67,7 @@ export function createSchema(db: DB): GeneratedData<DB, 'singularize'> {
   schema = applyDocumentsExtension(schema);
   schema = applyDuplicatesExtension(schema);
   schema = applyMergeExtension(schema);
+  schema = applyMergeSuggestionsExtension(schema);
   schema = applyFoldersExtension(schema);
   schema = applyMetadataExtension(schema);
   schema = applySearchExtension(schema);

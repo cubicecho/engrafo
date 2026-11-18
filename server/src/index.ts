@@ -152,6 +152,7 @@ const app = createApp({
   ocrAvailable,
   mergeAvailable,
   embedder,
+  mergeSuggester,
   staticDir,
 });
 

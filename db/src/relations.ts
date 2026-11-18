@@ -10,7 +10,6 @@ export const relations = defineRelations(schema, (r) => ({
     documents: r.many.documents({ from: r.users.id, to: r.documents.userId }),
     folders: r.many.folders({ from: r.users.id, to: r.folders.userId }),
     savedSearches: r.many.savedSearches({ from: r.users.id, to: r.savedSearches.userId }),
-    mergeSuggestions: r.many.mergeSuggestions({ from: r.users.id, to: r.mergeSuggestions.userId }),
   },
 
   folders: {
@@ -28,11 +27,9 @@ export const relations = defineRelations(schema, (r) => ({
     user: r.one.users({ from: r.savedSearches.userId, to: r.users.id }),
   },
 
-  // The members are an array, not a relation: drizzle-graphql cannot join through one, and a
-  // relation from here to documents would be a second door to check for the trash.
-  mergeSuggestions: {
-    user: r.one.users({ from: r.mergeSuggestions.userId, to: r.users.id }),
-  },
+  // No entry for mergeSuggestions, and none to it: it is out of the GraphQL schema
+  // (SUGGESTION_TABLES), and a `User.mergeSuggestions` field would be a generated read that shows
+  // rows the server's own reads hide.
 
   processingSteps: {
     user: r.one.users({ from: r.processingSteps.userId, to: r.users.id }),

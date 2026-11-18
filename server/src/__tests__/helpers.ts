@@ -19,6 +19,7 @@ import { type Backups, createBackups } from '../backup/state.ts';
 import { appUrl, type OidcConfig } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
+import { createMergeSuggester } from '../merge-suggestions/suggester.ts';
 import { createPipelineEvents, type PipelineEvents } from '../pipeline/events.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { Storage, StorageSet } from '../storage/s3.ts';
@@ -134,6 +135,9 @@ export function createFakeBucket(): FakeBucket {
   };
 }
 
+/** A suggester whose rescore does nothing, for an app built by a test that never asks for one. */
+export const inertMergeSuggester: Context['mergeSuggester'] = { rescoreNow: async () => undefined };
+
 export interface TestClient {
   /** Runs an operation as `userId`, or unauthenticated when it is null. */
   run: (query: string, variables?: Record<string, unknown>) => Promise<ExecutionResult>;
@@ -163,6 +167,11 @@ export interface ClientOptions {
   origin?: string;
   /** Embeds search queries. Defaults to `createFakeEmbedder()`. */
   embedder?: Embedder;
+  /**
+   * What `rescoreMergeSuggestions` runs. Defaults to a real suggester on an emitter of its own, so
+   * nothing a test emits starts a rescore behind its back.
+   */
+  mergeSuggester?: Context['mergeSuggester'];
   /** Export links and import runs. Pass one to share it with an app or another client. */
   backups?: Backups;
 }
@@ -174,6 +183,8 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
   const { limiter = createRateLimiter(), ip = TEST_IP, token } = options;
   const authHost = options.authHost ?? fixedAuthHost(options.auth ?? createTestAuth(db).auth);
   const backups = options.backups ?? createBackups();
+  const mergeSuggester =
+    options.mergeSuggester ?? createMergeSuggester({ db, storage, events: createPipelineEvents() });
 
   const run = async (query: string, variables?: Record<string, unknown>) => {
     const headers = new Headers(token === undefined ? {} : { authorization: `Bearer ${token}` });
@@ -192,6 +203,7 @@ export function createClient(db: TestDb, userId: string | null, options: ClientO
       ocrAvailable: options.ocrAvailable ?? false,
       mergeAvailable: options.mergeAvailable ?? false,
       embedder: options.embedder ?? createFakeEmbedder(),
+      mergeSuggester,
       backups,
     };
     return graphql({ schema, source: query, contextValue, variableValues: variables });

@@ -32,6 +32,7 @@ import {
   createTestDb,
   createUser,
   type FakeStorage,
+  inertMergeSuggester,
   type TestDb,
 } from '../helpers.ts';
 
@@ -275,6 +276,7 @@ describe('backups', () => {
           ocrAvailable: false,
           mergeAvailable: false,
           embedder: createFakeEmbedder(),
+          mergeSuggester: inertMergeSuggester,
           backups,
         });
         server = await new Promise<Server>((resolve) => {

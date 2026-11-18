@@ -109,3 +109,10 @@ export const MergeSuggestionStatus = {
   Dismissed: 'dismissed',
   Merged: 'merged',
 } as const satisfies Record<string, MergeSuggestionStatus>;
+
+/**
+ * The Drizzle keys of the suggestion tables, which the GraphQL schema leaves out: a row is shown
+ * only while its members are all still there to merge and the model has not ruled it out, which a
+ * generated read cannot check, so the server's own reads are the only door.
+ */
+export const SUGGESTION_TABLES = ['mergeSuggestions'] as const;

@@ -3,7 +3,7 @@ import { MergeSuggestionStatus, mergeSuggestions } from '@cubicecho/engrafo-db/s
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mergeDocuments } from '../../merge/merge.ts';
-import { memberKey, rescoreUser } from '../../merge-suggestions/store.ts';
+import { loadOpenSuggestions, memberKey, rescoreUser } from '../../merge-suggestions/store.ts';
 import { createPipelineEvents } from '../../pipeline/events.ts';
 import {
   bornDigitalPdf,
@@ -43,8 +43,12 @@ describe('merging a suggested set', () => {
     await rescoreUser({ db, storage }, userId, { now: NOW });
   });
 
-  const merge = (members: string[]) =>
-    mergeDocuments({ db, storage, events: createPipelineEvents() }, userId, { ids: members, title: 'Invoice' });
+  const merge = (members: string[], trashOriginals = false) =>
+    mergeDocuments({ db, storage, events: createPipelineEvents() }, userId, {
+      ids: members,
+      title: 'Invoice',
+      trashOriginals,
+    });
   const statusOf = async () =>
     (
       await db
@@ -58,8 +62,16 @@ describe('merging a suggested set', () => {
     expect(await statusOf()).toBe(MergeSuggestionStatus.Merged);
   });
 
+  // A page left out is a different set, so this row was not what was merged: it stays open, and
+  // the next rescore (the merged copy finishing wakes it) decides what is left to suggest.
   it('leaves it open when a different set is merged', async () => {
     await merge(ids.slice(0, 2));
     expect(await statusOf()).toBe(MergeSuggestionStatus.Open);
+  });
+
+  it('stops showing it at once when the pages merged went to the trash', async () => {
+    await merge(ids.slice(0, 2), true);
+    expect(await statusOf()).toBe(MergeSuggestionStatus.Open);
+    expect(await loadOpenSuggestions(db, userId)).toEqual([]);
   });
 });
