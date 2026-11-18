@@ -18,6 +18,7 @@ import type { StorageSet } from '../storage/s3.ts';
 import { notTrashed } from '../trash/trash.ts';
 import { loadVisionConfig, type VisionConfig } from '../vision/settings.ts';
 import type { PipelineEvents } from './events.ts';
+import { createLimiter } from './limiter.ts';
 import type { PipelineConfig, PipelineStep, RunConfig } from './types.ts';
 
 /** What a pipeline is built from. */
