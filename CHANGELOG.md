@@ -1,3 +1,9 @@
+# [4.25.0](https://github.com/cubicecho/engrafo/compare/v4.24.0...v4.25.0) (2026-11-18)
+
+### Features
+
+* score how likely one scan continues another ([76e55cb](https://github.com/cubicecho/engrafo/commit/76e55cb8cd7b283e131def7f9dcb326817583454))
+
 # [4.24.0](https://github.com/cubicecho/engrafo/compare/v4.23.0...v4.24.0) (2026-11-18)
 
 ### Features
