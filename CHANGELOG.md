@@ -1,3 +1,9 @@
+# [4.24.0](https://github.com/cubicecho/engrafo/compare/v4.23.0...v4.24.0) (2026-11-18)
+
+### Features
+
+* suggest a title for merged documents with the vision model ([4f77aef](https://github.com/cubicecho/engrafo/commit/4f77aef8d9842dffe4c70e7c496196426de59868))
+
 # [4.23.0](https://github.com/cubicecho/engrafo/compare/v4.22.0...v4.23.0) (2026-11-12)
 
 
