@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DB } from '@cubicecho/engrafo-db';
 import { type Document, DocumentStatus, documents } from '@cubicecho/engrafo-db/schema';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { DOCUMENT_DEFAULTS, MERGE_DEFAULTS } from '../core/defaults.ts';
-import { badInput, conflict, notFound } from '../core/errors.ts';
+import { badInput, conflict } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
 import {
   completePendingDocument,
@@ -16,12 +16,13 @@ import {
   insertPendingDocument,
   titleSchema,
 } from '../documents/create.ts';
+import { loadOwnedDocuments } from '../documents/resolvers.ts';
 import { freeName, lockNames, ownedParent } from '../folders/names.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import { pngHasTransparency, toOpaquePng } from '../pipeline/image.ts';
 import { isOcrable, needsPngForOcr } from '../pipeline/mime.ts';
 import type { StorageSet } from '../storage/s3.ts';
-import { notTrashed, trashDocument } from '../trash/trash.ts';
+import { trashDocument } from '../trash/trash.ts';
 import { type MergePart, MergeRefusedError, mergeToPdf } from './pdf.ts';
 
 // Merging is a way a document comes into being, so it goes the one way every other does: the
@@ -65,23 +66,8 @@ export interface MergeDeps {
  *   still being processed, since its searchable PDF is not written yet.
  */
 async function loadSources(db: DB, userId: string, ids: readonly string[]): Promise<Document[]> {
-  const rows = await db
-    .select()
-    .from(documents)
-    .where(
-      and(
-        eq(documents.userId, userId),
-        inArray(documents.id, [...ids]),
-        notTrashed(),
-        ne(documents.status, DocumentStatus.PendingUpload),
-      ),
-    );
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  return ids.map((id) => {
-    const doc = byId.get(id);
-    if (!doc) {
-      throw notFound('Document not found');
-    }
+  const sources = await loadOwnedDocuments(db, userId, ids);
+  return sources.map((doc) => {
     if (isOcrable(doc.mimeType) === false) {
       throw badInput(`“${doc.title}” cannot be merged: only PDFs and images have pages.`);
     }

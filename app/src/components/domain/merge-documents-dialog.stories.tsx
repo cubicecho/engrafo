@@ -53,17 +53,19 @@ const PREVIEW_SERVER = {
 
 interface HarnessProps {
   start: MergeCandidate[];
+  visionAvailable?: boolean;
   onMerge: (request: MergeRequest) => Promise<unknown>;
   onClose: () => void;
 }
 
 /** Holds the selection, as the page does, so moving and leaving out redraw the list. */
-function Harness({ start, onMerge, onClose }: HarnessProps) {
+function Harness({ start, visionAvailable, onMerge, onClose }: HarnessProps) {
   const [documents, setDocuments] = useState(start);
   return (
     <MergeDocumentsDialog
       documents={documents}
       folders={[TAXES]}
+      visionAvailable={visionAvailable}
       onDocumentsChange={setDocuments}
       onMerge={onMerge}
       onClose={onClose}
@@ -238,5 +240,94 @@ export const PreviewFails: Story = {
     await expect(await dialog.findByText('Could not load the preview')).toBeInTheDocument();
     await userEvent.click(dialog.getByRole('button', { name: 'Merge' }));
     await waitFor(() => expect(args.onMerge).toHaveBeenCalled());
+  },
+};
+
+/** Lets the suggestion story hold the server's answer back, so the button can be seen waiting. */
+let releaseSuggestion: (() => void) | undefined;
+
+/** The ids the last suggestion was asked for, in the order sent. */
+let suggestedFor: string[] = [];
+
+/** Without a vision model there is nothing to ask, so there is no button. */
+export const NoSuggestionWithoutAModel: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await findDialog(canvasElement);
+    await expect(dialog.getByRole('textbox', { name: /Title/ })).toHaveValue('Lease page 1');
+    await expect(dialog.queryByRole('button', { name: /Suggest a title/ })).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * With a model set up, "Suggest a title" asks for one from the documents in page order, waits with
+ * the button busy, and puts the answer in the field, where it can still be edited before merging.
+ */
+export const SuggestsATitle: Story = {
+  args: { visionAvailable: true },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          ...PREVIEW_SERVER.Query,
+          suggestDocumentTitle: async (_parent: unknown, args: { ids: string[] }) => {
+            suggestedFor = args.ids;
+            await new Promise<void>((resolve) => {
+              releaseSuggestion = resolve;
+            });
+            return 'Lease, 12 Harbour Road';
+          },
+        },
+      },
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const dialog = await findDialog(canvasElement);
+    await userEvent.click(dialog.getByRole('button', { name: /Suggest a title/ }));
+    const waiting = await dialog.findByRole('button', { name: /Suggesting/ });
+    await expect(waiting).toHaveAttribute('aria-busy', 'true');
+    await waitFor(() => expect(releaseSuggestion).toBeDefined());
+    releaseSuggestion?.();
+
+    const title = dialog.getByRole('textbox', { name: /Title/ });
+    await waitFor(() => expect(title).toHaveValue('Lease, 12 Harbour Road'));
+    await expect(suggestedFor).toEqual([LEASE.id, SCAN.id, SIGNED.id]);
+    // Pressing it did not merge anything; Merge does, with the title as edited.
+    await expect(args.onMerge).not.toHaveBeenCalled();
+    await userEvent.type(title, ' (signed)');
+    await userEvent.click(dialog.getByRole('button', { name: 'Merge' }));
+    await waitFor(() =>
+      expect(args.onMerge).toHaveBeenCalledWith(expect.objectContaining({ title: 'Lease, 12 Harbour Road (signed)' })),
+    );
+  },
+};
+
+/** A suggestion that fails says why under the field, and leaves what was typed in it. */
+export const SuggestionFails: Story = {
+  args: { visionAvailable: true },
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          ...PREVIEW_SERVER.Query,
+          suggestDocumentTitle: () => {
+            throw new Error('The model did not answer: connect ECONNREFUSED');
+          },
+        },
+      },
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const dialog = await findDialog(canvasElement);
+    const title = dialog.getByRole('textbox', { name: /Title/ });
+    await userEvent.clear(title);
+    await userEvent.type(title, 'My lease');
+    await userEvent.click(dialog.getByRole('button', { name: /Suggest a title/ }));
+
+    const alert = await dialog.findByRole('alert');
+    await expect(alert).toHaveTextContent('Could not suggest a title');
+    await expect(alert).toHaveTextContent('ECONNREFUSED');
+    await expect(title).toHaveValue('My lease');
+    await expect(dialog.getByRole('button', { name: /Suggest a title/ })).not.toHaveAttribute('aria-busy', 'true');
+    await expect(args.onMerge).not.toHaveBeenCalled();
   },
 };
