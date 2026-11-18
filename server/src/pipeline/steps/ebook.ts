@@ -10,6 +10,7 @@ import type { PipelineStep } from '../types.ts';
  */
 export const ebookStep: PipelineStep = {
   name: 'ebook',
+  extractsText: true,
   enabled: (doc) => doc.mimeType === EPUB_MIME_TYPE,
   async run({ doc, storage, tmpDir }) {
     const epub = join(tmpDir, 'original.epub');

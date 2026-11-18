@@ -76,6 +76,12 @@ export type DocumentPatch = Partial<
  */
 export interface PipelineStep {
   name: string;
+  /**
+   * True for a step that writes the document's text. A merge of finished documents already has
+   * their text, so it marks these `skipped` and carries the text over instead of reading the
+   * pages again (see `mergeDocuments`).
+   */
+  extractsText?: boolean;
   /** False marks the step `skipped` rather than running it. Sees the document as earlier steps left it. */
   enabled(doc: Document, config: RunConfig): boolean;
   run(context: StepContext): Promise<DocumentPatch | undefined>;

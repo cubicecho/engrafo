@@ -4,16 +4,27 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { DocumentStatus, documents, folders, processingSteps } from '@cubicecho/engrafo-db/schema';
+import {
+  type ContentFormat,
+  DocumentStatus,
+  documents,
+  folders,
+  processingSteps,
+  StepStatus,
+} from '@cubicecho/engrafo-db/schema';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MERGE_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { detectMerge } from '../../merge/pdf.ts';
-import { createPipelineEvents } from '../../pipeline/events.ts';
+import { createPipelineEvents, type PipelineEvents } from '../../pipeline/events.ts';
+import { createPipeline } from '../../pipeline/runner.ts';
+import { STEPS } from '../../pipeline/step-list.ts';
+import type { VisionConfig } from '../../vision/settings.ts';
 import {
   bornDigitalPdf,
   createClient,
+  createFakeEmbedder,
   createFakeStorage,
   createTestDb,
   createUser,
@@ -83,6 +94,9 @@ describe('mergeDocuments', () => {
     archive?: Buffer;
     ocrRequested?: boolean;
     deletedAt?: Date;
+    /** The text earlier steps extracted, stored in the text bucket. */
+    text?: string;
+    contentFormat?: ContentFormat;
   }
 
   /** A processed document straight through Drizzle, with its objects in the fake bucket. */
@@ -96,6 +110,10 @@ describe('mergeDocuments', () => {
     if (options.archive && archiveKey) {
       await storage.files.put(archiveKey, options.archive, 'application/pdf');
     }
+    const contentKey = options.text === undefined ? null : `text/${owner}/${id}`;
+    if (contentKey && options.text !== undefined) {
+      await storage.text.put(contentKey, options.text, 'text/plain; charset=utf-8');
+    }
     await db.insert(documents).values({
       id,
       userId: owner,
@@ -106,6 +124,9 @@ describe('mergeDocuments', () => {
       sizeBytes: body.length,
       originalKey,
       archiveKey,
+      contentKey,
+      contentBytes: options.text === undefined ? null : Buffer.byteLength(options.text),
+      contentFormat: options.contentFormat ?? 'plain',
       ocrRequested: options.ocrRequested ?? false,
       status: options.status ?? DocumentStatus.Ready,
       ...(options.deletedAt ? { deletedAt: options.deletedAt } : {}),
@@ -113,8 +134,20 @@ describe('mergeDocuments', () => {
     return id;
   }
 
-  const client = (as: string | null = userId, mergeAvailable = true) =>
-    createClient(db, as, { storage, events: createPipelineEvents(), mergeAvailable });
+  const client = (as: string | null = userId, mergeAvailable = true, events = createPipelineEvents()) =>
+    createClient(db, as, { storage, events, mergeAvailable });
+
+  /** The merged copy's step rows, by name. */
+  async function stepsOf(documentId: string) {
+    const rows = await db.select().from(processingSteps).where(eq(processingSteps.documentId, documentId));
+    return new Map(rows.map((row) => [row.step, row]));
+  }
+
+  /** The text stored for a document, or null when it has none. */
+  async function storedText(documentId: string): Promise<string | null> {
+    const [row] = await db.select().from(documents).where(eq(documents.id, documentId));
+    return row.contentKey === null ? null : (storage.text.objects.get(row.contentKey)?.body.toString('utf-8') ?? null);
+  }
 
   async function folder(name: string, owner = userId): Promise<string> {
     const [row] = await db.insert(folders).values({ userId: owner, name }).returning();
@@ -289,6 +322,73 @@ with pikepdf.open(sys.argv[1]) as pdf:
       for (const id of [first, second]) {
         const [row] = await db.select().from(documents).where(eq(documents.id, id));
         expect(row.deletedAt).not.toBeNull();
+      }
+    });
+
+    describe('when every source is ready', () => {
+      it('carries their text over in page order and reads no page again', async () => {
+        const events: PipelineEvents = createPipelineEvents();
+        // OCR here and a vision model reading every OCR'd document: both would run on an upload.
+        const vision = { auto: true, skipOcr: false } as VisionConfig;
+        const pipeline = createPipeline({
+          db,
+          storage,
+          events,
+          steps: STEPS,
+          config: {
+            ocrAvailable: true,
+            pdfTextAvailable: true,
+            thumbnailTools: { pdf: false, image: false },
+            ocrLanguages: 'eng',
+            concurrency: 1,
+            dateOrder: 'DMY',
+          },
+          embedder: createFakeEmbedder(),
+          loadVision: async () => vision,
+        });
+        const first = await seed('First', { text: 'Invoice 12.03.2025\n', ocrRequested: true });
+        const blank = await seed('Blank', { ocrRequested: true });
+        const second = await seed('Second', { text: 'Page two says thanks.' });
+
+        const data = await client(userId, true, events).expectOk(MERGE, {
+          input: { ids: [second, blank, first], title: 'Bundle' },
+        });
+        const id = data.mergeDocuments.id;
+        await pipeline.idle();
+
+        expect(await storedText(id)).toBe('Page two says thanks.\n\nInvoice 12.03.2025');
+        const steps = await stepsOf(id);
+        for (const step of STEPS.filter((s) => s.extractsText)) {
+          expect(steps.get(step.name)).toMatchObject({ status: StepStatus.Skipped, attempts: 0, startedAt: null });
+        }
+        // The steps that read the text still run on it.
+        expect(steps.get('metadata')?.status).toBe(StepStatus.Succeeded);
+        expect(steps.get('index')?.status).toBe(StepStatus.Succeeded);
+        const [row] = await db.select().from(documents).where(eq(documents.id, id));
+        expect(row).toMatchObject({ status: DocumentStatus.Ready, documentDate: '2025-03-12', contentFormat: 'plain' });
+      });
+
+      it('keeps Markdown only when every source with text was Markdown', async () => {
+        const a = await seed('a', { text: '# One', contentFormat: 'markdown' });
+        const b = await seed('b', { text: '# Two', contentFormat: 'markdown' });
+        const c = await seed('c', { text: 'plain words' });
+        const both = await client().expectOk(MERGE, { input: { ids: [a, b], title: 'md' } });
+        const mixed = await client().expectOk(MERGE, { input: { ids: [a, c], title: 'mixed' } });
+        const formats = await db.select({ id: documents.id, format: documents.contentFormat }).from(documents);
+        const formatOf = (id: string) => formats.find((row) => row.id === id)?.format;
+        expect(formatOf(both.mergeDocuments.id)).toBe('markdown');
+        expect(formatOf(mixed.mergeDocuments.id)).toBe('plain');
+      });
+    });
+
+    it('reads the merged copy afresh when a source failed', async () => {
+      const a = await seed('a', { text: 'kept' });
+      const failed = await seed('failed', { status: DocumentStatus.Failed, ocrRequested: true });
+      const data = await client().expectOk(MERGE, { input: { ids: [a, failed], title: 'ab' } });
+      const id = data.mergeDocuments.id;
+      expect(await storedText(id)).toBeNull();
+      for (const row of (await stepsOf(id)).values()) {
+        expect(row.status).toBe(StepStatus.Queued);
       }
     });
 
