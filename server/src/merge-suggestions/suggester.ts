@@ -39,6 +39,15 @@ export interface MergeSuggester {
   /** Says a user's documents changed: their rescore waits until `quietSeconds` pass with no other. */
   notify(userId: string): void;
   /**
+   * Rescores one user now, with the model check after it, rather than after `quietSeconds`: what
+   * the person asks for with "Check again". A rescore of theirs already running is not run beside:
+   * this one follows it, and any number asked for meanwhile are that one run.
+   *
+   * @returns Once that run has finished, so the caller reads what it wrote. A failure is a log
+   *   line, as it is for a run an event started.
+   */
+  rescoreNow(userId: string): Promise<void>;
+  /**
    * Rescores, at once, every user with a mergeable document filed within `lookbackDays`, so what
    * finished while the server was down is scored.
    *
@@ -153,6 +162,20 @@ export function createMergeSuggester({
 
   return {
     notify,
+
+    async rescoreNow(userId) {
+      if (isStopping) {
+        return;
+      }
+      // The run asked for now stands in for the one the timer would start.
+      clearTimeout(timers.get(userId));
+      timers.delete(userId);
+      run(userId);
+      // Until the user's runs are done, the one after a running one included: that one is this.
+      for (let task = running.get(userId); task !== undefined; task = running.get(userId)) {
+        await task;
+      }
+    },
 
     async catchUp() {
       try {

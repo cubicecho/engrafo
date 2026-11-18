@@ -19,6 +19,7 @@ import {
   createTestDb,
   createUser,
   type FakeStorage,
+  inertMergeSuggester,
   type TestDb,
 } from '../helpers.ts';
 
@@ -112,6 +113,7 @@ describe('/mcp', () => {
       ocrAvailable: false,
       mergeAvailable: false,
       embedder,
+      mergeSuggester: inertMergeSuggester,
     });
     server = await new Promise<Server>((resolve) => {
       const listening = app.listen(0, '127.0.0.1', () => resolve(listening));

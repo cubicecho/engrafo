@@ -43,9 +43,9 @@ engrafo/
 │       │   ├── ui/          # cubeui primitives — vendored, not linted
 │       │   ├── *.tsx        # cubeui shells (PageLayout, CardLayout, SidebarLayout, LoadState, …)
 │       │   ├── layouts/     # app-layout: the sidebar shell (and the archive tree) around every signed-in page; require-auth: the gate in front of it
-│       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, mcp-settings, vision-settings, backup-settings, the dialogs
-│       ├── routes/          # login, verify, documents (upload + search), document (detail), processing, trash, settings
-│       ├── lib/             # apollo, auth, upload, query, format, archive, trash, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
+│       │   └── domain/      # archive-tree, archive-sidebar, saved-searches, document-thumbnail, status-badge, upload-panel, merge-suggestion-card, merge-suggestion-alert, mcp-settings, vision-settings, backup-settings, the dialogs
+│       ├── routes/          # login, verify, documents (upload + search), document (detail), processing, merge-suggestions, trash, settings
+│       ├── lib/             # apollo, auth, upload, query, format, archive, trash, merge-suggestions, folder-tree, search-filters, saved-searches, thumbnails, tree (vendored), page, cn()
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API and the pipeline (port 3004)
 │   ├── __generated__/       # Generated SDL (not committed)
@@ -80,7 +80,7 @@ engrafo/
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
 │       ├── merge/           # pdf (pikepdf + img2pdf through python3, detectMerge), merge (mergeDocuments), resolvers
-│       ├── merge-suggestions/ # features, score, group (the pure scorer), verdicts (combining the model's answers), prompt, candidates (loadCandidates), store (reconcile, rescoreUser, recordVerdict, markMerged), ai-check (checkUser), suggester (the debounced job)
+│       ├── merge-suggestions/ # features, score, group (the pure scorer), verdicts (combining the model's answers), prompt, candidates (loadCandidates), store (reconcile, rescoreUser, recordVerdict, markMerged, the shown reads, dismissSuggestion), ai-check (checkUser), suggester (the debounced job, rescoreNow), resolvers (mergeSuggestions, dismiss, rescore)
 │       ├── title-suggestion/ # prompt (the instruction, titlePrompt, sanitizeTitle), suggest (suggestDocumentTitle), resolvers
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
@@ -605,8 +605,8 @@ copies pages and draws nothing. Nothing from the sources' metadata is carried
 over; the metadata step reads the merged text afresh.
 
 **Suggested merges are stored, and a job writes them.** A scan filed as several documents
-(a page per file, front and back apart) is a `merge_suggestions` row (scoped like every
-user-owned table): `document_ids` in page order, `member_key` (the ids sorted and joined,
+(a page per file, front and back apart) is a `merge_suggestions` row (user-owned, with a
+`scope` entry, but out of the generated schema: see below): `document_ids` in page order, `member_key` (the ids sorted and joined,
 unique per user, so a set has one identity whatever its order), `links` (each adjacent
 step's rules score, in page order), `ai_verdicts` (the model's answers about those steps),
 `heuristic_confidence`, `confidence` and `reasons`, and `status` `open`, `dismissed` or
@@ -627,9 +627,12 @@ the text either side of one break, so it follows its two documents, not its row:
 keeps the verdicts of the open rows it replaces whose step it still has, the same two
 adjacent in the same order, and drops the rest, so a rescore never undoes the model's
 contribution and a page added into a step is asked about afresh. `mergeDocuments`
-marks the row whose `member_key` is the merged set `merged`. A row can go stale between
+marks the row whose `member_key` is the merged set `merged`, in whatever order the pages
+went; a set with a page left out or added is a different set, so its row stays open until the
+next rescore (which the merged copy finishing starts) decides what is left to suggest, and
+is hidden at once if the merged pages went to the trash. A row can go stale between
 runs, so a read for the person goes through `membersAreLive()` and `isShown()`
-(`loadOpenSuggestions`); the API's reads need both. `isShown()` is `confidence >=
+(`loadOpenSuggestions`, `countOpenSuggestions`). `isShown()` is `confidence >=
 minConfidence`: the rules never store less, so a row under it is one the model rejected. It
 stays open rather than deleted, because a deleted row would be found again by the next
 rescore, inserted with no verdict and asked about again, every time.
@@ -661,6 +664,48 @@ in a transaction holding the row, only while it is still open, still the same `m
 and still has that step, and recomputes `confidence` there; `rescoreUser` holds the rows it
 reads `FOR UPDATE`, so the two never overwrite each other. `stop()` aborts the questions not
 yet answered and waits for the pass.
+
+**Suggested merges are read through their own queries, never the generated ones.** A
+generated read cannot say "every member still the caller's, ready and out of the trash" or
+"not ruled out by the model", so `merge_suggestions` is in `SUGGESTION_TABLES`, out of the
+GraphQL schema with its relations, and `merge-suggestions/resolvers.ts` is the one door:
+`mergeSuggestions { suggestions(documentId), count }`, a root object like `trash`, whose
+`suggestions` go through `loadOpenSuggestions` (surest first; with `documentId`, only those it
+is in) and whose `count` through `countOpenSuggestions`, so the badge does not drag the rows
+along. Each suggestion's `documents` are plain rows in page order, read for all of them in one
+query by the caller's `user_id` and `notTrashed()` (relation fields are not loaded: the app
+names a folder by `folderId`); `band` is `confidenceBand`'s, and `reasons`, `verdicts` and
+`heuristicConfidence` are what the card shows of the rules' side and the model's. The table
+keeps its `scope` entry, as `contextValues` keeps its stamps, so putting it back cannot forget
+it. `dismissMergeSuggestion(id)` sets the caller's open row `dismissed`, answers true again for
+one already dismissed, is NOT_FOUND for anything else (a merged one, someone else's, a non-UUID),
+and logs the scores it had, which is the record of what people turned down.
+`rescoreMergeSuggestions` is "Check again": the suggester's `rescoreNow`, the same rescore and
+model check the timer runs, waited for, and joining a run of that user's already going rather
+than starting a second, so pressing it ten times is two runs at most. It answers the
+`MergeSuggestions` object, read afresh.
+
+**The suggested merges page, its badge and the document alert.** "Suggested merges" is a
+`NAV_ITEMS` place (`ROUTES.mergeSuggestions`) whose badge is `mergeSuggestions { count }`
+(`useMergeSuggestionCount` in `lib/merge-suggestions.ts`), refetched by name
+(`MERGE_SUGGESTION_QUERY_NAMES`) after a merge from either page, a dismissal and a rescore, as
+the trash's is. The suggester writes about `quietSeconds` after a batch settles, which no
+mutation in the app sees and the archive's poll stops before, so the count also polls at
+`MERGE_SUGGESTION_DEFAULTS.countIntervalMs` (a minute) and is asked again when the archive's
+ready count changes, since a document leaving `ready` hides its suggestion. The page is a
+`MergeSuggestionCard` per suggestion: the documents in page order with their first pages and
+folder paths, each a link to its page; the band in words and a percentage; the rules' reasons
+under For and Against, strongest first, marked by a tick or a cross as well as a colour; and the
+model's part in one line (`rules 72% · AI confirmed: the sentence runs on`, `modelSummary`), or
+nothing when it checked none. Review merge opens `MergeDocumentsDialog` filled in in the
+suggested order, with "Suggest a title" while `visionAvailable`, and sends `mergeDocuments`
+(the mutation and `mergeRefetchQueries` live beside the dialog, so both pages refetch the
+same); the page stays where it is and links to the merged copy. Dismiss is a plain button, since
+nothing is lost. `?review=<id>` is the dialog open, so a link can land in it, and a link to a
+suggestion gone since opens nothing. The document page draws `MergeSuggestionAlert` above the
+tabs from its own query, `suggestions(documentId)`, asked only once the document is `ready` and
+never by the poll that runs while it is processed, with Review merge a link to
+`mergeSuggestionPath(id)`.
 
 **A merged copy's title can be suggested, and the suggestion writes nothing.** While
 `visionAvailable`, the dialog's Title field has "Suggest a title", which asks

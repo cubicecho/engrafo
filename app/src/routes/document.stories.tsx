@@ -10,7 +10,7 @@ import {
 } from '@/__generated__/graphql';
 import { useArchive } from '@/lib/archive';
 import { clientId } from '@/lib/id';
-import { documentPath, ROUTES } from '@/lib/routes';
+import { documentPath, mergeSuggestionPath, ROUTES } from '@/lib/routes';
 import { SERVER_CONFIG } from '../../.storybook/archive.ts';
 import { DocumentRoute } from './document';
 
@@ -822,6 +822,71 @@ export const NotADuplicate: Story = {
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
     await expect(canvas.queryByText('You already have this file')).not.toBeInTheDocument();
+  },
+};
+
+const NEXT_PAGE_ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d70';
+const SUGGESTION_ID = '3f7c5d2e-0b41-4c8a-9e5b-1d2a3b4c5d71';
+
+/**
+ * The document may be one page of a scan filed as several. The page says so above the tabs, names
+ * the other page, and links to that suggestion's review.
+ */
+export const PartOfASuggestedMerge: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          mergeSuggestions: () => ({
+            count: 1,
+            suggestions: [
+              {
+                id: SUGGESTION_ID,
+                confidence: 0.87,
+                documents: [
+                  { id: ID, title: 'Lease agreement' },
+                  { id: NEXT_PAGE_ID, title: 'Lease agreement (2)' },
+                ],
+              },
+            ],
+          }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const title = await canvas.findByText('This may be one scan filed as several');
+    const alert = title.closest<HTMLElement>('[data-slot="alert"]');
+    if (alert === null) {
+      throw new Error('The suggestion is not an alert');
+    }
+    await expect(alert).toHaveTextContent('It may be part of a 2-page scan with Lease agreement (2) (87% sure).');
+    await expect(within(alert).getByRole('link', { name: 'Review merge' })).toHaveAttribute(
+      'href',
+      mergeSuggestionPath(SUGGESTION_ID),
+    );
+    // Above the tabs, where the duplicate warning goes.
+    const tabs = canvas.getByRole('tablist', { name: 'Document view' });
+    await expect(alert.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  },
+};
+
+/** A document in no suggestion draws no alert. */
+export const NoSuggestedMerge: Story = {
+  parameters: {
+    apolloClient: {
+      resolvers: {
+        Query: {
+          document: () => document({}),
+          mergeSuggestions: () => ({ count: 0, suggestions: [] }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Lease agreement' })).toBeInTheDocument();
+    await expect(canvas.queryByText('This may be one scan filed as several')).not.toBeInTheDocument();
   },
 };
 

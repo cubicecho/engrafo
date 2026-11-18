@@ -13,11 +13,14 @@ import { Button } from '@/components/ui/button';
 import { FormElement } from '@/components/ui/form-element';
 import { ChevronDown, ChevronUp, Sparkles, X } from '@/components/ui/icons';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ARCHIVE_QUERY_NAME } from '@/lib/archive';
 import { messageOf } from '@/lib/error-message';
 import { type FolderRow, folderOptions, folderPaths, TOP_LEVEL, TOP_LEVEL_LABEL } from '@/lib/folder-tree';
 import { formatBytes, joinStats } from '@/lib/format';
 import { MERGE_MIN_DOCUMENTS, type MergeCandidate, mergeTypeLabel, moveCandidate } from '@/lib/merge';
+import { MERGE_SUGGESTION_QUERY_NAMES } from '@/lib/merge-suggestions';
 import { useThumbnailUrls } from '@/lib/thumbnails';
+import { TRASH_QUERY_NAMES } from '@/lib/trash';
 
 // Asked anew on every press, never from the cache: pressing again is asking for another.
 const SuggestDocumentTitle = graphql(`
@@ -33,6 +36,33 @@ export interface MergeRequest {
   title: string;
   folderId: string | null;
   trashOriginals: boolean;
+}
+
+/** The merge itself, sent by whichever page opened the dialog. */
+export const MergeDocumentsMutation = graphql(`
+  mutation MergeDocuments($input: MergeDocumentsInput!) {
+    mergeDocuments(input: $input) {
+      id
+      title
+    }
+  }
+`);
+
+/**
+ * What a merge changes that is on screen somewhere: the new document is in the tree and the
+ * lists, a suggestion of that set is merged, and trashed originals leave the lists for the trash.
+ *
+ * @param request - The merge sent.
+ * @returns The Apollo names to refetch.
+ */
+export function mergeRefetchQueries(request: MergeRequest): string[] {
+  return [
+    ARCHIVE_QUERY_NAME,
+    'BrowseDocuments',
+    'SearchDocuments',
+    ...MERGE_SUGGESTION_QUERY_NAMES,
+    ...(request.trashOriginals ? TRASH_QUERY_NAMES : []),
+  ];
 }
 
 interface MergeDocumentsDialogProps {

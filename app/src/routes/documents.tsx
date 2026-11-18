@@ -6,7 +6,12 @@ import { ArchiveTree } from '@/components/domain/archive-tree';
 import { DocumentSearchResults } from '@/components/domain/document-search-results';
 import { ExportReceiptsButton } from '@/components/domain/export-receipts';
 import { FilteredDocuments } from '@/components/domain/filtered-documents';
-import { MergeDocumentsDialog, type MergeRequest } from '@/components/domain/merge-documents-dialog';
+import {
+  MergeDocumentsDialog,
+  MergeDocumentsMutation,
+  type MergeRequest,
+  mergeRefetchQueries,
+} from '@/components/domain/merge-documents-dialog';
 import type { MergeSelection } from '@/components/domain/merge-select';
 import { NewFolderButton } from '@/components/domain/new-folder-button';
 import { SaveSearchButton } from '@/components/domain/saved-searches';
@@ -18,7 +23,7 @@ import { PageLayout } from '@/components/page-layout';
 import { Button } from '@/components/ui/button';
 import { FileText, Layers, X } from '@/components/ui/icons';
 import { SearchInput } from '@/components/ui/search-input';
-import { ARCHIVE_QUERY_NAME, useArchive } from '@/lib/archive';
+import { useArchive } from '@/lib/archive';
 import { type MergeCandidate, setCandidates, toggleCandidate } from '@/lib/merge';
 import { FULL_WIDTH_BODY } from '@/lib/page';
 import { queryLike } from '@/lib/query';
@@ -30,7 +35,6 @@ import {
   toSearchFilterInput,
   writeSearchFilters,
 } from '@/lib/search-filters';
-import { TRASH_QUERY_NAMES } from '@/lib/trash';
 import { cn } from '@/lib/utils';
 
 const DocumentsPage = graphql(`
@@ -42,14 +46,6 @@ const DocumentsPage = graphql(`
       ocrDefault
       visionAvailable
       mergeAvailable
-    }
-  }
-`);
-
-const MergeDocuments = graphql(`
-  mutation MergeDocuments($input: MergeDocumentsInput!) {
-    mergeDocuments(input: $input) {
-      id
     }
   }
 `);
@@ -116,17 +112,11 @@ export function DocumentsRoute() {
           onSetMany: (candidates, picked) => setSelected((current) => setCandidates(current, candidates, picked)),
         }
       : undefined;
-  const [mergeDocuments] = useMutation(MergeDocuments);
+  const [mergeDocuments] = useMutation(MergeDocumentsMutation);
   const merge = async (request: MergeRequest) => {
     const { data } = await mergeDocuments({
       variables: { input: request },
-      // The new document is in the tree and the lists; trashed originals leave them for the trash.
-      refetchQueries: [
-        ARCHIVE_QUERY_NAME,
-        'BrowseDocuments',
-        'SearchDocuments',
-        ...(request.trashOriginals ? TRASH_QUERY_NAMES : []),
-      ],
+      refetchQueries: mergeRefetchQueries(request),
       awaitRefetchQueries: true,
     });
     setSelected([]);

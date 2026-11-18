@@ -14,7 +14,11 @@ import { requireAuth } from '../core/errors.ts';
 // biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 table/column type compat
 type AnyTable = any;
 
-/** The tables whose rows carry a `userId` and are scoped by it. */
+/**
+ * The tables whose rows carry a `userId` and are scoped by it. `mergeSuggestions` is out of the
+ * generated schema (SUGGESTION_TABLES) and read only by its own resolvers, and keeps its entry here
+ * as `contextValues` keeps its stamps: so that putting it back cannot forget it.
+ */
 export const USER_OWNED_TABLES = [
   'documents',
   'folders',
@@ -23,7 +27,7 @@ export const USER_OWNED_TABLES = [
   'savedSearches',
 ] as const;
 
-/** Every table drizzle-graphql will generate fields for. */
+/** Every table with a scope entry: the ones drizzle-graphql generates fields for, and mergeSuggestions. */
 export const ALL_TABLES = ['users', ...USER_OWNED_TABLES] as const;
 
 const ownedBy = (context: Context, table: AnyTable) => eq(table.userId, requireAuth(context));

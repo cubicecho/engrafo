@@ -130,7 +130,7 @@ export async function checkUser(
   if (vision === null) {
     return NOTHING_ASKED;
   }
-  const suggestions = await loadOpenSuggestions(deps.db, userId, settings);
+  const suggestions = await loadOpenSuggestions(deps.db, userId, { settings });
   const questions = stepsToAsk(suggestions, deps.failedSteps, now, settings);
   if (questions.length === 0) {
     return NOTHING_ASKED;

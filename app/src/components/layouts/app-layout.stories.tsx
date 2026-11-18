@@ -102,6 +102,31 @@ export const SettingsAtTheFoot: Story = {
 };
 
 /**
+ * The suggested merges row wears how many there are, as Trash wears its count: in the row's name
+ * as well as drawn, so it is heard and not only seen. None draws no badge rather than a zero.
+ */
+export const SuggestedMergesCount: Story = {
+  args: { contentSlot: <Page title="Documents" /> },
+  parameters: {
+    router: { initialEntries: [ROUTES.documents] },
+    apolloClient: {
+      resolvers: (() => {
+        const archive = archiveServer({ folders: [], documents: [] });
+        return { ...archive, Query: { ...archive.Query, mergeSuggestions: () => ({ count: 3, suggestions: [] }) } };
+      })(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const sidebar = within(within(canvasElement).getByRole('complementary'));
+    const places = within(sidebar.getByRole('navigation', { name: 'Main' }));
+    const row = await places.findByRole('link', { name: /^Suggested merges.*3/ });
+    await expect(row).toHaveAttribute('href', ROUTES.mergeSuggestions);
+    // Trash is empty here, and says nothing.
+    await expect(places.getByRole('link', { name: 'Trash' })).toBeVisible();
+  },
+};
+
+/**
  * A document, not the list. Nothing is marked current — which is the intended answer, and the
  * reason `Documents` is declared `end`: without it both this and the list would light up, and
  * two lit rows read as a bug rather than as "you are one level down".

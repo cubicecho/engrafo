@@ -23,6 +23,7 @@ import {
   createTestAuth,
   createTestDb,
   createUser,
+  inertMergeSuggester,
   sessionUserId,
   type TestDb,
 } from '../helpers.ts';
@@ -189,6 +190,7 @@ async function startEngrafo({ setAppUrl }: { setAppUrl: boolean }): Promise<void
       ocrAvailable: false,
       mergeAvailable: false,
       embedder: createFakeEmbedder(),
+      mergeSuggester: inertMergeSuggester,
       staticDir,
     }),
   );

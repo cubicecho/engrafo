@@ -7,6 +7,7 @@ import type { Backups } from '../backup/state.ts';
 import { appUrl, isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
 import { publicOrigin } from '../http/origin.ts';
+import type { MergeSuggester } from '../merge-suggestions/suggester.ts';
 import type { PipelineEvents } from '../pipeline/events.ts';
 import type { Embedder } from '../search/embedder.ts';
 import type { StorageSet } from '../storage/s3.ts';
@@ -30,6 +31,8 @@ export interface GraphQLOptions {
   mergeAvailable: boolean;
   /** Embeds search queries. */
   embedder: Embedder;
+  /** Rescores a user's suggested merges when they ask for it. */
+  mergeSuggester: Pick<MergeSuggester, 'rescoreNow'>;
   /** Export links and import runs, shared with the export route. */
   backups: Backups;
 }
@@ -49,6 +52,7 @@ export function createGraphQLHandler({
   ocrAvailable,
   mergeAvailable,
   embedder,
+  mergeSuggester,
   backups,
 }: GraphQLOptions): YogaServerInstance<ServerContext, Context> {
   const { schema } = createSchema(db);
@@ -78,6 +82,7 @@ export function createGraphQLHandler({
         ocrAvailable,
         mergeAvailable,
         embedder,
+        mergeSuggester,
         backups,
       };
     },

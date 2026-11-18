@@ -206,32 +206,103 @@ export function isShown(settings: MergeSuggestionSettings = MERGE_SUGGESTION_DEF
   return gte(mergeSuggestions.confidence, settings.minConfidence);
 }
 
+/** Which of the caller's shown suggestions a read wants. */
+export interface ShownSuggestionsOptions {
+  /** Only those with this document among their members. */
+  documentId?: string | undefined;
+  /** `minConfidence`. */
+  settings?: MergeSuggestionSettings | undefined;
+}
+
+/**
+ * The rows a person is shown: the caller's, open, every member still there to merge, and not ruled
+ * out by the model. Every read for the person goes through it, so none can show what the store
+ * hides.
+ */
+function shownTo(userId: string, { documentId, settings = MERGE_SUGGESTION_DEFAULTS }: ShownSuggestionsOptions) {
+  return and(
+    eq(mergeSuggestions.userId, userId),
+    eq(mergeSuggestions.status, MergeSuggestionStatus.Open),
+    documentId === undefined ? undefined : sql`${documentId}::uuid = any(${mergeSuggestions.documentIds})`,
+    membersAreLive(),
+    isShown(settings),
+  );
+}
+
 /**
  * The caller's open suggestions whose members are all still there to merge, and that the model
  * has not ruled out.
  *
  * @param db - The connection.
  * @param userId - The caller.
- * @param settings - `minConfidence`.
- * @returns The suggestions, the surest first.
+ * @param options - A document they must contain, and `minConfidence`.
+ * @returns The suggestions, the surest first, then the newest.
  */
 export async function loadOpenSuggestions(
   db: DB,
   userId: string,
-  settings: MergeSuggestionSettings = MERGE_SUGGESTION_DEFAULTS,
+  options: ShownSuggestionsOptions = {},
 ): Promise<MergeSuggestion[]> {
   return db
     .select()
     .from(mergeSuggestions)
-    .where(
-      and(
-        eq(mergeSuggestions.userId, userId),
-        eq(mergeSuggestions.status, MergeSuggestionStatus.Open),
-        membersAreLive(),
-        isShown(settings),
-      ),
-    )
-    .orderBy(desc(mergeSuggestions.confidence));
+    .where(shownTo(userId, options))
+    .orderBy(desc(mergeSuggestions.confidence), desc(mergeSuggestions.createdAt), mergeSuggestions.id);
+}
+
+/**
+ * How many suggestions `loadOpenSuggestions` would return, for the sidebar's badge, without the rows.
+ *
+ * @param db - The connection.
+ * @param userId - The caller.
+ * @param settings - `minConfidence`.
+ * @returns The count.
+ */
+export async function countOpenSuggestions(
+  db: DB,
+  userId: string,
+  settings: MergeSuggestionSettings = MERGE_SUGGESTION_DEFAULTS,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(mergeSuggestions)
+    .where(shownTo(userId, { settings }));
+  return row?.count ?? 0;
+}
+
+/** What `dismissSuggestion` did. */
+export type Dismissal =
+  /** It was open and is dismissed now; the scores it had, for the log. */
+  | { status: 'dismissed'; scores: Pick<MergeSuggestion, 'confidence' | 'heuristicConfidence'> }
+  /** It was dismissed already. */
+  | { status: 'already' }
+  /** Not the caller's, merged, or no such row. */
+  | { status: 'missing' };
+
+/**
+ * Records that the person does not want a suggested set merged, so it is never proposed again.
+ *
+ * @param db - The connection.
+ * @param userId - The caller. Only their rows are touched.
+ * @param id - The suggestion, already checked to be a UUID.
+ * @returns Whether it was dismissed now, was already, or is not one they can dismiss. A merged set
+ *   is the last: what was done with it is decided.
+ */
+export async function dismissSuggestion(db: DB, userId: string, id: string): Promise<Dismissal> {
+  const own = and(eq(mergeSuggestions.id, id), eq(mergeSuggestions.userId, userId));
+  const [scores] = await db
+    .update(mergeSuggestions)
+    .set({ status: MergeSuggestionStatus.Dismissed })
+    .where(and(own, eq(mergeSuggestions.status, MergeSuggestionStatus.Open)))
+    .returning({ confidence: mergeSuggestions.confidence, heuristicConfidence: mergeSuggestions.heuristicConfidence });
+  if (scores) {
+    return { status: 'dismissed', scores };
+  }
+  const [already] = await db
+    .select({ id: mergeSuggestions.id })
+    .from(mergeSuggestions)
+    .where(and(own, eq(mergeSuggestions.status, MergeSuggestionStatus.Dismissed)));
+  return already ? { status: 'already' } : { status: 'missing' };
 }
 
 /** The suggestion a verdict was asked for, as it was when the question was put. */
