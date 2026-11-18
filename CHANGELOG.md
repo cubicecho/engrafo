@@ -1,3 +1,9 @@
+# [4.27.0](https://github.com/cubicecho/engrafo/compare/v4.26.0...v4.27.0) (2026-11-18)
+
+### Features
+
+* **server:** confirm unsure merge suggestions with the vision model ([df98ca7](https://github.com/cubicecho/engrafo/commit/df98ca795630ead667c0c7761bb0bbca0c30e4f8))
+
 # [4.26.0](https://github.com/cubicecho/engrafo/compare/v4.25.1...v4.26.0) (2026-11-18)
 
 ### Features
