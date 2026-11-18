@@ -1,3 +1,10 @@
+# [4.28.0](https://github.com/cubicecho/engrafo/compare/v4.27.0...v4.28.0) (2026-11-18)
+
+### Features
+
+* **app:** a page, a badge and a document alert for suggested merges ([6570678](https://github.com/cubicecho/engrafo/commit/657067861c92c6972f8f9f784281b535996ba22f))
+* **server:** read, dismiss and rescore suggested merges ([80ab298](https://github.com/cubicecho/engrafo/commit/80ab298e7762a27dc6134a81f3b89b1ddc207446))
+
 # [4.27.0](https://github.com/cubicecho/engrafo/compare/v4.26.0...v4.27.0) (2026-11-18)
 
 ### Features
