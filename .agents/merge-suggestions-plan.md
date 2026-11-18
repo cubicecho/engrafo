@@ -66,11 +66,48 @@ confidence + reasons), `group.ts` (links → ordered groups).
   hides a suggestion. Each answer is cached on the suggestion row
   (`ai_checked`).
 
+As built (step 3, "option B"): the rules' side and the model's are stored apart
+and combined on write, so a rescore no longer erases the model's contribution.
+
+- `links` holds each adjacent step's rules score (`{ fromId, toId, heuristic }`,
+  `MergeLink.confidence` renamed `heuristic`), `ai_verdicts` the model's answers
+  (`{ fromId, toId, continues, confidence, reason, model, checkedAt }`).
+  `heuristic_confidence`, `confidence` and `reasons` are derived by
+  `combineScores` (`verdicts.ts`) and written with them. `ai_checked` is dropped:
+  it is `ai_verdicts` being non-empty, and nothing read it.
+- A step's combined confidence is `logistic(logit(heuristic) ± aiWeight ×
+  verdict.confidence)`, `aiWeight` 3 (as strong as a printed page marker); the
+  group's is the weakest step. Each verdict adds a reason, `AI: page 2 continues
+  page 1 (the sentence runs on)` or `… does not continue …`, with the points it
+  added.
+- A verdict holds while its two documents are adjacent in that order. `reconcile`
+  gives every group the verdicts of the open rows it replaces whose step it still
+  has. Deviation from "a new row starts with no verdicts": a set that gained or
+  lost a page is a new row (its `member_key` changed), and it keeps the verdicts
+  of the steps it still has, which is what keeping a verdict while the pair is
+  adjacent means. A set with no open predecessor starts with none; a dismissed
+  row's verdicts are not carried.
+- A rejected group (combined confidence under `minConfidence`) stays an open row,
+  hidden by `isShown()` in `loadOpenSuggestions`. Deleted, the next rescore would
+  insert it afresh and ask again on every rescore; kept, its verdict is there each
+  time the rules find it. **Step 4's generated reads must apply `isShown()` too.**
+- `checkUser` (`ai-check.ts`) runs after each rescore: steps of shown suggestions
+  within `aiBand` with no verdict, both sides with text, under `aiConcurrency`.
+  The prompt and parser are `prompt.ts` (`JUDGE_CONTINUATION`,
+  `continuationPrompt`, `parseContinuationAnswer` on agent-core's `parseJson`).
+  The call is `askTextQuestion` (`vision/ask.ts`), shared with the title
+  suggestion. A failure, a reply at `aiMaxResponseTokens` or one with no answer
+  is a log line and no verdict, remembered per step in memory for
+  `aiRetryMinutes`. `recordVerdict` writes conditionally in a transaction holding
+  the row; `rescoreUser` now reads its rows `FOR UPDATE`. `stop()` aborts the
+  questions and waits for the pass.
+
 ## 3. Storage: `merge_suggestions`
 
 Columns: `id`, `user_id`, `document_ids uuid[]` (in page order), `member_key`
 (the ids sorted and joined, unique per user: one identity per set whatever its
-order), `confidence`, `reasons jsonb`, `ai_checked`, `status` (`open` /
+order), `confidence`, `reasons jsonb`, `ai_checked` (since step 3: `links`,
+`ai_verdicts` and `heuristic_confidence` in its place), `status` (`open` /
 `dismissed` / `merged`), `created_at`, `updated_at`.
 
 As built (step 2): `rescoreUser` in `store.ts` reconciles through the pure
@@ -83,10 +120,9 @@ row gone stale between runs.
   have aged out of `lookbackDays` goes on the next rescore, even if nothing
   about it changed. If that proves annoying, keep open rows whose members are
   all older than the lookback.
-- For step 3: an update overwrites `confidence` and `reasons` with the
-  heuristic's and leaves `ai_checked` as it was. The model check has to decide
-  whether a rescore that changes a set's order or scores asks the model again,
-  or keep the heuristic score in its own column and re-apply the cached answer.
+- Step 3 resolved this: the heuristic score has its own columns (`links`,
+  `heuristic_confidence`) and a rescore re-applies the stored verdicts; the model
+  is asked again only about a step that has none.
 - Trashing a member does not wake the suggester; the row is stale until the
   next rescore, which is why reads go through `membersAreLive()`.
 
@@ -166,9 +202,9 @@ real behaviour later.
 
 ## Build order
 
-1. Scorer and its fixtures (pure, testable alone).
-2. Table, tenancy scope and the suggester.
-3. The model check.
+1. Scorer and its fixtures (pure, testable alone). **Done.**
+2. Table, tenancy scope and the suggester. **Done.**
+3. The model check. **Done** (see section 2, "As built").
 4. API.
 5. UI.
 6. Docs.

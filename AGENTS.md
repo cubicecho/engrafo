@@ -73,14 +73,14 @@ engrafo/
 │       │   ├── tenancy.ts   # Row scope + server-owned columns, as buildSchema config
 │       │   └── write-schema.ts # Prints the SDL for codegen
 │       ├── auth/            # Who the caller is and how they sign in: better-auth, auth-host, admin, session-store, rate-limit, resolvers
-│       ├── vision/          # The vision model: settings (the row, loadVisionConfig), models (listing an endpoint), resolvers
+│       ├── vision/          # The vision model: settings (the row, loadVisionConfig), models (listing an endpoint), ask (a text-only question), resolvers
 │       ├── sso/             # Pairing with an OIDC provider from a setup URL: settings, pairing (RFC 7591/7592), resolvers
 │       ├── documents/       # create.ts (insertPendingDocument, completePendingDocument), resolvers.ts — the document fields CRUD cannot express; duplicates.ts — documentDuplicates
 │       ├── folders/         # names.ts (the name rule and its lock), resolvers.ts (folder writes, setFolderMcp)
 │       ├── api-keys/        # resolvers.ts: list, make and revoke the caller's API keys
 │       ├── saved-searches/  # resolvers.ts: saveSearch, renameSavedSearch, deleteSavedSearch
 │       ├── merge/           # pdf (pikepdf + img2pdf through python3, detectMerge), merge (mergeDocuments), resolvers
-│       ├── merge-suggestions/ # features, score, group (the pure scorer), candidates (loadCandidates), store (reconcile, rescoreUser, markMerged), suggester (the debounced job)
+│       ├── merge-suggestions/ # features, score, group (the pure scorer), verdicts (combining the model's answers), prompt, candidates (loadCandidates), store (reconcile, rescoreUser, recordVerdict, markMerged), ai-check (checkUser), suggester (the debounced job)
 │       ├── title-suggestion/ # prompt (the instruction, titlePrompt, sanitizeTitle), suggest (suggestDocumentTitle), resolvers
 │       ├── mcp/             # access (what a key may see), tools (engrafo_*), endpoint (/mcp)
 │       ├── backup/          # tar (stream writer + reader), manifest (metadata.json), export, import, state (links, runs), endpoint (/export), resolvers
@@ -607,19 +607,32 @@ over; the metadata step reads the merged text afresh.
 **Suggested merges are stored, and a job writes them.** A scan filed as several documents
 (a page per file, front and back apart) is a `merge_suggestions` row (scoped like every
 user-owned table): `document_ids` in page order, `member_key` (the ids sorted and joined,
-unique per user, so a set has one identity whatever its order), the scorer's `confidence`
-and `reasons`, `ai_checked`, and `status` `open`, `dismissed` or `merged`. The scorer
+unique per user, so a set has one identity whatever its order), `links` (each adjacent
+step's rules score, in page order), `ai_verdicts` (the model's answers about those steps),
+`heuristic_confidence`, `confidence` and `reasons`, and `status` `open`, `dismissed` or
+`merged`. The last three are derived from `links` and `ai_verdicts` by `combineScores`
+(`verdicts.ts`) and written with them: a step's verdict moves its rules score in logit space
+by `aiWeight` × the model's confidence, the suggestion is as sure as its weakest step, and
+`reasons` holds the rules' and one per verdict (`AI: page 2 continues page 1 (…)`). The scorer
 (`merge-suggestions/features.ts`, `score.ts`, `group.ts`) is pure; `loadCandidates` hands
 it the caller's `ready`, `notTrashed()` PDFs and images from the last `lookbackDays`, with
 only `aiContextChars` from each end of the text (a ranged read from the end, `readTextEnd`)
 and pgvector's `avg(embedding)` over passages it filters by `user_id` itself.
 `rescoreUser` reconciles in one transaction through `reconcile`, which is pure: an open set
-found again takes the new order and scores, a new set is inserted open, an open set not
+found again takes the new order and links, a new set is inserted open, an open set not
 found is deleted (a member trashed, changed, or out of the lookback), and a dismissed or
 merged set is never proposed again and keeps the scores it had, as the record to tune the
-weights against; a larger set containing a dismissed one is a new set. `mergeDocuments`
+weights against; a larger set containing a dismissed one is a new set. A verdict is about
+the text either side of one break, so it follows its two documents, not its row: every group
+keeps the verdicts of the open rows it replaces whose step it still has, the same two
+adjacent in the same order, and drops the rest, so a rescore never undoes the model's
+contribution and a page added into a step is asked about afresh. `mergeDocuments`
 marks the row whose `member_key` is the merged set `merged`. A row can go stale between
-runs, so a read for the person goes through `membersAreLive()` (`loadOpenSuggestions`).
+runs, so a read for the person goes through `membersAreLive()` and `isShown()`
+(`loadOpenSuggestions`); the API's reads need both. `isShown()` is `confidence >=
+minConfidence`: the rules never store less, so a row under it is one the model rejected. It
+stays open rather than deleted, because a deleted row would be found again by the next
+rescore, inserted with no verdict and asked about again, every time.
 It is not a pipeline step: a step would send every finished document back through
 `catchUp()`, and the job looks across a user's documents, not at one. The runner emits
 `document.processed` (ready or failed) and `createMergeSuggester` waits per user until
@@ -629,13 +642,33 @@ rescores every user with a mergeable document in the lookback, which needs no re
 the last run; `stopOnSignals` stops it beside the watcher and the purger. A failure is a
 `[merge-suggestions]` line, never a crash.
 
+**The model checks the steps the rules are unsure of, and never decides alone.** After each
+rescore the suggester runs `checkUser` (`merge-suggestions/ai-check.ts`), which reads the
+vision settings per pass (`loadVisionConfig`; no model, nothing asked) and asks about every
+step of a shown suggestion whose rules score is within `aiBand` and that has no verdict, at
+most `aiConcurrency` at once. The model gets each side's title and file name, the last
+`aiContextChars` of the first text and the first of the second (`readTextEnd`,
+`readTextStart`), and a step with a side that has no text is not asked. It is asked in words
+through `askTextQuestion` (`vision/ask.ts`, which the title suggestion uses too: the stored
+endpoint and key, the admin's temperature and sampler, and `aiRequestTimeoutSeconds` when
+the admin's is longer), and answers JSON `{ continues, confidence, reason }`, which
+`parseContinuationAnswer` finds wherever the reply put it. The prompt says the documents'
+text is material to judge, not instructions. A reply that hit `aiMaxResponseTokens`, one
+with no readable answer, and an endpoint that fails are a log line and no verdict: the rules'
+score stands, and the step is remembered in memory and not asked again for `aiRetryMinutes`,
+so an endpoint that is down is not asked on every rescore. `recordVerdict` writes an answer
+in a transaction holding the row, only while it is still open, still the same `member_key`
+and still has that step, and recomputes `confidence` there; `rescoreUser` holds the rows it
+reads `FOR UPDATE`, so the two never overwrite each other. `stop()` aborts the questions not
+yet answered and waits for the pass.
+
 **A merged copy's title can be suggested, and the suggestion writes nothing.** While
 `visionAvailable`, the dialog's Title field has "Suggest a title", which asks
 `suggestDocumentTitle(ids)` (`title-suggestion/`), a root query named for any set of
 documents so a rename can use it later. It reads them with `loadOwnedDocuments`, the
 merge's own read (NOT_FOUND for anyone else's, a trashed or a `pending_upload` one, or a
-non-UUID), and asks the admin's vision model, text only, through `askReply` with its
-temperature and sampler: each one's title, `documentDate`, vendor and the start of its
+non-UUID), and asks the admin's vision model, text only, through `askTextQuestion`
+(`askReply` with its temperature and sampler): each one's title, `documentDate`, vendor and the start of its
 text from the text bucket, read only as far as `TITLE_SUGGESTION_DEFAULTS` allows (a cap
 per document, and an even share of a total, so the last of a long merge is still in it).
 No model is BAD_USER_INPUT. `sanitizeTitle` (pure, beside the prompt in `prompt.ts`) makes

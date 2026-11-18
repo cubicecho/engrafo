@@ -95,9 +95,13 @@ describe('tenancy at runtime', () => {
   });
 
   it('lists only the caller’s merge suggestions', async () => {
-    await db
-      .insert(dbSchema.mergeSuggestions)
-      .values({ userId: alice, documentIds: [aliceDoc], memberKey: aliceDoc, confidence: 0.9 });
+    await db.insert(dbSchema.mergeSuggestions).values({
+      userId: alice,
+      documentIds: [aliceDoc],
+      memberKey: aliceDoc,
+      heuristicConfidence: 0.9,
+      confidence: 0.9,
+    });
     const asAlice = await createClient(db, alice).expectOk('{ mergeSuggestions { documentIds status } }');
     expect(asAlice.mergeSuggestions).toEqual([{ documentIds: [aliceDoc], status: 'open' }]);
 

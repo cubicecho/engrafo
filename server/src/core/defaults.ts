@@ -609,6 +609,21 @@ export interface MergeSuggestionSettings {
   aiBand: Readonly<{ min: number; max: number }>;
   /** How much of each document's text the scorer and the model see, in characters from its start and its end. */
   aiContextChars: number;
+  /**
+   * How far the model's answer moves a step, in the scorer's points per unit of the model's
+   * confidence (0–1): added when it says the step continues, taken away when it says not.
+   */
+  aiWeight: number;
+  /** How many steps the model is asked about at once. */
+  aiConcurrency: number;
+  /** How long a step the model failed on waits before it is asked again, in minutes. */
+  aiRetryMinutes: number;
+  /** The longest reply the model may write about one step, in tokens. Room for a model that thinks first. */
+  aiMaxResponseTokens: number;
+  /** How long one answer may take, in seconds, when the admin's own timeout is longer. */
+  aiRequestTimeoutSeconds: number;
+  /** The longest reason kept from the model's answer, in characters. It is read on a card. */
+  aiReasonMaxChars: number;
   /** Filed at most this far apart is "close" in time. */
   closeSeconds: number;
   /** Filed at most this far apart, and further than `closeSeconds`, is "near". */
@@ -643,6 +658,14 @@ export const MERGE_SUGGESTION_DEFAULTS: Readonly<MergeSuggestionSettings> = Obje
   mediumBand: 0.65,
   aiBand: Object.freeze({ min: 0.4, max: 0.85 }),
   aiContextChars: 1500,
+  // As strong as the strongest signal, a printed page marker: a sure answer (0.9) takes a Medium
+  // step (0.73) to High (0.98), or below minConfidence (0.15).
+  aiWeight: 3,
+  aiConcurrency: 2,
+  aiRetryMinutes: 30,
+  aiMaxResponseTokens: 2048,
+  aiRequestTimeoutSeconds: 120,
+  aiReasonMaxChars: 200,
   // A sheet feeder files a page every few seconds; a person turning pages on a flatbed, or
   // photographing them, takes a minute or two. Someone scanning one document after another is a
   // few minutes apart, so "near" is barely a plus.

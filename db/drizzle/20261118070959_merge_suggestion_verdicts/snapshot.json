@@ -1,0 +1,137 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "4f137924-bd2d-49a2-a911-ca424247fda5",
+  "prevIds": [
+    "946bb6b0-267f-4194-9996-8b9a5fd205e6"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "merge_suggestions",
+        "links"
+      ],
+      "writes": [
+        "s|col|public.merge_suggestions.links",
+        "n|col|public.merge_suggestions.links",
+        "e|col|public.merge_suggestions.links"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "merge_suggestions",
+        "ai_verdicts"
+      ],
+      "writes": [
+        "s|col|public.merge_suggestions.ai_verdicts",
+        "n|col|public.merge_suggestions.ai_verdicts",
+        "e|col|public.merge_suggestions.ai_verdicts"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "merge_suggestions",
+        "heuristic_confidence"
+      ],
+      "writes": [
+        "s|col|public.merge_suggestions.heuristic_confidence",
+        "n|col|public.merge_suggestions.heuristic_confidence",
+        "e|col|public.merge_suggestions.heuristic_confidence"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "drop_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "merge_suggestions",
+        "ai_checked"
+      ],
+      "writes": [
+        "s|col|public.merge_suggestions.ai_checked",
+        "n|col|public.merge_suggestions.ai_checked",
+        "e|col|public.merge_suggestions.ai_checked"
+      ],
+      "reads": [
+        "n|tbl|public.merge_suggestions",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "links",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "ai_verdicts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "merge_suggestions",
+        "name": "heuristic_confidence",
+        "type": "double precision",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"merge_suggestions\",\"ai_checked\"]"
+    }
+  ]
+}

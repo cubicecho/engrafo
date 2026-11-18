@@ -12,7 +12,8 @@ import { confidenceBand, type MergeBand, type MergeReason, scorePair } from './s
 export interface MergeLink {
   fromId: string;
   toId: string;
-  confidence: number;
+  /** The rules' confidence (0–1) that `toId` continues `fromId`. */
+  heuristic: number;
 }
 
 /** Documents that look like one scan filed as several, and how sure that is. */
@@ -24,7 +25,7 @@ export interface MergeGroup {
   band: MergeBand;
   /** Every reason from every step, each once, the strongest for first. */
   reasons: MergeReason[];
-  /** Each adjacent pair's confidence, in order. */
+  /** Each adjacent pair's confidence, in page order: one fewer than `documentIds`. */
   links: MergeLink[];
 }
 
@@ -127,8 +128,8 @@ function describeGroup(ordered: readonly MergeCandidate[], settings: MergeSugges
     const a = ordered[index];
     return { a, b, score: scorePair(a, b, settings) };
   });
-  const links = steps.map(({ a, b, score }) => ({ fromId: a.id, toId: b.id, confidence: score.confidence }));
-  const confidence = Math.min(...links.map((link) => link.confidence));
+  const links = steps.map(({ a, b, score }) => ({ fromId: a.id, toId: b.id, heuristic: score.confidence }));
+  const confidence = Math.min(...links.map((link) => link.heuristic));
   const reasonsByText = new Map(steps.flatMap(({ score }) => score.reasons).map((reason) => [reason.text, reason]));
   return {
     documentIds: ordered.map((candidate) => candidate.id),

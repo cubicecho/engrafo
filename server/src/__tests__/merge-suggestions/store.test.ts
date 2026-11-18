@@ -42,7 +42,7 @@ describe('rescoreUser', () => {
       documentIds: idsOf(seeded, invoicePages),
       memberKey: memberKey(idsOf(seeded, invoicePages)),
       status: MergeSuggestionStatus.Open,
-      aiChecked: false,
+      aiVerdicts: [],
     });
     expect(row.confidence).toBeGreaterThan(0.85);
     expect(row.reasons.map((reason) => reason.text)).toContain('page 2 of 3 follows page 1');
